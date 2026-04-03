@@ -35,7 +35,7 @@ haptic-survey/
 
 - Python ≥ 3.7 on host PC (Linux / macOS / Windows)
 - MicroPython firmware: `ESP32_GENERIC_C6-20250415-v1.25.0.bin`
-- `esptool`, `mpremote`, `pyserial` (see [Installation](#installation))
+- Python dependencies in `requirements.txt` (see [Installation](#installation))
 
 ---
 
@@ -44,7 +44,7 @@ haptic-survey/
 ### 1. Install host-side Python tools
 
 ```bash
-pip install esptool mpremote pyserial
+pip install -r requirements.txt
 ```
 
 ### 2. Flash MicroPython onto the ESP32-C6 (one-time)
