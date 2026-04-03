@@ -6,9 +6,9 @@
 
 ## Overview
 
-This repository contains the hardware driver code and supporting materials for a bachelor's thesis investigating participant perceptions of three distinct haptic feedback methods. The study uses a custom multi-channel vibrotactile actuator platform (ESP32-C6) to deliver controlled stimuli, and collects qualitative survey data to compare user experience across methods.
+This repository contains the hardware driver code and supporting materials for a bachelor's thesis investigating the efficacy of haptic feedback modalities in teleoperation. Specifically, the project integrates a Robotiq 2F-85 Adaptive Gripper fitted with stress-deformation based tactile sensors. The tactile data is translated and sent to a custom multi-channel vibrotactile actuator platform (ESP32-C6) to deliver real-time stimuli. The study collects quantitative latency metrics and qualitative survey data to compare the user experience during delicate object manipulation.
 
-The `Multi-Tactile Driver` controls up to 5 ERM vibration motors via PWM, receiving binary float commands over USB serial from a host PC.
+The software stack controls up to 5 ERM vibration motors via PWM, alongside direct Modbus RTU communication with the Robotiq gripper via a host PC.
 
 ## Repository Structure
 
