@@ -12,7 +12,7 @@ NSLEEP_PIN     = 19
 PWM_FREQ       = 200
 PWM_MAX        = 1023
 
-TACTILE_PINS   = [      # IN1/IN2 pairs for TacTile H-bridges
+TACTILE_PINS   = [      # IN1/IN2 pairs for TacTiles H-bridges
     (20, 21),           # T1
     (14, 15),           # T2
     (6,  7),            # T3
@@ -105,7 +105,7 @@ def stream_mode(pwms):
 
 
 # ================= TACTILE MODES =================
-class TacTile:
+class TacTiles:
     def __init__(self, in1_pin, in2_pin):
         self.in1 = Pin(in1_pin, Pin.OUT)
         self.in2 = Pin(in2_pin, Pin.OUT)
@@ -147,7 +147,7 @@ class TacTile:
 
 def init_tactiles():
     Pin(NSLEEP_PIN, Pin.OUT).value(1)
-    return [TacTile(in1, in2) for in1, in2 in TACTILE_PINS]
+    return [TacTiles(in1, in2) for in1, in2 in TACTILE_PINS]
 
 
 def stop_all_tactiles(tactiles):
@@ -155,8 +155,8 @@ def stop_all_tactiles(tactiles):
         t.off()
 
 
-def tactile_test_mode(tactiles, period):
-    print("🔧 TacTile test mode")
+def tactiles_test_mode(tactiles, period):
+    print("🔧 TacTiles test mode")
     try:
         while True:
             print("Engaging...")
@@ -184,8 +184,8 @@ def tactile_test_mode(tactiles, period):
         pass  # bubble up to test_tactiles.py finally block
 
 
-def tactile_stream_mode(tactiles):
-    print("▶ TacTile streaming mode (Ctrl-C to exit)")
+def tactiles_stream_mode(tactiles):
+    print("▶ TacTiles streaming mode (Ctrl-C to exit)")
     buf = bytearray(20)
     last_rx = time.ticks_ms()
     last_action_time = [time.ticks_ms()] * len(tactiles)
@@ -213,7 +213,7 @@ def tactile_stream_mode(tactiles):
 # =================================================
 
 
-def tactile_vibrate(tactile, duration_s,
+def tactiles_vibrate(tactile, duration_s,
                     burst_count=TACTILE_VIBRATE_BURST_COUNT,
                     gap_ms=TACTILE_VIBRATE_GAP_MIN_MS):
     """Repeated bursts for duration_s seconds, simulating sustained vibration.
@@ -227,7 +227,7 @@ def tactile_vibrate(tactile, duration_s,
         pass
 
 
-def tactile_vibrate_intensity(tactile, intensity, duration_s,
+def tactiles_vibrate_intensity(tactile, intensity, duration_s,
                                burst_count=TACTILE_VIBRATE_BURST_COUNT):
     """Intensity 0.0-1.0 maps gap from TACTILE_VIBRATE_GAP_MAX_MS down to
     TACTILE_VIBRATE_GAP_MIN_MS, giving a perceptual intensity knob while
@@ -235,4 +235,4 @@ def tactile_vibrate_intensity(tactile, intensity, duration_s,
     intensity = max(0.0, min(1.0, intensity))
     gap_ms = int(TACTILE_VIBRATE_GAP_MAX_MS
                  - intensity * (TACTILE_VIBRATE_GAP_MAX_MS - TACTILE_VIBRATE_GAP_MIN_MS))
-    tactile_vibrate(tactile, duration_s, burst_count=burst_count, gap_ms=gap_ms)
+    tactiles_vibrate(tactile, duration_s, burst_count=burst_count, gap_ms=gap_ms)

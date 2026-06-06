@@ -3,7 +3,7 @@ from utilities import *
 # ------------------------------------------------------------------ CONFIG ---
 THUMB, INDEX, MIDDLE, RING, PINKY = 0, 1, 2, 3, 4
 
-METHOD  = "tactile"   # "vibmotor" or "tactile"
+METHOD  = "tactiles"  # "vibmotor" or "tactiles"
 FINGERS = [INDEX]      # any combination, e.g. [THUMB, INDEX, MIDDLE, RING, PINKY]
 
 # Change only if needed
@@ -12,7 +12,7 @@ DURATION_S  = 5.0   # seconds per test run
 # -----------------------------------------------------------------------------
 
 
-assert METHOD in ("vibmotor", "tactile")
+assert METHOD in ("vibmotor", "tactiles")
 assert len(FINGERS) > 0 and len(FINGERS) == len(set(FINGERS))
 assert all(0 <= f <= 4 for f in FINGERS)
 assert 0.0 <= INTENSITY <= 1.0
@@ -50,11 +50,11 @@ def run_tactile():
 
     tactiles = init_tactiles()
     try:
-        print("🔧 TacTile |", " ".join(NAMES[f] for f in FINGERS),
+        print("🔧 TacTiles |", " ".join(NAMES[f] for f in FINGERS),
               f"| intensity {INTENSITY} | {DURATION_S}s per finger"
               f" | cooldown {cooldown_ms}ms between fingers")
         for i, f in enumerate(FINGERS):
-            tactile_vibrate_intensity(tactiles[f], INTENSITY, DURATION_S)
+            tactiles_vibrate_intensity(tactiles[f], INTENSITY, DURATION_S)
             if i < len(FINGERS) - 1:   # no cooldown after the last finger
                 time.sleep_ms(cooldown_ms)
     finally:

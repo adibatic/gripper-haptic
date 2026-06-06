@@ -8,14 +8,14 @@
 
 This repository contains the hardware driver code and supporting materials for a bachelor's thesis investigating the efficacy of haptic feedback modalities in teleoperation. Specifically, the project integrates a Robotiq 2F-85 Adaptive Gripper fitted with stress-deformation based tactile sensors. The tactile data is translated and sent to a custom multi-channel haptic actuator platform (ESP32-C6) to deliver real-time stimuli. The study collects quantitative latency metrics and qualitative survey data to compare the user experience during delicate object manipulation.
 
-The software stack supports two haptic feedback methods — ERM vibration motors (PWM) and TacTile pin actuators (H-bridge) — selectable from a single script, alongside direct Modbus RTU communication with the Robotiq gripper via a host PC.
+The software stack supports two haptic feedback methods — ERM vibration motors (PWM) and TacTiles pin actuators (H-bridge) — selectable from a single script, alongside direct Modbus RTU communication with the Robotiq gripper via a host PC.
 
 ## Repository Structure
 
 ```text
 haptic-survey/
 ├── src/
-│   ├── utilities.py     # Shared MicroPython driver library (ERM + TacTile)
+│   ├── utilities.py     # Shared MicroPython driver library (ERM + TacTiles)
 │   ├── test_haptic.py   # Haptic test/stream script — set METHOD inside to switch type (ESP32-C6)
 │   ├── test_gripper.py  # Robotiq gripper control script (host PC)
 │   └── host_send.py     # PC-side script to send packets over serial
@@ -31,7 +31,7 @@ haptic-survey/
 - ESP32-C6 development board (e.g., ESP32-C6-DevKitC-1)
 - USB-C or USB-A **data** cable (not power-only)
 - Up to 5 ERM vibration motors (connected to M1–M5), or
-- Up to 5 TacTile pin actuators with H-bridge driver board (connected to T1–T5)
+- Up to 5 TacTiles pin actuators with H-bridge driver board (connected to T1–T5)
 
 ## Software Requirements
 
@@ -123,7 +123,7 @@ mpremote connect /dev/ttyACM0 fs rm boot.py
 Open `src/test_haptic.py` and set the options at the top of the file:
 
 ```python
-METHOD = "vibmotor"   # "vibmotor" for ERM motors, "tactile" for TacTile pins
+METHOD = "vibmotor"   # "vibmotor" for ERM motors, "tactiles" for TacTiles pins
 MODE   = "test"       # "test" for a timed self-contained run, "stream" for live packets
 ```
 
@@ -190,9 +190,9 @@ Selected via `METHOD = "vibmotor"` in `test_haptic.py`. The firmware applies a c
 
 NSLEEP is held HIGH (no sleep) via GPIO 19.
 
-### TacTile Pin Actuators
+### TacTiles Pin Actuators
 
-Selected via `METHOD = "tactile"` in `test_haptic.py`. TacTiles are bistable pin actuators driven by H-bridges. Each actuator is controlled by an IN1/IN2 pair — a short forward pulse engages the pin toward the skin; a reverse pulse retracts it. Because the actuator latches mechanically, zero power is drawn while held.
+Selected via `METHOD = "tactiles"` in `test_haptic.py`. TacTiles are bistable pin actuators driven by H-bridges. Each actuator is controlled by an IN1/IN2 pair — a short forward pulse engages the pin toward the skin; a reverse pulse retracts it. Because the actuator latches mechanically, zero power is drawn while held.
 
 | Mode | Behaviour |
 |------|-----------|

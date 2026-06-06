@@ -231,3 +231,6 @@ paper/*-eps-converted-to.pdf
 backups/
 *.bak
 *~
+
+# MCU Firmware Binaries
+ESP32_GENERIC_C6-*.bin
