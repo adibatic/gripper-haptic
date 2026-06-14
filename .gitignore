@@ -234,3 +234,7 @@ backups/
 
 # MCU Firmware Binaries
 ESP32_GENERIC_C6-*.bin
+
+# Ignored src files and folders
+src/9DTact-main/
+src/pyrobotiqgripper.py

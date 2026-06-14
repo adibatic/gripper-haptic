@@ -1,0 +1,15 @@
+pixel_per_mm = 0.034001771212698276
+lighting_threshold = 2
+max_index = 30
+
+diff_raw (ref - current - lighting_threshold), no contact:
+  min  = -7
+  max  = 1
+  mean = -2.4644
+  std  = 0.9372
+
+Pixel_to_Depth shape = (31,)
+Pixel_to_Depth[0:15] = [1.3684659  1.6855422  1.69543645 1.56234529 1.47812276 1.69774191
+ 1.6537696  1.33409401 1.68229921 1.94388285 1.73547809 1.79588351
+ 2.11142047 2.02048431 2.05875435]
+Pixel_to_Depth min/max = 1.3340940069126332, 2.599772101061487

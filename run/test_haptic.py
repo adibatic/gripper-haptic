@@ -1,10 +1,13 @@
+import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'src'))
 from utilities import *
 
 # ------------------------------------------------------------------ CONFIG ---
 THUMB, INDEX, MIDDLE, RING, PINKY = 0, 1, 2, 3, 4
 
-METHOD  = "tactiles"  # "vibmotor" or "tactiles"
-FINGERS = [INDEX]      # any combination, e.g. [THUMB, INDEX, MIDDLE, RING, PINKY]
+METHOD  = "vibmotor"  # "vibmotor" or "tactiles"
+FINGERS = [THUMB, INDEX]      # any combination, e.g. [THUMB, INDEX, MIDDLE, RING, PINKY]
 
 # Change only if needed
 INTENSITY   = 0.5   # 0.0–1.0, applies to all selected fingers

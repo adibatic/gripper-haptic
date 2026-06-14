@@ -1,0 +1,7 @@
+{
+    "extraPaths": [
+        "./src"
+    ],
+    "venvPath": "/home/adriel/Documents/haptic-feedback",
+    "venv": ".venv"
+}
