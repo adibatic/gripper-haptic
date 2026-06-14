@@ -1,6 +1,14 @@
+# Gripper + serial
 minimalmodbus==2.1.1
 pyRobotiqGripper==2.1.0
 pyserial==3.5
+
+# ESP32 tooling
 esptool==5.0.2
 mpremote==1.26.1
 pyocd==0.44.0
+pynput==1.8.2
+
+# Hand detection
+opencv-python==4.8.0.76
+mediapipe==0.10.35
