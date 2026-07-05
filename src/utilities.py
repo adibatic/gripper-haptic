@@ -1,3 +1,4 @@
+# pyright: reportAttributeAccessIssue=false
 from machine import Pin, PWM  # type: ignore
 import sys
 import struct
@@ -62,12 +63,26 @@ def apply_pattern(pwms, pattern):
         pwm.duty(int(val * PWM_MAX))
 
 
+def stop_duties(pwms):
+    """Silence all motors (duty -> 0) WITHOUT sleeping the driver chip.
+
+    Use this for the stream-mode watchdog gap. A <=200ms silence between
+    packets should NOT require pulling NSLEEP/EN low and re-initialising the
+    driver — doing that is what killed vibration in the old stream loop
+    (the chip went to sleep on the first idle tick and nothing woke it).
+    """
+    for pwm in pwms:
+        pwm.duty(0)
+
+
 def stop_all(pwms):
     # Stop PWM first
     for pwm in pwms:
         pwm.duty(0)
 
-    # Then hard-disable drivers
+    # Then hard-disable drivers (NSLEEP=0, EN=0). Full power-down.
+    # Only call this on real shutdown (finally block), NOT inside a hot loop,
+    # because nothing re-asserts the drivers until enable_drivers() runs again.
     disable_drivers()
 # =================================================
 
@@ -75,12 +90,16 @@ def stop_all(pwms):
 # ===================== MODES =====================
 def test_mode(pwms, pattern, period):
     print("🔧 Test mode:", pattern)
-    while True:
-        apply_pattern(pwms, pattern)
-        time.sleep(period)
+    enable_drivers()                 # assert once, up front
+    try:
+        while True:
+            apply_pattern(pwms, pattern)
+            time.sleep(period)
 
-        stop_all(pwms)
-        time.sleep(period)
+            stop_duties(pwms)        # silence but KEEP the chip awake
+            time.sleep(period)       # so cycle 2, 3, ... still buzz
+    finally:
+        stop_all(pwms)               # full power-down only on exit
 
 
 def stream_mode(pwms):
@@ -225,6 +244,97 @@ def tactiles_vibrate(tactile, duration_s,
             time.sleep_ms(gap_ms)
     except KeyboardInterrupt:
         pass
+
+
+# ============== AC / LRA BIPOLAR DRIVE (vibmotor replacement) ==============
+# Bench-confirmed: this actuator needs symmetric AC drive (bipolar square,
+# full peak-to-peak swing). Unipolar PWM (0->+V) produced no motion; bipolar
+# (-V<->+V) sustained vibration. So the old PWM-duty path is abandoned for
+# this hardware in favor of an H-bridge polarity-flip carrier.
+#
+# Pins reused from TACTILE_PINS (in1, in2) — same physical H-bridge legs.
+#
+# Intensity is scaled by an *envelope* (on-fraction within a short window),
+# not by duty, because stock machine.PWM can't generate the antiphase pair
+# needed for amplitude-scaled bipolar drive. The carrier itself (200Hz) is
+# the drive waveform, NOT a thermal "switch" — see datasheet note in caller.
+
+LRA_CARRIER_HZ     = 200    # proven on bench (Test D). Set to actuator resonance if known.
+LRA_HALF_PERIOD_US = 2500   # = 1_000_000 / (2 * LRA_CARRIER_HZ). Recompute if you change carrier.
+LRA_ENV_WINDOW_MS  = 50     # intensity envelope window (on-fraction). 20Hz drive, not a thermal switch.
+LRA_MAX_DUTY       = 1.0    # HARD thermal clamp on average on-fraction (0.0-1.0). LOWER if it runs hot.
+
+
+def init_bridges():
+    """Wake the driver chip and return [(in1, in2), ...] GPIO leg pairs.
+    Use this INSTEAD of init_pwms() for the LRA path — they share pins, so
+    never init both on the same channels at once."""
+    Pin(NSLEEP_PIN, Pin.OUT).value(1)
+    legs = []
+    for in1, in2 in TACTILE_PINS:
+        a = Pin(in1, Pin.OUT); a.value(0)
+        b = Pin(in2, Pin.OUT); b.value(0)
+        legs.append((a, b))
+    return legs
+
+
+class ACDriver:
+    """Non-blocking bipolar carrier + envelope intensity for selected fingers.
+
+    Call tick() as fast as possible from your main loop (it never sleeps).
+    Think of it like a render-loop callback (SwiftUI CADisplayLink / a game
+    tick): each call advances the carrier phase by wall-clock time and writes
+    the pins, so the buzz stays continuous no matter what else the loop does.
+    """
+    def __init__(self, legs, fingers):
+        self.legs = legs
+        self.fingers = fingers
+        self._intensity = 0.0
+        self._pol = 0
+        self._last_flip = time.ticks_us()
+        self._win_start = time.ticks_ms()
+
+    def set_intensity(self, val):
+        # Clamp to the hard thermal duty cap, not just to 1.0.
+        if val < 0.0:
+            val = 0.0
+        elif val > LRA_MAX_DUTY:
+            val = LRA_MAX_DUTY
+        self._intensity = val
+
+    def _coast(self):
+        for f in self.fingers:
+            a, b = self.legs[f]
+            a.value(0); b.value(0)
+
+    def tick(self):
+        # --- envelope: are we in the ON portion of the current window? ---
+        now_ms = time.ticks_ms()
+        pos = time.ticks_diff(now_ms, self._win_start)
+        if pos >= LRA_ENV_WINDOW_MS:
+            self._win_start = now_ms
+            pos = 0
+        on_ms = int(self._intensity * LRA_ENV_WINDOW_MS)
+        if self._intensity <= 0.0 or pos >= on_ms:
+            self._coast()
+            return
+
+        # --- carrier: flip polarity every half period ---
+        now_us = time.ticks_us()
+        if time.ticks_diff(now_us, self._last_flip) >= LRA_HALF_PERIOD_US:
+            self._last_flip = now_us
+            self._pol ^= 1
+        for f in self.fingers:
+            a, b = self.legs[f]
+            if self._pol:
+                a.value(1); b.value(0)   # forward half
+            else:
+                a.value(0); b.value(1)   # reverse half
+
+    def stop(self):
+        self._intensity = 0.0
+        self._coast()
+# ==========================================================================
 
 
 def tactiles_vibrate_intensity(tactile, intensity, duration_s,

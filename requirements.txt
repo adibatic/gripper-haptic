@@ -1,14 +1,33 @@
-# Gripper + serial
-minimalmodbus==2.1.1
-pyRobotiqGripper==2.1.0
-pyserial==3.5
+# requirements.txt — hapticf env (Python 3.10, CUDA 13.0)
+# Install ISOLATED from ~/.local (PYTHONNOUSERSITE=1) — that leak caused the old
+# "libnvJitLink.so.12: cannot open shared object file" crash, not a missing pin.
+#
+# Note: PyTorch (torch/torchvision/torchaudio, cu130 build) is installed
+# separately per README step 3 — install that first, then this file.
 
-# ESP32 tooling
-esptool==5.0.2
-mpremote==1.26.1
-pyocd==0.44.0
-pynput==1.8.2
+# --- Core scientific stack ---
+numpy<=1.24.4
+scipy<=1.10.1
+pandas>=2.3.3
+matplotlib>=3.10.9
+PyYAML>=6.0.3
 
-# Hand detection
-opencv-python==4.8.0.76
-mediapipe==0.10.35
+# --- Computer vision / tactile sensing ---
+opencv-python>=4.11.0
+open3d
+ml_collections>=0.1.1
+six
+
+# --- Gripper (Modbus RTU over RS-485) ---
+minimalmodbus>=2.1.1
+pyserial>=3.5
+
+# --- Haptic / ESP32 firmware deployment & streaming ---
+mpremote>=1.28.0
+esptool>=5.3.1
+
+# --- Hand tracking (cap keeps protobuf<4 / jax 0.4.x / numpy 1.24 compatible) ---
+mediapipe<=0.10.11
+
+# --- Keyboard input ---
+pynput>=1.8.2
