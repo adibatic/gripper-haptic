@@ -1,420 +1,267 @@
 # Tactile-Feedback Teleoperation: Grip Force and Grasping Performance Across Haptic Actuator Types for Fragile and Deformable Objects
 
-> [!IMPORTANT]
-> **Source Code Dependencies**
-> To run this project, you must first download the 9DTact source code and the Robotiq gripper driver into the `src/` directory:
-> 1. Clone or download the `9DTact` repository into `src/9DTact-main/`
-> 2. Download `pyrobotiqgripper.py` from the [pyRobotiqGripper Installation Guide](https://pyrobotiqgripper.readthedocs.io/en/latest/installation.html) and place it in `src/pyrobotiqgripper.py`
-
 ## Overview
 
-This repository contains the hardware driver code and supporting materials for a bachelor's thesis investigating the efficacy of haptic feedback modalities in teleoperation. Specifically, the project integrates a Robotiq 2F-85 Adaptive Gripper fitted with stress-deformation based tactile sensors. The tactile data is translated and sent to a custom multi-channel haptic actuator platform (ESP32-C6) to deliver real-time stimuli. The study collects quantitative latency metrics and qualitative survey data to compare the user experience during delicate object manipulation.
+This repository is the source code for a bachelor's thesis investigating grip force and grasping performance across haptic feedback actuator types in robotic gripper teleoperation. A Robotiq 2F-85 Adaptive Gripper is fitted with stress-deformation-based tactile sensors; tactile data is translated and sent to a custom multi-channel actuator platform (ESP32-C6) for real-time stimuli. The study collects quantitative latency metrics and qualitative survey data comparing user experience during delicate object manipulation.
 
-The software stack supports two haptic feedback methods — ERM vibration motors (PWM) and TacTiles pin actuators (H-bridge) — selectable from a single script, alongside direct Modbus RTU communication with the Robotiq gripper via a host PC.
+The stack supports two haptic feedback methods — LRA vibration motors (PWM) and TacTiles pin actuators (H-bridge) — selectable from a single script, plus direct Modbus RTU communication with the Robotiq gripper from a host PC.
 
 ## Repository Structure
 
 ```text
 haptic-feedback/
-├── src/                 # Source submodules and core libraries
-│   ├── 9DTact-main/     # 9DTact tactile sensor source code
-│   ├── pyrobotiqgripper.py # Robotiq gripper driver
-│   └── utilities.py     # Shared MicroPython driver library (ERM + TacTiles)
-├── run/                 # Execution scripts for tests and experiments
-│   ├── experiment.py    # Main sequence script
-│   ├── shape_config.yaml# Configuration file for shapes
-│   ├── test_9dtact.py   # 9DTact sensor testing script
-│   ├── test_gripper.py # Robotiq gripper control script
-│   ├── test_haptic.py   # Haptic test/stream script — set METHOD inside to switch type (ESP32-C6)
-│   ├── calibrate_9dtact.py # 9DTact calibration + live reconstruction CLI
-│   ├── collect_current_data.py # Records tactile depth maps + gripper motor current (gCU)
-│   ├── train_current_model.py  # Trains depth map -> grip current (mA) regressor
-│   └── run_current_model.py    # Runs the trained model live during grasping experiments
-├── models/              # Trained current-prediction models (per sensor)
-├── backups/             # System and data backups
-├── data/                # Experimental data logs
-├── designs/             # CAD models and 3D print assets
-├── figures/             # Experimental setup photos and result figures
-├── paper/               # Thesis manuscript (LaTeX source)
-├── requirements.txt     # Python dependencies
-└── README.md
+├── data/                           # Experimental data logs
+│   ├── experiment_logs/            # Logs from experiment.py
+│   └── results/                    # Results from data_analysis.py
+├── designs/                        # CAD models and 3D print assets
+├── run/                            # Files to be executed for the project
+│   ├── analysis.py                 # Data analysis pipeline (Friedman, Wilcoxon, figures)
+│   ├── config.py                   # Configuration parameters for the experiment
+│   ├── experiment.py               # Main experiment script
+│   ├── shape_config_left.yaml      # Configuration file for left 9Dtact sensor
+│   └── shape_config_right.yaml     # Configuration file for right 9Dtact sensor
+├── src/                            # Source submodules and core libraries
+│   ├── 9DTact-main/                # 9DTact tactile sensor source code
+│   ├── pyRobotiqGripper-master/    # Robotiq gripper driver
+│   ├── calibration.py              # Camera calibration, sensor calibration, and 3D reconstruction
+│   ├── measurement.py              # Records tactile deformation-based grip-force proxy
+│   └── utilities.py                # Shared MicroPython driver library (LRA + TacTiles)
+├── models/                         # Trained current-prediction models (per sensor)
+├── paper/                          # Thesis manuscript (LaTeX source)
+├── README.md                       # This file
+└── requirements.txt                # Python dependencies
 ```
 
 ## Hardware Requirements
 
-* ESP32-C6 development board (e.g., ESP32-C6-DevKitC-1)
-* USB-C or USB-A **data** cable (not power-only)
-* Up to 5 ERM vibration motors (connected to M1–M5), or
-* Up to 5 TacTiles pin actuators with H-bridge driver board (connected to T1–T5)
+* NVIDIA GPU with driver supporting **CUDA ≥13.0** (check with `nvidia-smi`)
+* Robotiq 2F-85 with USB-RS485 adapter (for communication to the host PC)
+* ESP32-C6 development board (custom-made for haptic feedback)
+* 1 USB-C **data** cable (for the ESP32-C6)
+* 2 USB-Micro-B cables (for 9DTact LED board power supply)
+* 3 USB-Micro-B **data** cables (for 9DTact cameras and hand tracking camera)
+* 2 LRA vibration motors (connected to thumb and index fingertips)
+* 2 TacTiles pin actuators (connected to thumb and index fingertips)
 
-## Software Requirements
+## Setup & Installation (One-Time)
 
-Two separate environments are used — one per subsystem. This keeps dependencies isolated and each environment minimal. ROS is not required.
+One unified conda environment (`hapticf`, Python 3.10) runs all host-side scripts on **Linux**:
+- Gripper control
+- ESP32-C6 serial
+- 9DTact tactile sensing
+- Hand tracking
+- Data analysis
 
-| Component | Environment | Reason |
-| --- | --- | --- |
-| Robotiq gripper + ESP32 host scripts | `.venv` (pyserial only) | Lightweight; no version pinning needed |
-| 9DTact shape reconstruction | `conda: 9dtact` (Python 3.8 + CUDA) | Requires Python 3.8 exactly; heavy GPU deps |
+ROS is not required.
 
-Other requirements:
+> Note on package installations: Use only `python -m pip`, not `conda install` in this env. Mixing the two causes `ClobberErrors` requiring a full rebuild.
 
-* Python ≥ 3.7 on host PC (Linux / macOS / Windows)
-* MicroPython firmware: `ESP32_GENERIC_C6-20250415-v1.25.0.bin`
-
----
-
-## Installation
-
-### Part 1 — Gripper and ESP32 host scripts (`.venv`)
-
-#### 1. Create and activate the virtual environment
-
+**1. Create and activate the conda environment**
 ```bash
-python -m venv .venv
+# conda remove -n hapticf --all -y   # uncomment to wipe an existing env before recreating
+conda create -n hapticf python=3.10 -y
+conda activate hapticf
+conda env config vars set PYTHONNOUSERSITE=1    # isolate from ~/.local
+conda deactivate && conda activate hapticf
 ```
 
+**2. Install matching PyTorch and other dependencies**
+Check your CUDA version first:
 ```bash
-# Linux / macOS
-source .venv/bin/activate
-
-# Windows (Command Prompt)
-.venv\Scripts\activate.bat
-
-# Windows (PowerShell)
-.venv\Scripts\Activate.ps1
+nvidia-smi | grep -i "CUDA Version"
 ```
-
-#### 2. Install host-side Python tools
-
+Drivers are backward compatible, so this just needs to be ≥13.0. Use `--extra-index-url` (not `--index-url`) since `cu130` doesn't mirror every dependency:
+```bash
+python -m pip install torch==2.9.1 torchvision==0.24.1 torchaudio==2.9.1 \
+  --extra-index-url https://download.pytorch.org/whl/cu130
+```
+After that, install the remaining dependencies:
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-#### 3. Flash MicroPython onto the ESP32-C6 (one-time)
-
-Download the firmware:
-
+> To verify the installation, run:
 ```bash
-wget https://micropython.org/resources/firmware/ESP32_GENERIC_C6-20250415-v1.25.0.bin
+python -c "import cv2, scipy, ml_collections, open3d, torch, numpy, serial, minimalmodbus, mediapipe, pynput, pandas; print('cuda:', torch.cuda.is_available()); print('all ok')"
 ```
 
-With both devices plugged in, verify they are detected:
-
-```bash
-ls /dev/tty{USB,ACM}*
-# Expected:
-# /dev/ttyACM0   ← ESP32-C6
-# /dev/ttyUSB0   ← Robotiq gripper (via USB-RS485 adapter)
-```
-
-If you get permission errors, add yourself to the `dialout` group:
-
-```bash
-sudo usermod -aG dialout $USER  # log out and back in after
-# To apply immediately without logging out:
-exec newgrp dialout
-```
-
-Erase and flash the ESP32 (⚠️ erases all existing data):
-
-The ESP32-C6 must be in bootloader mode before esptool connects. Enter it manually:
-
-1. Hold **BOOT**
-2. Press and release **RESET** — keep holding BOOT
-3. Run the command below
-4. Release **BOOT** once you see `Connecting...`
-
-```bash
-esptool --chip esp32c6 --port /dev/ttyACM0 erase-flash
-esptool --chip esp32c6 --port /dev/ttyACM0 --baud 460800 write-flash -z 0x0 ESP32_GENERIC_C6-20250415-v1.25.0.bin
-```
-
-#### 4. (Optional) Remove default boot script
-
-```bash
-mpremote connect /dev/ttyACM0 fs rm boot.py
-```
-
----
-
-### Part 2 — 9DTact shape reconstruction (`conda: 9dtact`)
-
-#### 1. Create and activate the conda environment
-
-```bash
-conda create -n 9dtact python=3.8 -y
-deactivate
-conda activate 9dtact
-which python  # confirm: .../envs/9dtact/bin/python
-```
-
-> **Important:** Use only `python -m pip` for all installs — never `conda install`. Mixing conda and pip package managers into the same env causes `ClobberErrors` that corrupt the environment and require a full rebuild.
-
-#### 2. Install PyTorch with CUDA 11.8
-
-```bash
-python -m pip install torch==2.0.1+cu118 torchvision==0.15.2+cu118 torchaudio==2.0.2+cu118 \
-  --index-url https://download.pytorch.org/whl/cu118
-```
-
-#### 3. Install remaining dependencies
-
-```bash
-python -m pip install \
-  opencv-python \
-  scipy==1.10.1 \
-  ml_collections==0.1.1 \
-  open3d \
-  PyYAML==6.0.1 \
-  numpy==1.23.5
-```
-
-#### 4. Register the local package
-
+**3. Install 9DTact and pyRobotiqGripper from source**
+Download or clone source code dependencies into `src/`:
+- [9DTact](https://github.com/linchangyi1/9DTact) → `src/9DTact-main/`
+- [pyRobotiqGripper](https://github.com/castetsb/pyRobotiqGripper/tree/master) → `src/pyRobotiqGripper-master/`
 ```bash
 cd src/9DTact-main
-python -m pip install -e . --no-deps
+python -m pip install -e . --no-deps --config-settings editable_mode=compat
+cd ../pyRobotiqGripper-master
+python -m pip install -e ".[all]" --no-deps --config-settings editable_mode=compat
 cd ../..
-```
-
-#### 5. Set the repo root on the Python path permanently
-
-```bash
 conda env config vars set PYTHONPATH=/home/adriel/Documents/haptic-feedback
-conda deactivate
-conda activate 9dtact
+conda deactivate && conda activate hapticf
 ```
 
-#### 6. Verify the environment
-
+> Note on versions: Both 9DTact and pyRobotiqGripper are actively developed upstream, so a fresh clone may pull a newer version than what this guide was tested against. If you hit install or import errors, check your installed version first:
 ```bash
-python -c "
-import cv2, scipy, ml_collections, open3d, torch, numpy
-print('cv2:', cv2.__version__)
-print('numpy:', numpy.__version__)
-print('torch:', torch.__version__)
-print('cuda:', torch.cuda.is_available())
-print('all ok')
-"
+pip show 9DTact pyrobotiqgripper
+```
+> This guide was last verified working against 9DTact **v1.0** and pyRobotiqGripper **v3.2.7**.
+
+
+**4. Flash MicroPython onto the ESP32-C6**
+Download the firmware `.bin` for your board from the [MicroPython downloads page](https://micropython.org/download/ESP32_GENERIC_C6/) and place it in the repo root.
+```bash
+ls /dev/tty{ACM}*   # ttyACM0 = ESP32-C6
+```
+Find the firmware file (paste this whole block at once — it's a single shell script):
+```bash
+BIN_FILE=$(ls -t *.bin 2>/dev/null | head -n 1)
+if [ -z "$BIN_FILE" ]; then
+  echo "No .bin file found — download the firmware first."
+  exit 1
+fi
+echo "Flashing: $BIN_FILE"
+```
+Then flash it:
+```bash
+python -m esptool --chip esp32c6 --port /dev/ttyACM0 erase-flash
+python -m esptool --chip esp32c6 --port /dev/ttyACM0 --baud 460800 write-flash -z 0x0 "$BIN_FILE"
 ```
 
-**Expected output:**
-
-```text
-cv2: 4.x.x
-numpy: 1.23.5
-torch: 2.0.1+cu118
-cuda: True
-all ok
-```
-
-> **Note:** If the env ever gets corrupted (`ClobberErrors` from accidental `conda install`), rebuild cleanly: `conda deactivate && conda remove -n 9dtact --all -y`, then repeat from the top.
-
-#### 7. Confirm the sensor cameras are detected
-
+**5. Confirm the sensor cameras are detected**
 ```bash
 ls /dev/video*
-# Should show at least /dev/video0
+ffplay /dev/videox   # Replace x with each index
 ```
+After visual check, set `HAND_CAM_INDEX`, `TACTILE_CAM_L`, and `TACTILE_CAM_R` in `run/config.py` before each session.
 
-To identify which index corresponds to which camera:
+
+**6. Calibrate the 9DTact sensors**
+Prepare a calibration board from `src/9DTact-main/9DTact_Design/fabrication/calibration_board.STL` and a ball of radius 4.0mm, before running the following commands:
+```bash
+python src/calibration.py calibrate-camera --side left        # calibration board
+python src/calibration.py calibrate-camera --side right
+python src/calibration.py calibrate-sensor --side left        # 4.0mm ball
+python src/calibration.py calibrate-sensor --side right
+python src/calibration.py reconstruct --side left             # any object
+python src/calibration.py reconstruct --side right
+```
+> For each step, press **`y`** with nothing touching the sensor to save the reference frame, then press the board/ball/object onto the sensor and **`y`** again to capture. `reconstruct` opens a live tactile image, depth map, and point cloud. If the detected grid-point count is off in calibration, adjust lighting/contact and rerun.
+> Press `q` to exit the window.
+
+
+**7. Collect grip force proxy via gel deformation**
+The Robotiq exposes no F/T reading and its `gCU` current register reads 0 mA regardless of contact, so grip force is derived from gel deformation instead (`deformation = height_map − baseline`). `experiment.py` computes this live per trial; `measurement.py` is the standalone version for calibration/characterization only.
+
+| Metric | Meaning |
+| --- | --- |
+| `volume` | Σ\|deformation\| over the contact region — headline force proxy |
+| `area_px` | Pixels in contact |
+| `max_deform_mm` | 99th-percentile deformation depth |
+| `mean_deform_mm` | Mean deformation over the contact region |
 
 ```bash
-for i in /dev/video*; do echo "$i: $(cat /sys/class/video4linux/$(basename $i)/name 2>/dev/null)"; done
+python src/measurement.py --side left --out data/left --rate 20 --duration 30 --show
+python src/measurement.py --side right --out data/right --rate 20 --duration 30 --show
 ```
-
-Verify visually if needed:
-
-```bash
-ffplay /dev/videox   # replace x with the index to check
-```
-
-Update `HAND_CAM_INDEX` at the top of `test_gripper.py` and `TACTILE_CAM_L` / `TACTILE_CAM_R` at the top of `calibrate_9dtact.py` accordingly before each session.
+`volume` is uncalibrated (∝ force, not Newtons) — fine for cross-condition comparison as-is. To convert to Newtons: press at several known forces (scale/load cell), fit `force_N = a*volume + b` via `np.polyfit`, and set `FORCE_CAL_A`/`FORCE_CAL_B` in `experiment.py`. Calibration is only valid if the gel, sensor, and `--contact-thresh` stay fixed between calibration and trials.
 
 ---
 
-## Usage
+## Experiment
 
-### 1. Robotiq 2F-85 Gripper (`test_gripper.py`)
+**Prerequisites:**
+* `hapticf` conda env is set up and activated (Setup & Installation, Step 1).
+```bash
+conda activate hapticf
+```
+* ESP32-C6 flashed and Robotiq gripper connected (Setup & Installation, Step 4).
+```bash
+ls /dev/tty{USB,ACM}*   # ttyACM0 = ESP32-C6, ttyUSB0 = Robotiq (via USB-RS485)
+```
+* Camera indices correctly assigned in `run/config.py` (Setup & Installation, Step 5).
+* Left and right sensors fully calibrated (Setup & Installation, Step 6).
 
-This runs on the host PC directly, not on the ESP32. Activate the venv first:
+> **Before your first participant — go/no-go check:**
+> 1. Gripper **open / sensor untouched** at launch — the baseline is captured at startup, so contact here corrupts every `volume`.
+> 2. Record one **throwaway trial** (`r` to start/stop): confirm the `Fp:` readout rises on contact and returns to ~0 on release, and that the haptic actuator actually fires.
+> 3. Reporting **Newtons**? Calibrate ([3b](#3b-grip-force-modeling-deformation-proxy)) and then freeze the gel/sensor/`--contact-thresh` for the rest of the study. For **relative** cross-condition comparison, skip calibration.
+> 4. Relaunch `experiment.py` **per participant** so a drifting gel baseline doesn't bias `volume`.
+
+**Step 1 — Start the ESP32 receiver**
+
+The board runs the **receiver**; `experiment.py` is the sender. Set `METHOD="vibmotor"`, `MODE="stream"` in `run/test_haptic.py`, then in a separate terminal:
 
 ```bash
-source .venv/bin/activate
-python run/test_gripper.py   # Make sure the hand-tracking webcam is connected
+conda activate hapticf
+python -m mpremote connect /dev/ttyACM0 fs cp src/utilities.py :
+python -m mpremote connect /dev/ttyACM0 fs cp run/test_haptic.py :
+python -m mpremote connect /dev/ttyACM0 repl
 ```
 
-A successful run prints:
-
-```
-🤖 Initializing Robotiq 2F-85 Gripper...
-⚠️ Activating... keep hands clear!
-✅ Activated! Moving to positions...
-Moved to half-open position.
-```
-
----
-
-### 2a. 9DTact Sensor Setup and Testing
-
-All 9DTact commands run from inside the repo root with the `9dtact` conda env active:
-
-```bash
-deactivate          # exit .venv if active
-conda deactivate     # exit base (repeat if prompt still shows extra envs)
-conda activate 9dtact
-which python         # should show .../envs/9dtact/bin/python
-```
-
-#### Step 1 — Camera calibration
-
-3D-print the calibration board first: `9DTact_Design/fabrication/calibration_board.STL`
-
-```bash
-python run/calibrate_9dtact.py calibrate-camera --side left
-python run/calibrate_9dtact.py calibrate-camera --side right
-```
-
-With nothing touching the sensor, press **`y`** to save the reference frame. Then press the calibration board flat onto the sensor and press **`y`** again to capture the sample frame. The script detects the grid points and computes the pixel remap and pixel-per-mm scale. If the detected point count doesn't match the expected grid size, it warns — adjust lighting or contact and rerun.
-
-#### Step 2 — Sensor (depth) calibration
-
-You need a ball with radius **~4.0 mm** (exact value depends on your gel surface thickness).
-
-```bash
-python run/calibrate_9dtact.py calibrate-sensor --side left
-python run/calibrate_9dtact.py calibrate-sensor --side right
-```
-
-With nothing touching the sensor, press **`y`** to save the reference frame. Then press the ball onto the sensor — the sample frame is captured automatically, and the ball indentation is used to build the pixel-brightness-to-depth lookup table.
-
-#### Step 3 — Shape reconstruction and data output
-
-```bash
-python run/calibrate_9dtact.py reconstruct --side left
-python run/calibrate_9dtact.py reconstruct --side right
-```
-
-* Live tactile image, depth map, and an Open3D point cloud window will appear.
-* Press **`q`** in the image window (or close the Open3D window) to stop.
-* If this works, your sensor is functional. Reconstruction quality reflects how well focus and calibration were done.
-
-**To view both sensors at once, run each in its own terminal** (do not use `--side both` — see below):
-
-1. Open a new terminal tab/window (e.g. `Ctrl+Shift+T` for a new tab, `Ctrl+Shift+N` for a new window in most Linux terminal emulators).
-2. In the new terminal, activate the env and navigate to the repo:
-   ```bash
-   conda activate 9dtact
-   which python   # confirm: .../envs/9dtact/bin/python
-   cd ~/Documents/haptic-feedback
-   python run/calibrate_9dtact.py reconstruct --side right
-   ```
-3. In the original terminal, run the other side:
-   ```bash
-   python run/calibrate_9dtact.py reconstruct --side left
-   ```
-
-> **`--side both` is not supported on this setup.** It runs each sensor in its own Python thread, but `cv2.VideoCapture`/`cv2.imshow` and Open3D are not thread-safe with this OpenCV/Qt build — it fails with `'NoneType' object is not subscriptable` and `QObject::killTimer: Timers cannot be stopped from another thread`. Always use two separate terminal processes instead, as above.
-
-The grip force modeling scripts below (`run/collect_current_data.py`, `run/run_current_model.py`) call the same `Sensor` class directly for their depth-map data, independent of `calibrate_9dtact.py reconstruct`.
-
----
-
-### 2b. Grip Force Modeling (depth map → motor current)
-
-> **Run from `run/` with the `9dtact` conda env active.** These scripts require both the 9DTact sensors (calibrated, step 2 above) and the Robotiq 2F-85 connected via `/dev/ttyUSB0` (Modbus RTU, 115200 baud).
-
-The Robotiq gripper does not provide a true 6-axis force/torque reading. The only force-related signal available over Modbus is the instantaneous motor current (`gCU` register), where the reported value × 10 ≈ current in mA. This is used as a 1D proxy for grip effort, regressed against the tactile sensor's depth map.
-
-**Step 1 — Collect synchronized data**
-
-For one sensor at a time, slowly close the gripper onto a test object while recording the depth map and motor current together:
-
-```bash
-python run/collect_current_data.py --side left  --out data/left  --rate 20 --duration 30
-python run/collect_current_data.py --side right --out data/right --rate 20 --duration 30
-```
-
-* `--gripper-port` defaults to `auto` (auto-detects `/dev/ttyUSB0`); pass it explicitly if auto-detection fails.
-* Vary contact force, object shape, and grip speed across multiple runs (concatenate or keep as separate datasets) for a model that generalizes.
-* Output: `<out>/images/*.npy` (depth maps, float32, mm) and `<out>/current.csv` (idx, t, current_mA, gripper_pos_bit, image_file).
-
-**Step 2 — Train the regressor**
-
-```bash
-python run/train_current_model.py --data data/left  --out models/left  --epochs 100
-python run/train_current_model.py --data data/right --out models/right --epochs 100
-```
-
-Outputs in `models/<side>/`, useful for physics analysis:
-
-* `model.pt` — trained weights + normalization stats
-* `train_history.csv`, `training_curve.png` — convergence
-* `test_predictions.csv` — per-sample measured vs predicted current (mA)
-* `test_metrics.csv` — RMSE, MAE, R², max error (mA)
-* `predicted_vs_measured.png` — linearity/bias check
-* `current_timeseries.png` — measured vs predicted over the test sequence
-
-**Step 3 — Run live during grasping experiments**
-
-```bash
-python run_current_model.py --side left --model models/left/model.pt --log left_log.csv
-# Also compare against the live measured current:
-python run_current_model.py --side left --model models/left/model.pt --log left_log.csv --gripper-port /dev/ttyUSB0
-```
-
-Repeat steps 1–3 independently for each sensor (left/right) — each finger needs its own dataset and model.
-
----
-
-### 3. Haptic Wearable (`test_haptic.py`)
-
-> **Note:** Always use `mpremote repl` to run scripts on the ESP32-C6. `mpremote run` does not relay Ctrl-C to the board — the script will keep running even after the host process exits. Inside the REPL, **Ctrl-C** interrupts the running script and **Ctrl-X** exits the REPL.
-
-Activate the venv first:
-
-```bash
-source .venv/bin/activate
-```
-
-Open `src/test_haptic.py` and set the options at the top of the file:
-
-```python
-METHOD = "vibmotor"   # "vibmotor" for ERM motors, "tactiles" for TacTiles pins
-MODE   = "test"       # "test" for a timed self-contained run, "stream" for live packets
-```
-
-Select which fingers to activate and set intensity per finger — the file has step-by-step comments guiding you through this.
-
-Copy files to the board, then open the REPL:
-
-```bash
-mpremote connect /dev/ttyACM0 fs cp src/utilities.py :
-mpremote connect /dev/ttyACM0 fs cp src/test_haptic.py :
-mpremote connect /dev/ttyACM0 repl
-```
-
-Inside the REPL:
+In the REPL, start it, then detach with **Ctrl-X** (frees the port, leaves it running):
 
 ```python
 exec(open('test_haptic.py').read())
 ```
 
-In test mode the ESP32 prints a summary of what is running, for example:
+**Step 2 — Run the experiment**
+
+```bash
+conda activate hapticf
+python run/experiment.py --condition lra --participant P01 --object fragile --out data/experiment_logs
+```
+
+| Flag | Values | Description |
+| --- | --- | --- |
+| `--condition` | `visual_only`, `lra`, `tactiles` | Labels the saved data with the feedback condition. Does **not** switch actuator hardware — that depends on which firmware is loaded on the ESP32. |
+| `--participant` | any string, e.g. `P01` | Participant ID, included in trial filenames. |
+| `--object` | `fragile`, `deformable` | Starting object class for trial filenames. Switch mid-session with **`o`** (cannot switch while recording). |
+| `--out` | directory path | Where to save trial CSVs. Default: `data/experiment_logs`. |
+
+**Controls:**
+
+| Key | Action |
+| --- | --- |
+| `m` | Toggle hand-tracking / manual gripper control |
+| `r` | Start / stop recording a trial |
+| `o` | Toggle object class (`fragile` ↔ `deformable`) — only when not recording |
+| `↑` / `k` | Open gripper (manual mode only) |
+| `↓` / `j` | Close gripper (manual mode only) |
+| `q` | Quit |
+
+**Trial output files:**
 
 ```
-🔧 Vibmotor test
-  THUMB  (ch0) → intensity 0.5
-  INDEX  (ch1) → intensity 0.5
-  MIDDLE (ch2) → intensity 0.5
-  RING   (ch3) → intensity 0.5
-  PINKY  (ch4) → intensity 0.5
-  Duration: 5.0s
+data/experiment_logs/<participant>_<condition>_<object>_trial<N>.csv
 ```
+
+Columns per row (~30 Hz while recording is active):
+
+| Column | Description |
+| --- | --- |
+| `t` | Seconds since trial start |
+| `gripper_pos_bit` | Raw Robotiq position (0–225) |
+| `force_proxy` | Deformation volume — grip-force proxy (uncalibrated). Replaces the dead `current_mA`. See [3b](#3b-grip-force-modeling-deformation-proxy) |
+| `force_N` | Calibrated force (N), `FORCE_CAL_A*volume + FORCE_CAL_B`; empty unless calibration constants are set in `experiment.py` |
+| `max_depth_mm` | Raw max sensor indentation depth (mm) |
+| `haptic_intensity` | 0.0–1.0 value streamed to ESP32 |
+| `motion_mode` | `hand_tracking` or `manual` |
+
+**Analyzing results:**
+
+```bash
+python run/analyze_results.py \
+  --trials-dir data/experiment_logs \
+  --likert-csv data/experiment_logs/likert_responses.csv \
+  --out results
+```
+
+See `run/analyze_results.py` for the full Chapter 5 analysis pipeline (Friedman test, Wilcoxon, time-series figures).
+
+> **Camera index note:** `HAND_CAM_INDEX` must not equal `TACTILE_CAM_L` or `TACTILE_CAM_R` at the top of `experiment.py` — the script checks this at startup and exits with an error if they collide. Update all three constants before each session.
 
 ---
 
-## How It Works
+
 
 ### Robotiq 2F-85 (`test_gripper.py`)
 
@@ -427,7 +274,7 @@ The gripper is controlled from the host PC via Modbus RTU at 115200 baud over a 
 | Protocol | Modbus RTU |
 | Slave ID | 0x09 |
 
-### ERM Vibration Motors
+### LRA Vibration Motors
 
 Selected via `METHOD = "vibmotor"` in `test_haptic.py`. The firmware applies a continuous PWM signal per channel. Values are clamped to `[0.0, 1.0]` and mapped to a 10-bit duty cycle (0–1023) at 200 Hz. In streaming mode, if no packet is received within 200 ms all motors stop automatically.
 

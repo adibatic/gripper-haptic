@@ -1,10 +1,10 @@
 """
-calibrate_9dtact.py — Per-sensor calibration and reconstruction for 9DTact on Robotiq 2F-85.
+calibration.py — Per-sensor calibration and reconstruction for 9DTact on Robotiq 2F-85.
 
-Subcommands:
-    python calibrate_9dtact.py calibrate-camera --side {left,right}
-    python calibrate_9dtact.py calibrate-sensor --side {left,right}
-    python calibrate_9dtact.py reconstruct      --side {left,right,both}
+Subcommands (run from repo root):
+    python src/calibration.py calibrate-camera --side {left,right}
+    python src/calibration.py calibrate-sensor --side {left,right}
+    python src/calibration.py reconstruct      --side {left,right,both}
 
 calibrate-camera : Step 1 — camera intrinsic/grid calibration using the
                     printed calibration board.
@@ -28,24 +28,28 @@ import numpy as np
 from scipy.interpolate import Rbf
 
 # ---------------------------------------------------------------------------
-# Path setup — ensure src/9DTact-main is importable
+# Path setup — ensure src/9DTact-main and scripts/ (config.py, yaml configs)
+# are importable/reachable from here.
 # ---------------------------------------------------------------------------
 _repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _tact_main_dir = os.path.join(_repo_root, "src", "9DTact-main")
+_scripts_dir = os.path.join(_repo_root, "scripts")
 if _tact_main_dir not in sys.path:
     sys.path.insert(0, _tact_main_dir)
+if _scripts_dir not in sys.path:
+    sys.path.insert(0, _scripts_dir)
 
-CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_DIR = _scripts_dir   # shape_config_*.yaml live in scripts/, not here
 CONFIG_PATHS = {
     'left': os.path.join(CONFIG_DIR, "shape_config_left.yaml"),
     'right': os.path.join(CONFIG_DIR, "shape_config_right.yaml"),
 }
 
 # ---------------------------------------------------------------------------
-# Verified hardware indices and per-camera orientation corrections
+# Camera indices — set once in scripts/config.py, shared with measurement.py
+# and experiment.py. Per-camera orientation corrections still applied below.
 # ---------------------------------------------------------------------------
-TACTILE_CAM_L = 4   # Left tactile sensor (/dev/videoX)
-TACTILE_CAM_R = 2   # Right tactile sensor (/dev/videoX)
+from config import TACTILE_CAM_L, TACTILE_CAM_R
 
 thread_local = threading.local()
 _real_video_capture = cv2.VideoCapture
@@ -62,11 +66,9 @@ class RotatedVideoCapture:
         if image is None:
             return image
         if self.index == TACTILE_CAM_L:
-            image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
         elif self.index == TACTILE_CAM_R:
             image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
-            image = cv2.flip(image, 0)
-            image = cv2.flip(image, 1)
         return image
 
     def read(self, *args, **kwargs):
@@ -430,15 +432,15 @@ def reconstruct_both():
     "QObject::killTimer: Timers cannot be stopped from another thread".
 
     Use two separate terminal processes instead:
-        python calibrate_9dtact.py reconstruct --side left
-        python calibrate_9dtact.py reconstruct --side right
-    each in its own terminal with the 9dtact env active.
+        python src/calibration.py reconstruct --side left
+        python src/calibration.py reconstruct --side right
+    each in its own terminal with the hapticf env active.
     """
     print("WARNING: --side both is known to fail on this setup (OpenCV/Qt")
     print("threading issue: 'NoneType' object is not subscriptable /")
     print("QObject::killTimer errors). Use two separate terminals instead:")
-    print("  python calibrate_9dtact.py reconstruct --side left")
-    print("  python calibrate_9dtact.py reconstruct --side right")
+    print("  python src/calibration.py reconstruct --side left")
+    print("  python src/calibration.py reconstruct --side right")
     print()
 
     stop_event = threading.Event()
