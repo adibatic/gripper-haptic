@@ -183,8 +183,10 @@ The Robotiq exposes no F/T reading and its `gCU` current register reads 0 mA reg
 | `mean_deform_mm` | Mean deformation over the contact region |
 
 ```bash
-python run/setup.py collect --side left  --rate 20 --duration 30 --show
-python run/setup.py collect --side right --rate 20 --duration 30 --show
+python run/setup.py collect --side left  --rate 20 --duration 30 --show --out data/proxy/sensor_L_fragile     # egg
+python run/setup.py collect --side right --rate 20 --duration 30 --show --out data/proxy/sensor_R_fragile
+python run/setup.py collect --side left --rate 20 --duration 30 --show --out data/proxy/sensor_L_deformable   # sponge
+python run/setup.py collect --side right --rate 20 --duration 30 --show --out data/proxy/sensor_R_deformable
 ```
 `collect` is standalone and needs **no Newton calibration** — the raw deformation proxy is the deliverable. Each side writes to `data/proxy/sensor_L` / `sensor_R` by default (override with `--out`), mirroring the calibration layout. Its default `--contact-thresh` is the sensitive `LOW_DEFORM_THRESH_MM` (0.03 mm, vs. the 0.1 mm `CONTACT_THRESH_MM` used at trial time), so **fragile and deformable objects** — which barely indent the gel — still register their low deformation. Pass `--contact-thresh 0.1` if you want it to match the trial threshold instead.
 
@@ -258,7 +260,12 @@ exec(open('stream.py').read())
 
 ```bash
 conda activate hapticf
+python run/experiment.py --condition visual_only --participant P01 --object fragile --out data/experiment_logs
+python run/experiment.py --condition visual_only --participant P01 --object deformable --out data/experiment_logs
+python run/experiment.py --condition lra --participant P01 --object deformable --out data/experiment_logs
 python run/experiment.py --condition lra --participant P01 --object fragile --out data/experiment_logs
+python run/experiment.py --condition tactiles --participant P01 --object fragile --out data/experiment_logs
+python run/experiment.py --condition tactiles --participant P01 --object deformable --out data/experiment_logs
 ```
 
 | Flag | Values | Description |
