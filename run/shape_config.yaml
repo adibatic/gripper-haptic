@@ -9,7 +9,9 @@
 # differ per side, add it to SIDE_OVERRIDES in kernel/tactile.py rather than
 # forking this file — that keeps the shared values in exactly one place.
 
-calibration_root_dir: /home/adriel/Documents/haptic-feedback/run/calibration
+# calibration_root_dir is NOT set here: load_config() in kernel/tactile.py
+# computes it from the repo root (data/calibration) and injects it, so a
+# renamed or relocated clone can never leave a stale absolute path behind.
 
 camera_setting:
   camera_channel: 0   # ignored — camera.py routes each sensor to

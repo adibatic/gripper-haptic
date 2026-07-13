@@ -59,7 +59,18 @@ CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
 from camera import TACTILE_CAM_L, TACTILE_CAM_R, thread_local  # noqa: E402
 from tactile import (grab_height_map, capture_baseline, compute_metrics,  # noqa: E402
                      validate_calibration, load_config,
-                     BASELINE_FRAMES, CONTACT_THRESH_MM)
+                     BASELINE_FRAMES, CONTACT_THRESH_MM, LOW_DEFORM_THRESH_MM)
+
+# Standalone force-proxy collection is written here, mirroring the calibration
+# layout (data/calibration/sensor_L|R). Each side lands in its own subfolder so
+# the two sensors never overwrite each other, and no Newton (calibrate-force)
+# step is needed — the raw deformation proxy is the deliverable.
+PROXY_ROOT = os.path.join(_repo_root, "data", "proxy")
+
+
+def default_proxy_out(side: str) -> str:
+    """Default collect output for a side: data/proxy/sensor_L | sensor_R."""
+    return os.path.join(PROXY_ROOT, "sensor_" + ('L' if side == 'left' else 'R'))
 
 
 # =============================================================================
@@ -416,9 +427,18 @@ def reconstruct_both():
 def collect(args):
     """Step 4: logs one sensor's force proxy to CSV at args.rate Hz.
 
+    Standalone and self-contained: it needs NO Newton (calibrate-force) step.
+    The raw deformation `volume` is the deliverable, written per side to
+    data/proxy/sensor_L | sensor_R by default. The default --contact-thresh is
+    the sensitive LOW_DEFORM_THRESH_MM so fragile/deformable objects, which
+    barely indent the gel, still register.
+
     Outputs <out>/force_proxy.csv and, with --save-images, <out>/images/*.npy.
-    `volume` is UNCALIBRATED — see calibrate-force for Newtons.
+    `volume` is UNCALIBRATED — that is fine for rank-based cross-condition
+    comparison; run calibrate-force only if you specifically need Newtons.
     """
+    if args.out is None:
+        args.out = default_proxy_out(args.side)
 
     sensor, _ = open_sensor(args.side)
 
@@ -462,8 +482,9 @@ def collect(args):
             for idx in range(n_steps):
                 t0 = time.time()
 
-                volume, area_px, max_deform, mean_deform, absdef = read_proxy(
-                    sensor, baseline, args.contact_thresh)
+                height_map = grab_height_map(sensor)
+                volume, area_px, max_deform, mean_deform, absdef = compute_metrics(
+                    height_map, baseline, args.contact_thresh)
 
                 position_bit = None
                 if gripper is not None:
@@ -506,8 +527,10 @@ def collect(args):
     print(f"Done. Wrote metrics to {csv_path}")
     if args.save_images:
         print(f"Archived height maps to {img_dir}/")
-    print("\nReminder: 'volume' is an UNCALIBRATED force proxy. To convert to Newtons,")
-    print("press onto a load cell at known forces and fit F = a*volume + b.")
+    print("\nThis proxy is standalone — no Newton (calibrate-force) step is required.")
+    print("'volume' is an UNCALIBRATED force proxy, which is all the rank-based")
+    print("analysis needs. Convert to Newtons later only if you want absolute force")
+    print("(press onto a balance at known forces and fit F = a*volume + b).")
 
 
 def calibrate_force(args):
@@ -676,14 +699,18 @@ def main():
 
     p_collect = subparsers.add_parser('collect', help='Step 4: standalone grip-force proxy data collection')
     p_collect.add_argument("--side", choices=["left", "right"], required=True)
-    p_collect.add_argument("--out", required=True, help="Output directory for this sensor's data.")
+    p_collect.add_argument("--out", default=None,
+                            help="Output directory for this sensor's data. "
+                                 "Defaults to data/proxy/sensor_L | sensor_R.")
     p_collect.add_argument("--rate", type=float, default=20.0, help="Sampling rate in Hz.")
     p_collect.add_argument("--duration", type=float, default=30.0, help="Collection duration in seconds.")
     p_collect.add_argument("--baseline-frames", type=int, default=BASELINE_FRAMES,
                             help="Frames averaged for the no-contact baseline at startup.")
-    p_collect.add_argument("--contact-thresh", type=float, default=CONTACT_THRESH_MM,
+    p_collect.add_argument("--contact-thresh", type=float, default=LOW_DEFORM_THRESH_MM,
                             help="Per-pixel deformation (mm) above which a pixel counts as contact. "
-                                 "Defaults to the same CONTACT_THRESH_MM experiment.py uses.")
+                                 f"Defaults to the sensitive LOW_DEFORM_THRESH_MM ({LOW_DEFORM_THRESH_MM} mm) "
+                                 "so fragile/deformable objects, which barely indent the gel, still "
+                                 f"register. Pass {CONTACT_THRESH_MM} to match experiment.py's trial threshold.")
     p_collect.add_argument("--save-images", action="store_true", default=True,
                             help="Archive raw height maps (.npy) for possible later supervised training.")
     p_collect.add_argument("--no-save-images", dest="save_images", action="store_false")
