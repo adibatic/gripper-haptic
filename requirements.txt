@@ -31,6 +31,3 @@ esptool>=5.3.1
 
 # --- Hand tracking (cap keeps protobuf/jax/numpy compatible) ---
 mediapipe<=0.10.11
-
-# --- Keyboard input ---
-pynput>=1.8.2

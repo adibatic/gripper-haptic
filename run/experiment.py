@@ -18,18 +18,15 @@ See README.md for prerequisites and the pre-participant checklist.
 # IMPORTS & SETUP
 # =============================================================================
 
-# Standard library imports
+import os
 import argparse
 import csv
-import os
+import cv2
+from dataclasses import dataclass, field
+import multiprocessing as mp
 import sys
 import threading
 import time
-from dataclasses import dataclass, field
-
-# Third-party imports
-import cv2
-from pynput import keyboard
 
 # Make the kernel modules (and the bundled 9DTact library) importable, then
 # import them with bare names — same convention the standalone tools use.
@@ -40,10 +37,10 @@ for _p in (_kernel_dir, _tact_main_dir):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from camera import HAND_CAM_INDEX, TACTILE_CAM_L, TACTILE_CAM_R, resolve  # noqa: E402
-from gripper import GripperController, MAX_POS                    # noqa: E402
-from tactile import TactileSensor, TactileReading, CONFIG_PATH    # noqa: E402
-from haptic_link import HapticLink                                # noqa: E402
+from camera import HAND_CAM_INDEX, TACTILE_CAM_L, TACTILE_CAM_R, resolve    # noqa: E402
+from gripper import GripperController, MAX_POS                              # noqa: E402
+from tactile import TactileSensor, SharedTactileReading, CONFIG_PATH        # noqa: E402
+from haptic_link import HapticLink                                          # noqa: E402
 from tracking import open_camera, create_hand_detector, hand_tracking_loop  # noqa: E402
 
 # Paths
@@ -69,7 +66,7 @@ FORCE_CAL_A_RIGHT, FORCE_CAL_B_RIGHT = None, None
 # Haptic feedback
 ESP32_PORT = "/dev/ttyACM0"
 ESP32_BAUD = 115200
-HAPTIC_HZ  = 30                 # Sensor read + serial send rate
+HAPTIC_HZ  = 15                 # Sensor read + serial send rate
 
 
 # =============================================================================
@@ -81,11 +78,11 @@ stop_event = threading.Event()  # For stopping all threads
 
 @dataclass
 class SharedState:
-    """Written by one thread, read by others: target_pos (tracking ->
-    motion_loop), left/right (sensor threads -> haptics, logging, GUI)."""
+    """Written by the main thread (target_pos) and the two tactile-sensor
+    processes (left/right, via shared memory): read by haptics, logging, GUI."""
     target_pos: float = 0.0
-    left: TactileReading = field(default_factory=TactileReading)
-    right: TactileReading = field(default_factory=TactileReading)
+    left: SharedTactileReading = field(default_factory=SharedTactileReading)
+    right: SharedTactileReading = field(default_factory=SharedTactileReading)
 
 
 class RecordingState:
@@ -161,30 +158,37 @@ def motion_loop(gripper: GripperController, state: SharedState):
 
 
 # Tactile sensing & haptic streaming
-def sensor_haptic_loop(sensor: TactileSensor, reading: TactileReading):
-    """Reads one sensor into `reading` at HAPTIC_HZ. One instance per side."""
+def sensor_process_main(side: str, camera_index: int, shared_reading: SharedTactileReading,
+                         sensor_stop_event: mp.Event):
+    """Runs one TactileSensor's read loop in its own OS PROCESS, not a thread.
+
+    The per-frame rectify + height-map math is CPU-bound enough that running
+    two of these as threads starves the main process's GIL — badly enough
+    that the Qt hand-tracking window stops repainting even though the vision
+    loop itself keeps running fine. A separate process has no GIL to share.
+    """
+    sensor = TactileSensor(side, camera_index)
     try:
         sensor.connect()
 
         print(f"\n[Haptic] Capturing {sensor.label} tactile baseline — keep it untouched ...")
         sensor.capture_baseline()
         print(f"[Haptic] {sensor.label.capitalize()} baseline captured.")
-
+        
         interval = 1.0 / HAPTIC_HZ
         print(f"[Haptic] {sensor.label.capitalize()} 9DTact sensor ready.")
 
-        while not stop_event.is_set() and sensor.is_open:
+        while not sensor_stop_event.is_set() and sensor.is_open:
             t0 = time.monotonic()
-            reading.intensity, reading.max_depth_mm, reading.force_proxy = sensor.read()
+            intensity, max_depth, force_proxy = sensor.read()
+            shared_reading.set(intensity, max_depth, force_proxy)
             elapsed = time.monotonic() - t0
             time.sleep(max(0.0, interval - elapsed))
     except Exception as e:
-        # Surface daemon-thread deaths loudly — otherwise intensity/force
-        # just silently freeze at their last value.
-        print(f"\n[Haptic][ERROR] {sensor.label} sensor thread died: {e}")
-        print(f"  -> {sensor.label.capitalize()} intensity/force_proxy are now FROZEN at their last value.")
-        print(f"  -> Most likely the {sensor.label} tactile camera "
-              f"({resolve(sensor.camera_index)}) stopped returning frames. Check USB bandwidth.")
+        print(f"\n[Haptic][ERROR] {side} sensor process died: {e}")
+        print(f"  -> {side.capitalize()} intensity/force_proxy are now FROZEN at their last value.")
+        print(f"  -> Most likely the {side} tactile camera "
+              f"({resolve(camera_index)}) stopped returning frames. Check USB bandwidth.")
         import traceback
         traceback.print_exc()
     finally:
@@ -267,8 +271,7 @@ def log_loop(gripper: GripperController, recording: RecordingState, state: Share
                                   "left_force_proxy", "right_force_proxy",
                                   "left_force_N", "right_force_N",
                                   "left_max_depth_mm", "right_max_depth_mm",
-                                  "left_haptic_intensity", "right_haptic_intensity",
-                                  "motion_mode"])
+                                  "left_haptic_intensity", "right_haptic_intensity"])
                 trial_start = time.monotonic()
                 print(f"\n[Log] Recording trial {recording.trial_number} ({trial_object}) -> {fpath}")
 
@@ -294,8 +297,7 @@ def log_loop(gripper: GripperController, recording: RecordingState, state: Share
                                   f"{state.left.force_proxy:.4f}", f"{state.right.force_proxy:.4f}",
                                   left_force_N, right_force_N,
                                   f"{state.left.max_depth_mm:.4f}", f"{state.right.max_depth_mm:.4f}",
-                                  f"{state.left.intensity:.4f}", f"{state.right.intensity:.4f}",
-                                  "hand_tracking"])
+                                  f"{state.left.intensity:.4f}", f"{state.right.intensity:.4f}"])
                 csv_file.flush()
 
             was_recording = is_recording
@@ -308,42 +310,10 @@ def log_loop(gripper: GripperController, recording: RecordingState, state: Share
 
 
 # =============================================================================
-# INPUT
-# =============================================================================
-
-def make_key_handler(recording: RecordingState):
-    """Keyboard callback: 'r' recording, 'o' object class, 'q' quit."""
-    last_record_toggle_time = 0.0
-
-    def on_press(key):
-        nonlocal last_record_toggle_time
-        try:
-            if hasattr(key, 'char') and key.char in ['q', 'Q']:
-                stop_event.set()
-                return False
-
-            if hasattr(key, 'char') and key.char in ['r', 'R']:
-                now = time.time()
-                if now - last_record_toggle_time > 0.5:
-                    recording.toggle_recording()
-                    last_record_toggle_time = now
-                return
-
-            if hasattr(key, 'char') and key.char in ['o', 'O']:
-                changed, obj = recording.toggle_object()
-                if changed:
-                    print(f"\n[Object] Current object class set to: {obj}")
-                else:
-                    print("\n[Object] Cannot switch object class while recording — stop ('r') first.")
-        except Exception:
-            pass
-
-    return on_press
-
-
-# =============================================================================
 # MAIN
 # =============================================================================
+
+sys.setswitchinterval(0.001)
 
 def main():
     """Connects hardware, starts the threads, then runs the tracking loop."""
@@ -391,6 +361,15 @@ def main():
         )
     )
 
+    parser.add_argument(
+        "--model-path",
+        default=None,
+        help=(
+            "Path to the MediaPipe hand_landmarker.task model. Defaults to "
+            "hand_landmarker.task in the cwd, then next to this script."
+        )
+    )
+
     args = parser.parse_args()
 
     if HAND_CAM_INDEX == TACTILE_CAM_L or HAND_CAM_INDEX == TACTILE_CAM_R:
@@ -435,35 +414,49 @@ def main():
 
     state = SharedState()
     recording = RecordingState(initial_object=args.object)
-    left_sensor = TactileSensor("left", TACTILE_CAM_L)
-    right_sensor = TactileSensor("right", TACTILE_CAM_R)
     haptic_link = HapticLink(ESP32_PORT, ESP32_BAUD)
+    sensor_stop_event = mp.Event()
 
     # Start the hardware background threads
     threads = [
         threading.Thread(target=status_loop, args=(gripper, state), daemon=True),
         threading.Thread(target=motion_loop, args=(gripper, state), daemon=True),
-        threading.Thread(target=sensor_haptic_loop, args=(left_sensor, state.left), daemon=True),
-        threading.Thread(target=sensor_haptic_loop, args=(right_sensor, state.right), daemon=True),
         threading.Thread(target=haptic_send_loop, args=(haptic_link, state, args.haptic_test), daemon=True),
         threading.Thread(target=log_loop, args=(gripper, recording, state, args.out, args.condition, args.participant), daemon=True),
     ]
     for t in threads:
         t.start()
 
-    print(f"\n  [Controls] Press 'r' anywhere to start/stop recording a trial.")
-    print(f"  [Controls] Press 'o' anywhere to toggle object class (fragile/deformable) when not recording.")
-    print(f"  [Controls] Press 'q' anywhere to quit.\n")
+    # Tactile sensors run as separate processes. Their CPU-bound
+    # per-frame math would otherwise starve the main process's GIL and freeze
+    # the Qt hand-tracking window.
+    sensor_processes = [
+        mp.Process(target=sensor_process_main, args=("left", TACTILE_CAM_L, state.left, sensor_stop_event), daemon=True),
+        mp.Process(target=sensor_process_main, args=("right", TACTILE_CAM_R, state.right, sensor_stop_event), daemon=True),
+    ]
+    for i, p in enumerate(sensor_processes):
+        if i > 0:
+            time.sleep(2.0)   # stagger startup so both sensors' initial burst reads don't collide on the shared USB bus
+        p.start()
 
-    listener = keyboard.Listener(on_press=make_key_handler(recording))
-    listener.start()
+    print(f"  [Controls] Press 'r' in the video window to start/stop recording a trial.")
+    print(f"  [Controls] Press 'o' in the video window to toggle object class (fragile/deformable) when not recording.")
+    print(f"  [Controls] Press 'q' in the video window to quit.\n")
 
-    model_path = 'hand_landmarker.task'
-    if not os.path.exists(model_path):
-        model_path = os.path.join(os.path.dirname(__file__), 'hand_landmarker.task')
+    if args.model_path:
+        model_path = args.model_path
+    else:
+        model_path = 'hand_landmarker.task'
+        if not os.path.exists(model_path):
+            model_path = os.path.join(os.path.dirname(__file__), 'hand_landmarker.task')
 
     if not os.path.exists(model_path):
         print(f"\n[ERROR] '{model_path}' not found!")
+        print("  Download it with:")
+        print("    wget -O run/hand_landmarker.task \\")
+        print("      https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
+              "hand_landmarker/float16/latest/hand_landmarker.task")
+        print("  Or point --model-path at an existing copy.")
         stop_event.set()
         return
 
@@ -473,9 +466,13 @@ def main():
 
     print("\nStopping Window & Threads …")
     stop_event.set()
-    listener.stop()
+    sensor_stop_event.set()
     for t in threads:
         t.join(timeout=1.0)
+    for p in sensor_processes:
+        p.join(timeout=2.0)
+        if p.is_alive():
+            p.terminate()
     detector.close()
     cap.release()
     gripper.close()

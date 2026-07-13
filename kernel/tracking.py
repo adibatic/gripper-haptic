@@ -15,12 +15,9 @@ from __future__ import annotations
 # IMPORTS & SETUP
 # =============================================================================
 
-# Standard library imports
+import cv2
 import math
 import time
-
-# Third-party imports
-import cv2
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
@@ -119,6 +116,10 @@ def hand_tracking_loop(cap, detector, state: SharedState, recording: RecordingSt
     last_committed_target = 0.0
     stable_dist = -1.0
     last_frame_ts_ms = -1
+    last_record_toggle_time = 0.0
+
+    cv2.namedWindow("Robotic Gripper Vision Feed", cv2.WINDOW_AUTOSIZE)
+    cv2.startWindowThread()
 
     while not stop_event.is_set():
         ret, frame = cap.read()
@@ -195,4 +196,19 @@ def hand_tracking_loop(cap, detector, state: SharedState, recording: RecordingSt
         _draw_overlay(frame, smoothed_target_pos, current_dist, state, recording)
 
         cv2.imshow("Robotic Gripper Vision Feed", frame)
-        cv2.waitKey(1)
+
+        key = cv2.waitKey(1) & 0xFF
+        if key in (ord('q'), ord('Q')):
+            stop_event.set()
+            break
+        elif key in (ord('r'), ord('R')):
+            now = time.time()
+            if now - last_record_toggle_time > 0.5:
+                recording.toggle_recording()
+                last_record_toggle_time = now
+        elif key in (ord('o'), ord('O')):
+            changed, obj = recording.toggle_object()
+            if changed:
+                print(f"\n[Object] Current object class set to: {obj}")
+            else:
+                print("\n[Object] Cannot switch object class while recording — stop ('r') first.")
