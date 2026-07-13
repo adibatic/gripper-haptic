@@ -10,14 +10,13 @@ per-side sensor_id, which is what points each at its own calibration data.
 """
 
 import os
-from dataclasses import dataclass
-
+import time
 import cv2
+from dataclasses import dataclass
+import multiprocessing as mp
 import numpy as np
 import yaml
-
-# Importing camera.py also activates the per-sensor VideoCapture routing.
-from camera import thread_local
+from camera import thread_local # Importing camera.py also activates the per-sensor VideoCapture routing
 
 CONTACT_THRESH_MM   = 0.1       # Per-pixel deformation counting as contact
 LOW_DEFORM_THRESH_MM = 0.03     # Sensitive threshold for fragile/deformable
@@ -36,6 +35,34 @@ class TactileReading:
     max_depth_mm: float = 0.0
     force_proxy: float = 0.0
 
+class SharedTactileReading:
+    """Same read interface as TactileReading (.intensity/.max_depth_mm/
+    .force_proxy), but backed by shared memory so a separate PROCESS — not
+    just a thread — can write it. A thread-based sensor loop shares memory
+    for free, but its per-frame rectify/height-map math is CPU-bound enough
+    to starve the main process's GIL, which stalls the Qt hand-tracking
+    window even though the vision loop itself keeps running."""
+
+    def __init__(self):
+        self._values = mp.Array('d', 3)  # intensity, max_depth_mm, force_proxy
+
+    @property
+    def intensity(self) -> float:
+        return self._values[0]
+
+    @property
+    def max_depth_mm(self) -> float:
+        return self._values[1]
+
+    @property
+    def force_proxy(self) -> float:
+        return self._values[2]
+
+    def set(self, intensity: float, max_depth_mm: float, force_proxy: float):
+        with self._values.get_lock():
+            self._values[0] = intensity
+            self._values[1] = max_depth_mm
+            self._values[2] = force_proxy
 
 # =============================================================================
 # CONFIG
@@ -231,19 +258,35 @@ class TactileSensor:
         self.sensor = None
         self.baseline = None
 
-    def connect(self):
+    def connect(self, max_retries: int = 5, retry_delay: float = 1.0):
         from shape_reconstruction import Sensor
 
-        # thread_local so this sensor's own thread opens the right camera.
+        # thread_local so this sensor's own process opens the right camera.
         thread_local.camera_index_override = self.camera_index
         cfg = load_config(self.side)
 
         for problem in validate_calibration(cfg, self.label):
             print(f"\n[Tactile][WARNING] {problem}\n")
 
-        # camera.py forces V4L2 + MJPG at open — setting the format after the
-        # resolution (as this used to) is silently ignored by V4L2.
-        self.sensor = Sensor(cfg)
+        last_msg = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                self.sensor = Sensor(cfg)
+                return
+            except (TypeError, RuntimeError) as e:
+                # Only keep the message, not the exception object: holding the
+                # exception (and its traceback) alive across the loop would
+                # keep the failed attempt's half-opened cv2.VideoCapture alive
+                # too — via the traceback's stack frames — leaving the device
+                # "busy" on the very next open() attempt.
+                last_msg = str(e)
+                print(f"[Tactile][WARNING] {self.label} camera not ready yet "
+                      f"(attempt {attempt}/{max_retries}): {last_msg}", flush=True)
+            time.sleep(retry_delay)
+        raise RuntimeError(
+            f"{self.label} tactile camera never became ready after {max_retries} "
+            f"attempts: {last_msg}"
+        )
 
     def _height_map(self):
         return grab_height_map(self.sensor)
@@ -254,10 +297,9 @@ class TactileSensor:
     def read(self):
         """Returns (intensity, max_depth_mm, force_proxy) for the current frame."""
         height_map = self._height_map()
-        max_depth = float(height_map.max())
-        intensity = max(0.0, min(1.0, max_depth / DEPTH_SATURATION_MM))
-        volume, _, _, _, _ = compute_metrics(height_map, self.baseline, CONTACT_THRESH_MM)
-        return intensity, max_depth, volume
+        volume, _, max_deform, _, _ = compute_metrics(height_map, self.baseline, CONTACT_THRESH_MM)
+        intensity = max(0.0, min(1.0, max_deform / DEPTH_SATURATION_MM))
+        return intensity, max_deform, volume
 
     @property
     def is_open(self) -> bool:

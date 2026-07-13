@@ -22,9 +22,8 @@ the metadata node and cannot capture frames.
 """
 
 import os
-import threading
-
 import cv2
+import threading
 
 HAND_CAM_INDEX = 2   # Hand-tracking webcam
 TACTILE_CAM_L  = 4   # Left tactile sensor

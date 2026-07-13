@@ -94,7 +94,7 @@ python -m pip install -r requirements.txt
 
 > To verify the installation, run:
 ```bash
-python -c "import cv2, scipy, ml_collections, open3d, torch, numpy, serial, pymodbus, mediapipe, pynput, pandas; print('cuda:', torch.cuda.is_available()); print('all ok')"
+python -c "import cv2, scipy, ml_collections, open3d, torch, numpy, serial, pymodbus, mediapipe, pandas; print('cuda:', torch.cuda.is_available()); print('all ok')"
 ```
 
 **3. Install 9DTact and pyRobotiqGripper from source**
@@ -120,7 +120,14 @@ python -m pip show 9DTact pyrobotiqgripper
 > **Gripper must be activated once before running the experiment.** Under pyRobotiqGripper v3.x, an unactivated gripper makes every `move()` raise `GripperNotActivatedError`, so `experiment.py` checks at startup and exits with an error rather than failing mid-trial. Activation is a one-off `activate()` call — note it **fully opens and closes** the gripper, which is why `experiment.py` never does it automatically. `experiment.py` does call `start()` (sets the GTO bit) on every launch; unlike `activate()`, that does not move the gripper.
 
 
-**4. Flash MicroPython onto the ESP32-C6**
+**4. Download the MediaPipe hand-tracking model**
+`experiment.py` uses MediaPipe's HandLandmarker for the live hand overlay. The model file isn't in this repo (binary asset) — download it into `run/`:
+```bash
+wget -O run/hand_landmarker.task \
+  https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task
+```
+
+**5. Flash MicroPython onto the ESP32-C6**
 Download the firmware `.bin` for your board from the [MicroPython downloads page](https://micropython.org/download/ESP32_GENERIC_C6/) and place it in the repo root.
 ```bash
 ls /dev/tty{ACM}*   # ttyACM0 = ESP32-C6
@@ -132,7 +139,7 @@ python -m esptool --chip esp32c6 --port /dev/ttyACM0 --baud 460800 write-flash -
 ```
 > This guide was last verified working against ESP32-C6 MicroPython firmware **v1.28.0**.
 
-**5. Confirm the sensor cameras are detected**
+**6. Confirm the sensor cameras are detected**
 
 Cameras are addressed by **`/dev/v4l/by-path/`**, not `/dev/videoN`. The `N` is reassigned whenever a camera re-enumerates on the USB bus, so it drifts between sessions; `by-path` is keyed to the physical port and stays put. (`by-id` is not usable here — all three cameras report the same vendor/product and `SerialNumber 0001`, so they collide.)
 
@@ -154,7 +161,7 @@ Then set `HAND_CAM_INDEX`, `TACTILE_CAM_L`, and `TACTILE_CAM_R` in `kernel/camer
 > **If a camera stops opening:** check `sudo dmesg | tail -40` for `USB disconnect`. Replug (or `sudo modprobe -r uvcvideo && sudo modprobe uvcvideo`), then re-check `ls -l /dev/v4l/by-path/` — the paths are stable, but a camera moved to a *different port* gets a new path and `kernel/camera.py` needs updating.
 
 
-**6. Calibrate the 9DTact sensors**
+**7. Calibrate the 9DTact sensors**
 
 You need the calibration board (`src/9DTact-main/9DTact_Design/fabrication/calibration_board.STL`) and a ball matching `BallRad` in `run/shape_config.yaml` (default 4.0mm). Run per side:
 
@@ -172,7 +179,7 @@ Each side's calibration lands in `data/calibration/sensor_L` / `sensor_R` (the p
 
 > **Press firmly and squarely.** `calibrate-camera` must find every dot on the board; dots that only graze the gel come out too faint to detect. If it fails, it reports how many it found, saves a debug overlay showing which ones were missed, and names the likely cause.
 
-**7. Collect grip force proxy via gel deformation**
+**8. Collect grip force proxy via gel deformation**
 The Robotiq exposes no F/T reading and its `gCU` current register reads 0 mA regardless of contact, so grip force is derived from gel deformation instead (`deformation = height_map − baseline`). `experiment.py` computes this live per trial; `run/setup.py collect` is the standalone version for calibration/characterization only.
 
 | Metric | Meaning |
@@ -234,7 +241,7 @@ ls /dev/tty{USB,ACM}*   # ttyACM0 = ESP32-C6, ttyUSB0 = Robotiq (via USB-RS485)
 > 3. Reporting **Newtons**? Calibrate ([3b](#3b-grip-force-modeling-deformation-proxy)) and then freeze the gel/sensor/`--contact-thresh` for the rest of the study. For **relative** cross-condition comparison, skip calibration.
 > 4. Relaunch `experiment.py` **per participant** so a drifting gel baseline doesn't bias `volume`.
 
-**Step 1 — Start the ESP32 receiver**
+**1. Start the ESP32 receiver**
 
 The board runs the **receiver** (`firmware/stream.py`); `experiment.py` is the sender. `stream.py` is a stream-only receiver dedicated to the experiment — it parses `experiment.py`'s `"{left:.4f},{right:.4f}\n"` packets and drives the two channels **independently** (left -> thumb/M1, right -> index/M2). Set `METHOD` in `firmware/stream.py` to match your `--condition`: `"vibmotor"` for `lra`, `"tactiles"` for `tactiles`. (For `visual_only` you don't need to run this file at all.)
 
@@ -256,7 +263,22 @@ In the REPL, start it, then detach with **Ctrl-X** (frees the port, leaves it ru
 exec(open('stream.py').read())
 ```
 
-**Step 2 — Run the experiment**
+**2. Activate the gripper (once per power-cycle)**
+
+The Robotiq 2F-85 must be activated after every power-up before `experiment.py` will run — it checks `gSTA` at startup and exits with an error otherwise (see Setup & Installation, note under Step 3). Activation runs a full open/close self-calibration, so **clear any objects between the jaws** first:
+
+```bash
+python -c "
+from pyrobotiqgripper import RobotiqGripper
+g = RobotiqGripper('/dev/ttyUSB0')
+g.connect()
+g.activate()
+print('Activated:', g.isActivated())
+g.disconnect()
+"
+```
+
+**3. Run the experiment**
 
 ```bash
 conda activate hapticf
