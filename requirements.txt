@@ -1,11 +1,11 @@
-# requirements.txt — hapticf env (Python 3.10, CUDA 13.0)
-# Install ISOLATED from ~/.local (PYTHONNOUSERSITE=1) — that leak caused the old
-# "libnvJitLink.so.12: cannot open shared object file" crash, not a missing pin.
+# hapticf env — Python 3.10, CUDA 13.0
 #
-# Note: PyTorch (torch/torchvision/torchaudio, cu130 build) is installed
-# separately per README step 3 — install that first, then this file.
+# Install PyTorch first (cu130 build, README step 3), then this file.
+# Install isolated from ~/.local (PYTHONNOUSERSITE=1), or CUDA libs collide.
 
 # --- Core scientific stack ---
+# numpy is capped: mediapipe and open3d break on 2.x, and there is no 1.25-1.27
+# (1.26.4 -> 2.0.0), so this cap is the top of the usable range.
 numpy<=1.24.4
 scipy<=1.10.1
 pandas>=2.3.3
@@ -19,14 +19,17 @@ ml_collections>=0.1.1
 six
 
 # --- Gripper (Modbus RTU over RS-485) ---
-minimalmodbus>=2.1.1
+# pyrobotiqgripper installs from src/ (README step 3) and needs v3.x, which is
+# pymodbus-based. It declares numpy>=1.28, so pip warns against the cap above —
+# ignore it; the library only uses long-stable numpy APIs.
+pymodbus>=3.12.1
 pyserial>=3.5
 
-# --- Haptic / ESP32 firmware deployment & streaming ---
+# --- Haptic / ESP32 ---
 mpremote>=1.28.0
 esptool>=5.3.1
 
-# --- Hand tracking (cap keeps protobuf<4 / jax 0.4.x / numpy 1.24 compatible) ---
+# --- Hand tracking (cap keeps protobuf/jax/numpy compatible) ---
 mediapipe<=0.10.11
 
 # --- Keyboard input ---

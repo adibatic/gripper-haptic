@@ -1,0 +1,198 @@
+"""
+tracking.py
+
+Hand tracking: maps thumb-index pinch distance to a gripper target position.
+
+hand_tracking_loop is the experiment's foreground loop — experiment.py's main()
+blocks on it and passes in the shared stop_event. `state` / `recording` are
+experiment.py's SharedState / RecordingState, duck-typed here so this module
+doesn't import experiment.py back.
+"""
+
+from __future__ import annotations
+
+# =============================================================================
+# IMPORTS & SETUP
+# =============================================================================
+
+# Standard library imports
+import math
+import time
+
+# Third-party imports
+import cv2
+import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+
+# Camera index / gripper limit come from their owning modules (kernel/ is on
+# sys.path via the entry point that imports this).
+from camera import HAND_CAM_INDEX
+from gripper import MAX_POS
+
+
+# =============================================================================
+# PARAMETERS
+# =============================================================================
+
+# Hand tracking
+PINCH_DIST_PX      = 30         # Range: 10 to 60
+SPREAD_DIST_PX     = 180        # Range: 120 to 280
+FINGER_DEADBAND_PX = 1.5        # Suppresses raw MediaPipe webcam jitter
+
+SMOOTHING_ALPHA      = 0.45     # Higher = more instantaneous tracking
+INPUT_GATE_THRESHOLD = 2        # Filters tremors before they become targets
+
+
+# =============================================================================
+# CAMERA & DETECTOR
+# =============================================================================
+
+def open_camera(index: int):
+    """Opens the hand camera. Returns None if it can't be opened or read."""
+    cap = cv2.VideoCapture(index, cv2.CAP_V4L2)
+    if not cap.isOpened():
+        return None
+    # MJPG so the hand cam and tactile cams can share one USB controller
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    ret, _ = cap.read()
+    if not ret:
+        cap.release()
+        return None
+    return cap
+
+
+def create_hand_detector(model_path: str):
+    """Builds the MediaPipe hand landmarker (single hand, VIDEO mode)."""
+    base_options = python.BaseOptions(model_asset_path=model_path)
+    options = vision.HandLandmarkerOptions(
+        base_options=base_options,
+        num_hands=1,
+        min_hand_detection_confidence=0.6,
+        min_hand_presence_confidence=0.75,
+        min_tracking_confidence=0.75,
+        running_mode=vision.RunningMode.VIDEO
+    )
+    return vision.HandLandmarker.create_from_options(options)
+
+
+# =============================================================================
+# GUI OVERLAY
+# =============================================================================
+
+def _draw_overlay(frame, target_pos: float, finger_dist: float,
+                   state: SharedState, recording: RecordingState):
+    """Draws the status box: target position, finger distance, haptics, recording."""
+    overlay = frame.copy()
+    cv2.rectangle(overlay, (15, 15), (320, 140), (0, 0, 0), -1)
+    cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
+
+    cv2.putText(frame, f"Target Pos: {int(target_pos)} / {MAX_POS}", (25, 40),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+    dist_text = f"Finger Dist: {int(finger_dist)}px" if finger_dist != -1 else "Finger Dist: No Hand"
+    cv2.putText(frame, dist_text, (25, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+    cv2.putText(frame, f"Haptic L (thumb): {state.left.intensity:.2f}", (25, 80),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+    cv2.putText(frame, f"Haptic R (index): {state.right.intensity:.2f}", (25, 100),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+    active, current_object = recording.snapshot()
+    rec_text = (f"REC trial {recording.trial_number} ({current_object})" if active
+                else f"Not recording — object: {current_object} (press 'r')")
+    rec_color = (0, 0, 255) if active else (180, 180, 180)
+    cv2.putText(frame, rec_text, (25, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, rec_color, 1)
+
+
+# =============================================================================
+# TRACKING LOOP
+# =============================================================================
+
+def hand_tracking_loop(cap, detector, state: SharedState, recording: RecordingState, stop_event):
+    """Runs until stop_event is set: maps each frame's pinch distance to
+    state.target_pos (which motion_loop sends to the gripper) and draws the
+    overlay."""
+    smoothed_target_pos = 0.0
+    last_committed_target = 0.0
+    stable_dist = -1.0
+    last_frame_ts_ms = -1
+
+    while not stop_event.is_set():
+        ret, frame = cap.read()
+        if not ret:
+            print(f"\n[Vision][ERROR] cap.read() failed on {HAND_CAM_INDEX} — "
+                  f"hand camera feed died. Likely USB bandwidth contention with the "
+                  f"tactile camera (common right at startup, during baseline capture). "
+                  f"Exiting hand-tracking loop.")
+            break
+
+        frame = cv2.flip(frame, 1)
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+        # MediaPipe VIDEO mode requires strictly increasing timestamps. Wall-clock
+        # ms can repeat on a fast frame and raise; force monotonicity.
+        frame_timestamp_ms = int(time.monotonic() * 1000)
+        if frame_timestamp_ms <= last_frame_ts_ms:
+            frame_timestamp_ms = last_frame_ts_ms + 1
+        last_frame_ts_ms = frame_timestamp_ms
+
+        results = detector.detect_for_video(mp_image, frame_timestamp_ms)
+        current_dist = -1
+
+        if results.hand_landmarks:
+            for hand_landmarks in results.hand_landmarks:
+                h, w, c = frame.shape
+
+                thumb = hand_landmarks[4]
+                index_finger = hand_landmarks[8]
+
+                cx1, cy1 = int(thumb.x * w), int(thumb.y * h)
+                cx2, cy2 = int(index_finger.x * w), int(index_finger.y * h)
+                raw_measured_dist = math.hypot(cx2 - cx1, cy2 - cy1)
+
+                # Finger deadband: ignore sub-pixel MediaPipe jitter
+                if stable_dist == -1.0:
+                    stable_dist = raw_measured_dist
+                elif abs(raw_measured_dist - stable_dist) > FINGER_DEADBAND_PX:
+                    stable_dist = raw_measured_dist
+
+                current_dist = stable_dist
+
+                cv2.circle(frame, (cx1, cy1), 8, (255, 0, 255), cv2.FILLED)
+                cv2.circle(frame, (cx2, cy2), 8, (255, 0, 255), cv2.FILLED)
+                cv2.line(frame, (cx1, cy1), (cx2, cy2), (255, 0, 255), 2)
+                break
+        else:
+            stable_dist = -1.0
+
+        if current_dist != -1:
+            if current_dist <= PINCH_DIST_PX:
+                raw_target = MAX_POS
+            elif current_dist >= SPREAD_DIST_PX:
+                raw_target = 0
+            else:
+                pct = 1.0 - ((current_dist - PINCH_DIST_PX) / (SPREAD_DIST_PX - PINCH_DIST_PX))
+                raw_target = int(pct * MAX_POS)
+
+            # Input gate: only commit a new target if it moved enough
+            if abs(raw_target - last_committed_target) > INPUT_GATE_THRESHOLD:
+                last_committed_target = float(raw_target)
+        else:
+            last_committed_target = smoothed_target_pos
+
+        smoothed_target_pos = (SMOOTHING_ALPHA * last_committed_target) + ((1.0 - SMOOTHING_ALPHA) * smoothed_target_pos)
+
+        # Snap when close so the gripper settles instead of creeping
+        if abs(smoothed_target_pos - last_committed_target) < 1.0:
+            smoothed_target_pos = last_committed_target
+
+        state.target_pos = smoothed_target_pos
+
+        _draw_overlay(frame, smoothed_target_pos, current_dist, state, recording)
+
+        cv2.imshow("Robotic Gripper Vision Feed", frame)
+        cv2.waitKey(1)
