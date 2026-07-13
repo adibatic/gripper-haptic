@@ -13,8 +13,10 @@ The project splits into three code roots: `run/` (host scripts you execute),
 runs on the ESP32-C6, not the PC).
 
 ```text
-haptic-feedback/
-├── data/                           # Experimental data logs
+haptic-experiment/
+├── data/                           # Experimental data (logs + calibration + proxy)
+│   ├── calibration/                # Per-sensor calibration data (sensor_L / sensor_R)
+│   ├── proxy/                      # Standalone force-proxy collection (sensor_L / sensor_R)
 │   ├── experiment_logs/            # Logs from experiment.py
 │   └── results/                    # Results from analysis.py
 ├── designs/                        # CAD models and 3D print assets
@@ -27,19 +29,19 @@ haptic-feedback/
 │   ├── haptic_link.py              # HapticLink — host side of the ESP32 serial link
 │   ├── tactile.py                  # 9DTact sensing: TactileSensor + force-proxy helpers
 │   └── tracking.py                 # Hand tracking + MediaPipe + tracking loop
-├── models/                         # Trained current-prediction models (per sensor)
-├── paper/                          # Thesis manuscript (LaTeX source)
-├── README.md                       # This file
-├── requirements.txt                # Python dependencies
 ├── run/                            # Host scripts you execute
 │   ├── analysis.py                 # Analysis pipeline (Friedman, Wilcoxon, figures)
-│   ├── calibration/                # Per-sensor calibration data (sensor_L / sensor_R)
 │   ├── experiment.py               # Main experiment: params, threads, main loop
 │   ├── setup.py                    # 9DTact calibration / reconstruction / collection CLI
 │   └── shape_config.yaml           # Shared 9DTact sensor config (sensor_id injected per side)
-└── src/                            # Source submodules and core libraries
-    ├── 9DTact-main/                # 9DTact tactile sensor source code
-    └── pyRobotiqGripper-master/    # Robotiq gripper driver
+├── src/                            # Source submodules and core libraries
+│   ├── 9DTact-main/                # 9DTact tactile sensor source code
+│   └── pyRobotiqGripper-master/    # Robotiq gripper driver
+├── thesis/                         # Thesis manuscript (LaTeX source)
+├── .gitignore                      # Git ignore rules
+├── pyrightconfig.json              # Python type checking config
+├── README.md                       # This file
+└── requirements.txt                # Required dependencies
 ```
 
 ## Hardware Requirements
@@ -105,7 +107,7 @@ python -m pip install -e . --no-deps --config-settings editable_mode=compat
 cd ../pyRobotiqGripper-master
 python -m pip install -e ".[all]" --no-deps --config-settings editable_mode=compat
 cd ../..
-conda env config vars set PYTHONPATH=/home/adriel/Documents/haptic-feedback
+conda env config vars set PYTHONPATH="$(pwd)"
 conda deactivate && conda activate hapticf
 ```
 
@@ -157,12 +159,16 @@ Then set `HAND_CAM_INDEX`, `TACTILE_CAM_L`, and `TACTILE_CAM_R` in `kernel/camer
 You need the calibration board (`src/9DTact-main/9DTact_Design/fabrication/calibration_board.STL`) and a ball matching `BallRad` in `run/shape_config.yaml` (default 4.0mm). Run per side:
 
 ```bash
-python run/setup.py calibrate-camera --side left     # board
-python run/setup.py calibrate-sensor --side left     # ball
-python run/setup.py reconstruct      --side left     # verify: any object
+cd run
+python setup.py calibrate-camera --side left     # board
+python setup.py calibrate-sensor --side left     # ball
+python setup.py reconstruct      --side left     # verify: any object
+cd ..
 ```
 
 Press **`y`** with nothing touching the sensor (reference frame), press the board/ball onto it, then **`y`** again. `q` exits. Repeat for `--side right`.
+
+Each side's calibration lands in `data/calibration/sensor_L` / `sensor_R` (the path is set by `calibration_root_dir` in `run/shape_config.yaml`, with `sensor_<id>` appended per side).
 
 > **Press firmly and squarely.** `calibrate-camera` must find every dot on the board; dots that only graze the gel come out too faint to detect. If it fails, it reports how many it found, saves a debug overlay showing which ones were missed, and names the likely cause.
 
@@ -177,14 +183,19 @@ The Robotiq exposes no F/T reading and its `gCU` current register reads 0 mA reg
 | `mean_deform_mm` | Mean deformation over the contact region |
 
 ```bash
-python run/setup.py collect --side left --out data/left --rate 20 --duration 30 --show
-python run/setup.py collect --side right --out data/right --rate 20 --duration 30 --show
+python run/setup.py collect --side left  --rate 20 --duration 30 --show
+python run/setup.py collect --side right --rate 20 --duration 30 --show
 ```
-`volume` is uncalibrated (∝ force, not Newtons) — fine for cross-condition comparison as-is, since Friedman/Wilcoxon are rank-based and a monotonic rescaling cannot change the p-values. To convert to Newtons, run the guided calibration (once per side):
+`collect` is standalone and needs **no Newton calibration** — the raw deformation proxy is the deliverable. Each side writes to `data/proxy/sensor_L` / `sensor_R` by default (override with `--out`), mirroring the calibration layout. Its default `--contact-thresh` is the sensitive `LOW_DEFORM_THRESH_MM` (0.03 mm, vs. the 0.1 mm `CONTACT_THRESH_MM` used at trial time), so **fragile and deformable objects** — which barely indent the gel — still register their low deformation. Pass `--contact-thresh 0.1` if you want it to match the trial threshold instead.
+
+`volume` is uncalibrated (∝ force, not Newtons) — fine for cross-condition comparison as-is, since Friedman/Wilcoxon are rank-based and a monotonic rescaling cannot change the p-values.
+
+**Optional — convert the proxy to Newtons.** Only needed if you want to report absolute force; the study's rank-based analysis does not require it. Run the guided calibration once per side:
 
 ```bash
 python run/setup.py calibrate-force --side left
 python run/setup.py calibrate-force --side right
+cd ..
 ```
 
 It prompts you through the procedure, fits `force_N = a*volume + b` by least squares, prints `a`/`b`/R², and writes a scatter+fit figure and CSV to `data/results/`. Paste the printed constants into `FORCE_CAL_A_LEFT`/`FORCE_CAL_B_LEFT` (and `..._RIGHT`) in `experiment.py`.

@@ -20,6 +20,11 @@ import yaml
 from camera import thread_local
 
 CONTACT_THRESH_MM   = 0.1       # Per-pixel deformation counting as contact
+LOW_DEFORM_THRESH_MM = 0.03     # Sensitive threshold for fragile/deformable
+                                # objects — they barely indent the gel, so the
+                                # standalone force-proxy collection uses this to
+                                # register low-deformation contact the trial-time
+                                # CONTACT_THRESH_MM would miss.
 BASELINE_FRAMES     = 30        # Frames averaged for zeroing
 DEPTH_SATURATION_MM = 2.6       # Depth mapped to haptic intensity 1.0
 
@@ -36,8 +41,13 @@ class TactileReading:
 # CONFIG
 # =============================================================================
 
-CONFIG_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "run", "shape_config.yaml")
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+CONFIG_PATH = os.path.join(_REPO_ROOT, "run", "shape_config.yaml")
+
+# Derived from _REPO_ROOT rather than read from shape_config.yaml, so a cloned
+# or renamed repo directory can never leave a stale absolute path behind.
+CALIBRATION_ROOT_DIR = os.path.join(_REPO_ROOT, "data", "calibration")
 
 # Per-side values. Add here rather than forking the YAML, so shared values
 # (BallRad, crop_size, thresholds) cannot drift apart between left and right.
@@ -73,6 +83,11 @@ def load_config(side: str, config_path: str = None):
 
     with open(path, 'r', encoding='utf-8') as f:
         cfg = yaml.load(f, Loader=yaml.FullLoader)
+
+    # Overridden here (not read from the YAML) so a renamed/relocated repo
+    # can't leave a stale absolute path pointing at a directory that no
+    # longer exists.
+    cfg['calibration_root_dir'] = CALIBRATION_ROOT_DIR
 
     return _deep_merge(cfg, SIDE_OVERRIDES[side])
 
@@ -176,7 +191,7 @@ def validate_calibration(cfg, label=""):
             f"camera gives {cam_h}x{cam_w}. This data was calibrated when frames "
             f"were rotated 90 degrees; rotation has since been removed, so it is "
             f"invalid.\n"
-            f"  Delete run/calibration/sensor_{cfg['sensor_id']}/ and redo BOTH steps:\n"
+            f"  Delete data/calibration/sensor_{cfg['sensor_id']}/ and redo BOTH steps:\n"
             f"    python run/setup.py calibrate-camera --side {label}\n"
             f"    python run/setup.py calibrate-sensor --side {label}")
 

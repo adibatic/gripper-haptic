@@ -211,21 +211,24 @@ __marimo__/
 # --- CUSTOM PROJECT FILES ---
 
 # LaTeX Compilation Junk
-paper/*.aux
-paper/*.log
-paper/*.out
-paper/*.toc
-paper/*.lof
-paper/*.lot
-paper/*.fdb_latexmk
-paper/*.synctex.gz
-paper/*.fls
-paper/*.bbl
-paper/*.blg
-paper/*.nav
-paper/*.snm
-paper/*.vrb
-paper/*-eps-converted-to.pdf
+thesis/*.aux
+thesis/*.log
+thesis/*.out
+thesis/*.toc
+thesis/*.lof
+thesis/*.lot
+thesis/*.fdb_latexmk
+thesis/*.synctex.gz
+thesis/*.fls
+thesis/*.bbl
+thesis/*.bcf
+thesis/*.blg
+thesis/*.nav
+thesis/*.snm
+thesis/*.vrb
+thesis/*-eps-converted-to.pdf
+thesis/*.xml
+thesis/*.pdf
 
 # Project Backups
 backups/
