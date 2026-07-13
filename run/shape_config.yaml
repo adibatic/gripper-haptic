@@ -1,0 +1,57 @@
+# Shared 9DTact sensor config — ONE file for both sensors.
+#
+# sensor_id is NOT set here: it is injected per-side by load_config() in
+# kernel/tactile.py ('L' or 'R'). It is the key the 9DTact library uses to
+# build the calibration path (calibration_root_dir + '/sensor_' + sensor_id),
+# so each sensor still reads its own calibration/sensor_L | sensor_R data.
+#
+# Everything below is identical for both sensors. If a value ever needs to
+# differ per side, add it to SIDE_OVERRIDES in kernel/tactile.py rather than
+# forking this file — that keeps the shared values in exactly one place.
+
+calibration_root_dir: /home/adriel/Documents/haptic-feedback/run/calibration
+
+camera_setting:
+  camera_channel: 0   # ignored — camera.py routes each sensor to
+                      # TACTILE_CAM_L/R via thread_local instead
+  resolution:
+    - 640 # width
+    - 480 # height
+  fps: 15   # lowered from 30 — both tactile cams share a USB 2.0 hub (480M);
+            # 30fps each caused cap.read() to fail when both run simultaneously
+
+camera_calibration:
+  # Frames are NOT rotated (see camera.py), so these describe the grid as the
+  # camera natively sees it — 480 rows x 640 cols. They swapped when rotation
+  # was removed; if calibrate-camera reports a mismatched point count, swap them.
+  row_points: 9
+  col_points: 7
+  grid_distance: 2.5
+  camera_calibration_dir: /camera_calibration
+  image_format: png
+  row_index_path: /row_index.npy
+  col_index_path: /col_index.npy
+  position_scale_path: /position_scale.npy
+  crop_size:
+    # Gel footprint in the native (unrotated) frame: 480 rows x 640 cols.
+    # Swapped from [345, 450] when rotation was removed — the rotated crop was
+    # carving a 90-degree-turned rectangle out of the gel, clipping its top and
+    # bottom. 450 of 480 rows is tight; validate_calibration() will warn if the
+    # calibrated centre pushes it off the edge.
+    - 450
+    - 345
+
+depth_calibration:
+  depth_calibration_dir: /depth_calibration
+  BallRad: 4.0
+  circle_detect_gray: 3
+  show_circle_detection: False
+  Pixel_to_Depth_path: /Pixel_to_Depth.npy
+
+sensor_reconstruction:
+  lighting_threshold: 2
+  kernel_list:
+    - 7
+    - 7
+  contact_gray_base: 20
+  depth_k: 100

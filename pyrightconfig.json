@@ -1,0 +1,27 @@
+{
+  "// note": "Editor-only: mirrors the sys.path inserts in run/*.py so Pyright can resolve the bare kernel/ and 9DTact imports. Has no effect at runtime.",
+
+  "pythonVersion": "3.10",
+  "typeCheckingMode": "basic",
+
+  "extraPaths": [
+    "kernel",
+    "firmware",
+    "src/9DTact-main",
+    "src/pyRobotiqGripper-master"
+  ],
+
+  "exclude": [
+    "**/__pycache__",
+    "src",
+    "data",
+    "paper"
+  ],
+
+  "ignore": [
+    "src"
+  ],
+
+  "reportMissingImports": "error",
+  "reportMissingModuleSource": "none"
+}

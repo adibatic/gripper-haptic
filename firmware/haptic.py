@@ -1,3 +1,21 @@
+"""
+haptic.py — runs ON THE ESP32-C6 (MicroPython).
+
+Actuator driver library for both haptic methods. Not host code: copy it to the
+board and let an entry point import it — stream.py (the live receiver for
+experiment.py), or test_haptic.py / test_tactiles.py for bench self-tests.
+
+Two actuator paths:
+    LRA vibmotors — init_bridges() + ACDriver. Bipolar AC carrier; bench-
+        confirmed that unipolar PWM produces no motion on this hardware.
+    TacTiles     — init_tactiles() + TacTiles.pulse(). Bistable pin actuators
+        on H-bridge legs; momentary pulses, rate-limited for thermal safety.
+
+The legacy PWM helpers (init_pwms / apply_pattern / stop_duties / stop_all) and
+the stream_mode() / tactiles_stream_mode() receivers below are superseded by
+stream.py for the experiment — they parse the OLD broadcast protocol (one float
+to all 5 fingers) and remain only for the bench scripts.
+"""
 # pyright: reportAttributeAccessIssue=false
 from machine import Pin, PWM  # type: ignore
 import sys
@@ -36,18 +54,21 @@ TACTILE_VIBRATE_GAP_MAX_MS  = 400  # gap at intensity 0.0
 
 # ===================== HELPERS ====================
 def enable_drivers():
+    """Wakes the driver chip (NSLEEP high) and enables all 5 motor EN pins."""
     Pin(NSLEEP_PIN, Pin.OUT).value(1)
     for pin in MOTOR_EN_PINS:
         Pin(pin, Pin.OUT).value(1)
 
 
 def disable_drivers():
+    """Disables all 5 motor EN pins, then sleeps the driver chip (NSLEEP low)."""
     for pin in MOTOR_EN_PINS:
         Pin(pin, Pin.OUT).value(0)
     Pin(NSLEEP_PIN, Pin.OUT).value(0)
 
 
 def init_pwms():
+    """One PWM channel per MOTOR_PWM_PINS entry (duty 0), in M1-M5 order."""
     pwms = []
     for pin in MOTOR_PWM_PINS:
         pwm = PWM(Pin(pin))
@@ -58,37 +79,34 @@ def init_pwms():
 
 
 def apply_pattern(pwms, pattern):
+    """Writes one duty cycle per channel (intensities 0.0-1.0, clamped)."""
     for pwm, val in zip(pwms, pattern):
         val = max(0.0, min(1.0, val))
         pwm.duty(int(val * PWM_MAX))
 
 
 def stop_duties(pwms):
-    """Silence all motors (duty -> 0) WITHOUT sleeping the driver chip.
+    """Silences all motors (duty 0) but keeps the driver chip AWAKE.
 
-    Use this for the stream-mode watchdog gap. A <=200ms silence between
-    packets should NOT require pulling NSLEEP/EN low and re-initialising the
-    driver — doing that is what killed vibration in the old stream loop
-    (the chip went to sleep on the first idle tick and nothing woke it).
+    Use this for the watchdog gap. Sleeping the chip on an idle tick means
+    nothing wakes it and the next packet silently does nothing.
     """
     for pwm in pwms:
         pwm.duty(0)
 
 
 def stop_all(pwms):
-    # Stop PWM first
+    """Full power-down. Only on real shutdown (a finally block) — nothing
+    re-asserts the drivers until enable_drivers() runs again."""
     for pwm in pwms:
         pwm.duty(0)
-
-    # Then hard-disable drivers (NSLEEP=0, EN=0). Full power-down.
-    # Only call this on real shutdown (finally block), NOT inside a hot loop,
-    # because nothing re-asserts the drivers until enable_drivers() runs again.
     disable_drivers()
 # =================================================
 
 
 # ===================== MODES =====================
 def test_mode(pwms, pattern, period):
+    """Buzzes `pattern` on/off every `period` seconds until interrupted."""
     print("🔧 Test mode:", pattern)
     enable_drivers()                 # assert once, up front
     try:
@@ -103,6 +121,8 @@ def test_mode(pwms, pattern, period):
 
 
 def stream_mode(pwms):
+    """LEGACY receiver: 20-byte binary packets (5 floats). Superseded by
+    stream.py, which experiment.py actually talks to."""
     print("▶ Streaming mode (Ctrl-C to exit)")
     buf = bytearray(20)
     last_rx = time.ticks_ms()
@@ -125,28 +145,38 @@ def stream_mode(pwms):
 
 # ================= TACTILE MODES =================
 class TacTiles:
+    """One bistable pin actuator on an IN1/IN2 H-bridge leg. A forward pulse
+    engages the pin, a reverse pulse retracts it; both latch mechanically, so
+    it draws zero power while held."""
+
     def __init__(self, in1_pin, in2_pin):
+        """Claims the IN1/IN2 GPIO pins as outputs and starts off (both low)."""
         self.in1 = Pin(in1_pin, Pin.OUT)
         self.in2 = Pin(in2_pin, Pin.OUT)
         self.off()
 
     def off(self):
+        """Drives both legs low — coasts, no latching pulse."""
         self.in1.value(0)
         self.in2.value(0)
 
     def engage(self):
+        """Forward pulse (TACTILE_ENGAGE_MS) — pin contacts skin and latches."""
         self.in1.value(1)
         self.in2.value(0)
         time.sleep_ms(TACTILE_ENGAGE_MS)
         self.off()
 
     def disengage(self):
+        """Reverse pulse (TACTILE_DISENGAGE_MS) — pin retracts and latches."""
         self.in1.value(0)
         self.in2.value(1)
         time.sleep_ms(TACTILE_DISENGAGE_MS)
         self.off()
 
     def pulse(self):
+        """Forward pulse then reverse pulse (each TACTILE_PULSE_MS) — a
+        quick tap with no sustained contact."""
         self.in1.value(1)
         self.in2.value(0)
         time.sleep_ms(TACTILE_PULSE_MS)
@@ -157,6 +187,10 @@ class TacTiles:
         self.off()
 
     def burst(self, count=TACTILE_BURST_COUNT, interval_us=TACTILE_BURST_US):
+        """Fires `count` pulses spaced `interval_us` apart.
+
+        interval_us must exceed 2 * TACTILE_PULSE_MS * 1000 or pulses overlap.
+        """
         for _ in range(count):
             self.pulse()
             delay = interval_us - (2 * TACTILE_PULSE_MS * 1000)
@@ -165,16 +199,20 @@ class TacTiles:
 
 
 def init_tactiles():
+    """Wakes the driver chip; returns one TacTiles per pin pair, in T1-T5 order."""
     Pin(NSLEEP_PIN, Pin.OUT).value(1)
     return [TacTiles(in1, in2) for in1, in2 in TACTILE_PINS]
 
 
 def stop_all_tactiles(tactiles):
+    """Turns off every actuator in `tactiles` (see TacTiles.off())."""
     for t in tactiles:
         t.off()
 
 
 def tactiles_test_mode(tactiles, period):
+    """Cycles all actuators through engage -> burst -> disengage, each
+    phase lasting period/3 seconds, until interrupted."""
     print("🔧 TacTiles test mode")
     try:
         while True:
@@ -204,6 +242,8 @@ def tactiles_test_mode(tactiles, period):
 
 
 def tactiles_stream_mode(tactiles):
+    """LEGACY receiver: 20-byte binary packets (5 floats). Superseded by
+    stream.py, which experiment.py actually talks to."""
     print("▶ TacTiles streaming mode (Ctrl-C to exit)")
     buf = bytearray(20)
     last_rx = time.ticks_ms()
@@ -235,8 +275,8 @@ def tactiles_stream_mode(tactiles):
 def tactiles_vibrate(tactile, duration_s,
                     burst_count=TACTILE_VIBRATE_BURST_COUNT,
                     gap_ms=TACTILE_VIBRATE_GAP_MIN_MS):
-    """Repeated bursts for duration_s seconds, simulating sustained vibration.
-    Default gap keeps switch rate well under the 120/min thermal limit."""
+    """Sustained vibration via repeated bursts. The default gap keeps the
+    switch rate under the actuator's ~120/min thermal limit."""
     end = time.ticks_add(time.ticks_ms(), int(duration_s * 1000))
     try:
         while time.ticks_diff(end, time.ticks_ms()) > 0:
@@ -266,9 +306,10 @@ LRA_MAX_DUTY       = 1.0    # HARD thermal clamp on average on-fraction (0.0-1.0
 
 
 def init_bridges():
-    """Wake the driver chip and return [(in1, in2), ...] GPIO leg pairs.
-    Use this INSTEAD of init_pwms() for the LRA path — they share pins, so
-    never init both on the same channels at once."""
+    """H-bridge leg pairs for the AC/LRA path, in M1-M5 order.
+
+    Use INSTEAD of init_pwms() — they share pins; never init both at once.
+    """
     Pin(NSLEEP_PIN, Pin.OUT).value(1)
     legs = []
     for in1, in2 in TACTILE_PINS:
@@ -279,12 +320,13 @@ def init_bridges():
 
 
 class ACDriver:
-    """Non-blocking bipolar carrier + envelope intensity for selected fingers.
+    """Non-blocking bipolar AC carrier with envelope intensity.
 
-    Call tick() as fast as possible from your main loop (it never sleeps).
-    Think of it like a render-loop callback (SwiftUI CADisplayLink / a game
-    tick): each call advances the carrier phase by wall-clock time and writes
-    the pins, so the buzz stays continuous no matter what else the loop does.
+    tick() never sleeps — call it as fast as the main loop allows. Each call
+    advances the carrier by wall-clock time and writes the pins, so the buzz
+    stays continuous regardless of what else the loop does. One intensity is
+    shared by all the driver's fingers; use one driver per channel for
+    independent levels.
     """
     def __init__(self, legs, fingers):
         self.legs = legs
@@ -295,7 +337,8 @@ class ACDriver:
         self._win_start = time.ticks_ms()
 
     def set_intensity(self, val):
-        # Clamp to the hard thermal duty cap, not just to 1.0.
+        """Sets the target intensity, clamped to [0.0, LRA_MAX_DUTY] — a
+        hard thermal duty cap, not just a 1.0 clamp."""
         if val < 0.0:
             val = 0.0
         elif val > LRA_MAX_DUTY:
@@ -308,6 +351,9 @@ class ACDriver:
             a.value(0); b.value(0)
 
     def tick(self):
+        """Advances the envelope/carrier state machine by one tick and
+        writes the H-bridge pins. Call as fast as possible — never sleeps;
+        see the class docstring."""
         # --- envelope: are we in the ON portion of the current window? ---
         now_ms = time.ticks_ms()
         pos = time.ticks_diff(now_ms, self._win_start)
@@ -332,6 +378,7 @@ class ACDriver:
                 a.value(0); b.value(1)   # reverse half
 
     def stop(self):
+        """Zeroes intensity and coasts all pins — immediate stop, no envelope decay."""
         self._intensity = 0.0
         self._coast()
 # ==========================================================================
@@ -339,9 +386,8 @@ class ACDriver:
 
 def tactiles_vibrate_intensity(tactile, intensity, duration_s,
                                burst_count=TACTILE_VIBRATE_BURST_COUNT):
-    """Intensity 0.0-1.0 maps gap from TACTILE_VIBRATE_GAP_MAX_MS down to
-    TACTILE_VIBRATE_GAP_MIN_MS, giving a perceptual intensity knob while
-    staying thermally safe at any setting."""
+    """Vibrates at a perceptual intensity by mapping it to the burst gap.
+    Thermally safe at any setting, since the gap floor is fixed."""
     intensity = max(0.0, min(1.0, intensity))
     gap_ms = int(TACTILE_VIBRATE_GAP_MAX_MS
                  - intensity * (TACTILE_VIBRATE_GAP_MAX_MS - TACTILE_VIBRATE_GAP_MIN_MS))
