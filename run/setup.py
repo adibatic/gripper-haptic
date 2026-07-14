@@ -6,8 +6,7 @@ Per-sensor tooling for one 9DTact sensor. Run from the repo root:
     python run/setup.py calibrate-camera --side {left,right}   # 1: grid calibration
     python run/setup.py calibrate-sensor --side {left,right}   # 2: depth calibration
     python run/setup.py reconstruct      --side {left,right}   # 3: live viewer
-    python run/setup.py collect          --side ... --out DIR  # 4: log the force proxy
-    python run/setup.py calibrate-force  --side {left,right}   # 5: fit proxy -> Newtons
+    python run/setup.py calibrate-force  --side {left,right}   # 4: fit proxy -> Newtons
 
 Steps 1 and 2 delegate to 9DTact's own CameraCalibration / SensorCalibration;
 this file adds the per-side plumbing and verifies the result afterwards, since
@@ -61,18 +60,6 @@ from tactile import (grab_height_map, capture_baseline, compute_metrics,  # noqa
                      validate_calibration, load_config,
                      BASELINE_FRAMES, CONTACT_THRESH_MM, LOW_DEFORM_THRESH_MM)
 
-# Standalone force-proxy collection is written here, mirroring the calibration
-# layout (data/calibration/sensor_L|R). Each side lands in its own subfolder so
-# the two sensors never overwrite each other, and no Newton (calibrate-force)
-# step is needed — the raw deformation proxy is the deliverable.
-PROXY_ROOT = os.path.join(_repo_root, "data", "proxy")
-
-
-def default_proxy_out(side: str) -> str:
-    """Default collect output for a side: data/proxy/sensor_L | sensor_R."""
-    return os.path.join(PROXY_ROOT, "sensor_" + ('L' if side == 'left' else 'R'))
-
-
 # =============================================================================
 # HELPERS
 # =============================================================================
@@ -112,23 +99,6 @@ def open_sensor(side: str):
 def read_proxy(sensor, baseline, contact_thresh):
     """One frame -> (volume, area_px, max_deform_mm, mean_deform_mm, absdef)."""
     return compute_metrics(grab_height_map(sensor), baseline, contact_thresh)
-
-
-def draw_rolling_plot(values, width=640, height=200, label="force proxy"):
-    """Lightweight OpenCV rolling line plot (no matplotlib in the live loop)."""
-    canvas = np.zeros((height, width, 3), dtype=np.uint8)
-    if len(values) >= 2:
-        vmax = max(max(values), 1e-6)
-        n = len(values)
-        pts = []
-        for i, v in enumerate(values):
-            x = int(i / (n - 1) * (width - 1))
-            y = int((height - 1) - (v / vmax) * (height - 1))
-            pts.append((x, y))
-        cv2.polylines(canvas, [np.array(pts, np.int32)], False, (0, 255, 0), 1)
-    txt = f"{label}: {values[-1]:.1f}" if values else label
-    cv2.putText(canvas, txt, (10, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
-    return canvas
 
 
 # ---------------------------------------------------------------------------
@@ -424,115 +394,6 @@ def reconstruct_both():
 # Step 4: Grip-force data collection
 # ---------------------------------------------------------------------------
 
-def collect(args):
-    """Step 4: logs one sensor's force proxy to CSV at args.rate Hz.
-
-    Standalone and self-contained: it needs NO Newton (calibrate-force) step.
-    The raw deformation `volume` is the deliverable, written per side to
-    data/proxy/sensor_L | sensor_R by default. The default --contact-thresh is
-    the sensitive LOW_DEFORM_THRESH_MM so fragile/deformable objects, which
-    barely indent the gel, still register.
-
-    Outputs <out>/force_proxy.csv and, with --save-images, <out>/images/*.npy.
-    `volume` is UNCALIBRATED — that is fine for rank-based cross-condition
-    comparison; run calibrate-force only if you specifically need Newtons.
-    """
-    if args.out is None:
-        args.out = default_proxy_out(args.side)
-
-    sensor, _ = open_sensor(args.side)
-
-    gripper = None
-    if args.gripper_port is not None:
-        # Reuse the same wrapper experiment.py uses, so there is one gripper
-        # API in the codebase (pyRobotiqGripper v3.x).
-        from gripper import GripperController
-        gripper = GripperController(args.gripper_port)
-        if not gripper.is_activated():
-            print("[WARNING] Gripper not activated — position logging will read -1. "
-                  "Activate it once first (note: activate() fully opens and closes "
-                  "the gripper), then rerun.")
-
-    baseline = capture_baseline(sensor, args.baseline_frames)
-
-    img_dir = os.path.join(args.out, "images")
-    if args.save_images:
-        os.makedirs(img_dir, exist_ok=True)
-    else:
-        os.makedirs(args.out, exist_ok=True)
-    csv_path = os.path.join(args.out, "force_proxy.csv")
-
-    print(f"Collecting [{args.side.upper()}] at {args.rate} Hz for {args.duration} s -> {args.out}")
-    print("Start pressing / closing onto the object now.")
-
-    period = 1.0 / args.rate
-    n_steps = int(args.duration * args.rate)
-    plot_buf = deque(maxlen=int(args.rate * 10))  # last ~10 s of the proxy
-
-    header = ["idx", "t", "volume", "area_px", "max_deform_mm", "mean_deform_mm"]
-    if gripper is not None:
-        header.append("gripper_pos_bit")
-
-    with open(csv_path, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(header)
-
-        t_start = time.time()
-        try:
-            for idx in range(n_steps):
-                t0 = time.time()
-
-                height_map = grab_height_map(sensor)
-                volume, area_px, max_deform, mean_deform, absdef = compute_metrics(
-                    height_map, baseline, args.contact_thresh)
-
-                position_bit = None
-                if gripper is not None:
-                    position_bit = gripper.read_position()
-
-                t = time.time() - t_start
-                row = [idx, t, volume, area_px, max_deform, mean_deform]
-                if position_bit is not None:
-                    row.append(position_bit)
-                writer.writerow(row)
-
-                if args.save_images:
-                    np.save(os.path.join(img_dir, f"{idx:06d}.npy"), height_map)
-
-                plot_buf.append(volume)
-
-                if idx % int(args.rate) == 0:
-                    print(f"  [{idx}/{n_steps}]  volume={volume:9.1f}  area={area_px:6d}px  "
-                          f"max={max_deform:.2f}mm")
-
-                if args.show:
-                    depth_vis = sensor.height_map_2_depth_map(absdef)
-                    cv2.imshow(f"Deformation [{args.side}]", depth_vis)
-                    cv2.imshow("Force proxy (volume)",
-                               draw_rolling_plot(list(plot_buf), label="volume"))
-                    if cv2.waitKey(1) == ord('q'):
-                        print("\nStopped early by user.")
-                        break
-
-                elapsed = time.time() - t0
-                sleep_time = period - elapsed
-                if sleep_time > 0:
-                    time.sleep(sleep_time)
-        finally:
-            sensor.cap.release()
-            if gripper is not None:
-                gripper.close()
-            cv2.destroyAllWindows()
-
-    print(f"Done. Wrote metrics to {csv_path}")
-    if args.save_images:
-        print(f"Archived height maps to {img_dir}/")
-    print("\nThis proxy is standalone — no Newton (calibrate-force) step is required.")
-    print("'volume' is an UNCALIBRATED force proxy, which is all the rank-based")
-    print("analysis needs. Convert to Newtons later only if you want absolute force")
-    print("(press onto a balance at known forces and fit F = a*volume + b).")
-
-
 def calibrate_force(args):
     """Step 5: fits F = a*volume + b against a precision balance, and reports R^2.
 
@@ -683,7 +544,7 @@ def main():
 
     p_force = subparsers.add_parser(
         'calibrate-force',
-        help="Step 5: fit force proxy to Newtons against a precision balance")
+        help="Step 4: fit force proxy to Newtons against a precision balance")
     p_force.add_argument("--side", choices=["left", "right"], required=True)
     p_force.add_argument("--out", default=os.path.join(CONFIG_DIR, "..", "data", "results"),
                           help="Directory for the calibration CSV + figure.")
@@ -696,27 +557,6 @@ def main():
                                "Defaults to the same CONTACT_THRESH_MM experiment.py uses — "
                                "changing it here means calibrating against a different quantity "
                                "than the trials record.")
-
-    p_collect = subparsers.add_parser('collect', help='Step 4: standalone grip-force proxy data collection')
-    p_collect.add_argument("--side", choices=["left", "right"], required=True)
-    p_collect.add_argument("--out", default=None,
-                            help="Output directory for this sensor's data. "
-                                 "Defaults to data/proxy/sensor_L | sensor_R.")
-    p_collect.add_argument("--rate", type=float, default=20.0, help="Sampling rate in Hz.")
-    p_collect.add_argument("--duration", type=float, default=30.0, help="Collection duration in seconds.")
-    p_collect.add_argument("--baseline-frames", type=int, default=BASELINE_FRAMES,
-                            help="Frames averaged for the no-contact baseline at startup.")
-    p_collect.add_argument("--contact-thresh", type=float, default=LOW_DEFORM_THRESH_MM,
-                            help="Per-pixel deformation (mm) above which a pixel counts as contact. "
-                                 f"Defaults to the sensitive LOW_DEFORM_THRESH_MM ({LOW_DEFORM_THRESH_MM} mm) "
-                                 "so fragile/deformable objects, which barely indent the gel, still "
-                                 f"register. Pass {CONTACT_THRESH_MM} to match experiment.py's trial threshold.")
-    p_collect.add_argument("--save-images", action="store_true", default=True,
-                            help="Archive raw height maps (.npy) for possible later supervised training.")
-    p_collect.add_argument("--no-save-images", dest="save_images", action="store_false")
-    p_collect.add_argument("--show", action="store_true", help="Show live depth map + rolling proxy plot.")
-    p_collect.add_argument("--gripper-port", default=None,
-                            help="Optional: also log gripper position (gPO). Current is NOT used.")
 
     args = parser.parse_args()
 
@@ -732,8 +572,6 @@ def main():
         else:
             cfg = load_cfg(args.side)
             reconstruct(args.side, cfg)
-    elif args.command == 'collect':
-        collect(args)
     elif args.command == 'calibrate-force':
         calibrate_force(args)
 

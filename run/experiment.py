@@ -76,6 +76,14 @@ HAPTIC_HZ  = 15                 # Sensor read + serial send rate
 # Global runtime state
 stop_event = threading.Event()  # For stopping all threads
 
+CONDITIONS = ["visual_only", "lra", "tactiles"]
+# ESP32 firmware METHOD (firmware/stream.py) each condition needs. None means
+# no firmware should be driving actuators for this condition — physically
+# disconnect the ESP32, or make sure its current firmware isn't wired to move
+# anything. Used by RecordingState.cycle_condition() to decide whether a
+# condition change needs the reflash handoff in kernel/tracking.py.
+CONDITION_FIRMWARE = {"visual_only": None, "lra": "vibmotor", "tactiles": "tactiles"}
+
 @dataclass
 class SharedState:
     """Written by the main thread (target_pos) and the two tactile-sensor
@@ -86,20 +94,32 @@ class SharedState:
 
 
 class RecordingState:
-    """Recording toggle, trial counter, object class. Mutated by the keyboard
-    thread; read by log_loop and the overlay."""
+    """Recording toggle, pause gate, condition/object, per-combo trial
+    counters. Mutated by the keyboard thread; read by log_loop and the
+    overlay.
 
-    def __init__(self, initial_object: str):
+    `paused` starts True: the gripper only tracks the hand once you
+    explicitly resume ('SPACE' in kernel/tracking.py), and starting a trial
+    or cycling condition is blocked while paused is False or a trial is
+    active — see toggle_recording()/cycle_condition()."""
+
+    def __init__(self, initial_condition: str, initial_object: str):
         self._lock = threading.Lock()
         self.active = False
-        self.trial_number = 0
+        self.paused = True
+        self.condition = initial_condition
         self.current_object = initial_object
         self.last_outcome = None   # set when stopping a fragile trial: "success" or "break"
+        self._trial_counts = {}    # (condition, object) -> count, independent per combo
 
-    def toggle_recording(self, outcome: str = None) -> bool:
-        """Flips recording; returns the new state. `outcome` is stashed only
-        when stopping a trial, so log_loop can tag the file it's about to close."""
+    def toggle_recording(self, outcome: str = None):
+        """Flips recording; returns the new state, or None if blocked
+        (still paused — this only blocks the START transition, never the
+        stop). `outcome` is stashed only when stopping a trial, so log_loop
+        can tag the file it's about to close."""
         with self._lock:
+            if not self.active and self.paused:
+                return None
             self.active = not self.active
             if not self.active:
                 self.last_outcome = outcome
@@ -120,10 +140,51 @@ class RecordingState:
             self.current_object = "deformable" if self.current_object == "fragile" else "fragile"
             return True, self.current_object
 
-    def snapshot(self):
-        """Returns (active, current_object) atomically."""
+    def toggle_pause(self):
+        """Flips paused; returns the new state, or None if blocked (a trial
+        is active — stop it first)."""
         with self._lock:
-            return self.active, self.current_object
+            if self.active:
+                return None
+            self.paused = not self.paused
+            return self.paused
+
+    def cycle_condition(self):
+        """Advances to the next condition (visual_only -> lra -> tactiles ->
+        ...). Returns (new_condition, new_firmware, firmware_changed), or
+        None if blocked (must be paused and not recording — a condition
+        change can require swapping ESP32 firmware, so it's gated like a
+        hardware change). firmware_changed tells the caller whether to run
+        the reflash handoff (kernel/tracking.py's _handle_firmware_swap)."""
+        with self._lock:
+            if self.active or not self.paused:
+                return None
+            old_condition = self.condition
+            idx = CONDITIONS.index(old_condition)
+            new_condition = CONDITIONS[(idx + 1) % len(CONDITIONS)]
+            self.condition = new_condition
+            new_firmware = CONDITION_FIRMWARE[new_condition]
+            firmware_changed = CONDITION_FIRMWARE[old_condition] != new_firmware
+            return new_condition, new_firmware, firmware_changed
+
+    def next_trial_number(self):
+        """Returns the next trial number for the CURRENT (condition, object)
+        combo, counted independently per combo — so filenames match the old
+        per-launch numbering (trial1, trial2, ... within each combo) even
+        though one process now covers every combo."""
+        with self._lock:
+            key = (self.condition, self.current_object)
+            self._trial_counts[key] = self._trial_counts.get(key, 0) + 1
+            return self._trial_counts[key]
+
+    def is_paused(self) -> bool:
+        with self._lock:
+            return self.paused
+
+    def snapshot(self):
+        """Returns (active, paused, condition, current_object) atomically."""
+        with self._lock:
+            return self.active, self.paused, self.condition, self.current_object
 
 
 # =============================================================================
@@ -206,24 +267,28 @@ def sensor_process_main(side: str, camera_index: int, shared_reading: SharedTact
 
 
 # Haptic send loop
-def haptic_send_loop(link: HapticLink, state: SharedState, test_mode: bool):
+def haptic_send_loop(link: HapticLink, state: SharedState, recording: RecordingState, test_mode: bool):
     """Streams both sensors' intensities to the ESP32 at HAPTIC_HZ. In
-    test_mode, streams a 0->1->0 ramp instead, ignoring the sensors."""
-    if not link.is_connected:
-        return
-
+    test_mode, streams a 0->1->0 ramp instead, ignoring the sensors. Sends
+    (0, 0) whenever `recording` is paused, so nothing fires while the
+    experimenter is adjusting setup or the ESP32 is mid-reflash for a
+    condition change (the link may also be transiently disconnected during
+    that reflash — link.send() is a no-op while it is)."""
     interval = 1.0 / HAPTIC_HZ
     if test_mode:
         print(f"[Haptic] *** SELF-TEST MODE *** streaming a 0->1->0 ramp on both "
               f"channels via {link.port}, ignoring both tactile sensors. Motors should pulse.")
     else:
-        print(f"[Haptic] Streaming L/R intensities to ESP32 on {link.port} @ {HAPTIC_HZ} Hz.")
+        print(f"[Haptic] Streaming L/R intensities to ESP32 on {link.port} @ {HAPTIC_HZ} Hz "
+              f"(sends 0,0 while paused).")
 
     t_start = time.monotonic()
     try:
         while not stop_event.is_set():
             t0 = time.monotonic()
-            if test_mode:
+            if recording.is_paused():
+                left_intensity, right_intensity = 0.0, 0.0
+            elif test_mode:
                 # Known-good ramp: 0 -> 1 over 2 s, 1 -> 0 over 2 s, repeat.
                 phase = (time.monotonic() - t_start) % 4.0
                 ramp = phase / 2.0 if phase < 2.0 else (4.0 - phase) / 2.0
@@ -239,10 +304,14 @@ def haptic_send_loop(link: HapticLink, state: SharedState, test_mode: bool):
 
 # Trial logging
 def log_loop(gripper: GripperController, recording: RecordingState, state: SharedState,
-             out_dir: str, condition: str, participant: str):
+             out_dir: str, participant: str):
     """Writes one CSV row per tick while recording; a new file per trial.
 
-    File: <out_dir>/<participant>_<condition>_<object>_trial<N>.csv
+    File: <out_dir>/<participant>_<condition>_<object>_trial<N>.csv (N is
+    counted independently per condition/object combo — see
+    RecordingState.next_trial_number()). condition/object are now read live
+    from `recording` since a single launch now covers every combo for a
+    participant, rather than being fixed for the whole process.
     Columns: t, gripper_pos_bit, left/right_force_proxy, left/right_force_N,
     left/right_max_depth_mm, left/right_haptic_intensity, motion_mode.
     A force_N column is empty unless that side's FORCE_CAL constants are set.
@@ -261,19 +330,23 @@ def log_loop(gripper: GripperController, recording: RecordingState, state: Share
     trial_start = None
     was_recording = False
     trial_object = None
+    trial_condition = None
+    trial_num = None
 
     try:
         while not stop_event.is_set():
             t0 = time.monotonic()
 
-            is_recording, current_object = recording.snapshot()
+            is_recording, _, current_condition, current_object = recording.snapshot()
 
             if is_recording and not was_recording:
-                # New trial file; lock in the object class as of this moment
-                # so a mid-trial 'o' press can't relabel it.
-                recording.trial_number += 1
+                # New trial file; lock in condition/object as of this moment
+                # so a stray key press mid-trial can't relabel it (both are
+                # already gated behind "not active", but pin them anyway).
+                trial_condition = current_condition
                 trial_object = current_object
-                fname = f"{participant}_{condition}_{trial_object}_trial{recording.trial_number}.csv"
+                trial_num = recording.next_trial_number()
+                fname = f"{participant}_{trial_condition}_{trial_object}_trial{trial_num}.csv"
                 fpath = os.path.join(out_dir, fname)
                 csv_file = open(fpath, "w", newline="")
                 writer = csv.writer(csv_file)
@@ -283,7 +356,7 @@ def log_loop(gripper: GripperController, recording: RecordingState, state: Share
                                   "left_max_depth_mm", "right_max_depth_mm",
                                   "left_haptic_intensity", "right_haptic_intensity"])
                 trial_start = time.monotonic()
-                print(f"\n[Log] Recording trial {recording.trial_number} ({trial_object}) -> {fpath}")
+                print(f"\n[Log] Recording trial {trial_num} ({trial_condition}/{trial_object}) -> {fpath}")
 
             elif not is_recording and was_recording:
                 # Recording just stopped — close the file
@@ -293,9 +366,9 @@ def log_loop(gripper: GripperController, recording: RecordingState, state: Share
                     if trial_object == "fragile" and outcome is not None:
                         tagged_fpath = fpath.rsplit(".csv", 1)[0] + f"_{outcome}.csv"
                         os.rename(fpath, tagged_fpath)
-                        print(f"\n[Log] Trial {recording.trial_number} saved -> {os.path.basename(tagged_fpath)}")
+                        print(f"\n[Log] Trial {trial_num} saved -> {os.path.basename(tagged_fpath)}")
                     else:
-                        print(f"\n[Log] Trial {recording.trial_number} saved.")
+                        print(f"\n[Log] Trial {trial_num} saved.")
                 csv_file = None
                 writer = None
 
@@ -341,11 +414,14 @@ def main():
     parser.add_argument(
         "--condition",
         required=True,
-        choices=["visual_only", "lra", "tactiles"],
+        choices=CONDITIONS,
         help=(
-            "Feedback condition label for trial filenames. Data-labeling only — "
-            "actual hardware behavior depends on the ESP32 firmware; for "
-            "visual_only, disconnect the ESP32 or ignore sent intensities."
+            "STARTING feedback condition label for trial filenames — cycle "
+            "through conditions at runtime with 'c' (only while paused and "
+            "not recording) instead of relaunching per condition. Data-"
+            "labeling only — actual hardware behavior depends on the ESP32 "
+            "firmware; switching to/from a condition with a different "
+            "CONDITION_FIRMWARE entry walks you through reflashing it."
         )
     )
 
@@ -420,7 +496,7 @@ def main():
     print("ready.")
 
     state = SharedState()
-    recording = RecordingState(initial_object=args.object)
+    recording = RecordingState(initial_condition=args.condition, initial_object=args.object)
     haptic_link = HapticLink(ESP32_PORT, ESP32_BAUD)
     sensor_stop_event = mp.Event()
     sensor_ready = {"left": mp.Event(), "right": mp.Event()}
@@ -482,15 +558,17 @@ def main():
     threads = [
         threading.Thread(target=status_loop, args=(gripper, state), daemon=True),
         threading.Thread(target=motion_loop, args=(gripper, state), daemon=True),
-        threading.Thread(target=haptic_send_loop, args=(haptic_link, state, args.haptic_test), daemon=True),
-        threading.Thread(target=log_loop, args=(gripper, recording, state, args.out, args.condition, args.participant), daemon=True),
+        threading.Thread(target=haptic_send_loop, args=(haptic_link, state, recording, args.haptic_test), daemon=True),
+        threading.Thread(target=log_loop, args=(gripper, recording, state, args.out, args.participant), daemon=True),
     ]
     for t in threads:
         t.start()
 
-    print(f"  [Controls] Press 'r' in the video window to start/stop recording a trial.")
-    print(f"  [Controls] Press 'o' in the video window to toggle object class (fragile/deformable) when not recording.")
-    print(f"  [Controls] Press 'q' in the video window to quit.\n")
+    print(f"  [Controls] Press SPACE to pause/resume hand tracking (starts PAUSED — resume when ready).")
+    print(f"  [Controls] Press 'r' to start/stop recording a trial (only while resumed).")
+    print(f"  [Controls] Press 'o' to toggle object class (fragile/deformable) when not recording.")
+    print(f"  [Controls] Press 'c' to cycle condition (visual_only -> lra -> tactiles) when paused and not recording.")
+    print(f"  [Controls] Press 'q' to quit.\n")
 
     if args.model_path:
         model_path = args.model_path
@@ -512,7 +590,7 @@ def main():
 
     detector = create_hand_detector(model_path)
 
-    hand_tracking_loop(cap, detector, state, recording, stop_event)
+    hand_tracking_loop(cap, detector, state, recording, haptic_link, stop_event)
 
     print("\nStopping Window & Threads …")
     stop_event.set()
