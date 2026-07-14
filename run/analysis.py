@@ -86,8 +86,7 @@ def _combined_series(df, collapse):
 def compute_trial_metrics(trial_csv_path, contact_threshold_mm, collapse):
     """Compute the four per-trial metrics specified in thesis Section 5.1
     from one trial CSV (schema: t, gripper_pos_bit, left/right_force_proxy,
-    left/right_force_N, left/right_max_depth_mm, left/right_haptic_intensity,
-    motion_mode).
+    left/right_force_N, left/right_max_depth_mm).
 
     The two sensors are collapsed to one force + one depth series by
     _combined_series(collapse); force is the deformation-based grip-force

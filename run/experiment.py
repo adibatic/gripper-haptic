@@ -313,8 +313,11 @@ def log_loop(gripper: GripperController, recording: RecordingState, state: Share
     from `recording` since a single launch now covers every combo for a
     participant, rather than being fixed for the whole process.
     Columns: t, gripper_pos_bit, left/right_force_proxy, left/right_force_N,
-    left/right_max_depth_mm, left/right_haptic_intensity, motion_mode.
-    A force_N column is empty unless that side's FORCE_CAL constants are set.
+    left/right_max_depth_mm. A force_N column is empty unless that side's
+    FORCE_CAL constants are set. Haptic intensity isn't logged — it's a pure
+    clip(max_depth_mm / DEPTH_SATURATION_MM, 0, 1) rescale (kernel/tactile.py)
+    with no analysis.py use, so it added nothing recomputing from max_depth_mm
+    can't reproduce.
     """
     interval = 1.0 / HAPTIC_HZ
     os.makedirs(out_dir, exist_ok=True)
@@ -353,8 +356,7 @@ def log_loop(gripper: GripperController, recording: RecordingState, state: Share
                 writer.writerow(["t", "gripper_pos_bit",
                                   "left_force_proxy", "right_force_proxy",
                                   "left_force_N", "right_force_N",
-                                  "left_max_depth_mm", "right_max_depth_mm",
-                                  "left_haptic_intensity", "right_haptic_intensity"])
+                                  "left_max_depth_mm", "right_max_depth_mm"])
                 trial_start = time.monotonic()
                 print(f"\n[Log] Recording trial {trial_num} ({trial_condition}/{trial_object}) -> {fpath}")
 
@@ -385,8 +387,7 @@ def log_loop(gripper: GripperController, recording: RecordingState, state: Share
                 writer.writerow([f"{t:.4f}", pos,
                                   f"{state.left.force_proxy:.4f}", f"{state.right.force_proxy:.4f}",
                                   left_force_N, right_force_N,
-                                  f"{state.left.max_depth_mm:.4f}", f"{state.right.max_depth_mm:.4f}",
-                                  f"{state.left.intensity:.4f}", f"{state.right.intensity:.4f}"])
+                                  f"{state.left.max_depth_mm:.4f}", f"{state.right.max_depth_mm:.4f}"])
                 csv_file.flush()
 
             was_recording = is_recording
