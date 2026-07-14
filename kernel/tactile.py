@@ -258,7 +258,7 @@ class TactileSensor:
         self.sensor = None
         self.baseline = None
 
-    def connect(self, max_retries: int = 5, retry_delay: float = 1.0):
+    def connect(self, max_retries: int = 8, retry_delay: float = 1.5):
         from shape_reconstruction import Sensor
 
         # thread_local so this sensor's own process opens the right camera.
@@ -273,7 +273,7 @@ class TactileSensor:
             try:
                 self.sensor = Sensor(cfg)
                 return
-            except (TypeError, RuntimeError) as e:
+            except (TypeError, RuntimeError, OSError) as e:
                 # Only keep the message, not the exception object: holding the
                 # exception (and its traceback) alive across the loop would
                 # keep the failed attempt's half-opened cv2.VideoCapture alive
@@ -282,7 +282,9 @@ class TactileSensor:
                 last_msg = str(e)
                 print(f"[Tactile][WARNING] {self.label} camera not ready yet "
                       f"(attempt {attempt}/{max_retries}): {last_msg}", flush=True)
-            time.sleep(retry_delay)
+            # Back off a bit more each retry so a still-busy USB hub gets more
+            # time to settle instead of hammering it at a fixed interval.
+            time.sleep(retry_delay + 0.5 * attempt)
         raise RuntimeError(
             f"{self.label} tactile camera never became ready after {max_retries} "
             f"attempts: {last_msg}"

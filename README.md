@@ -13,7 +13,7 @@ The project splits into three code roots: `run/` (host scripts you execute),
 runs on the ESP32-C6, not the PC).
 
 ```text
-haptic-experiment/
+gripper-haptic/
 ├── data/                           # Experimental data (logs + calibration + proxy)
 │   ├── calibration/                # Per-sensor calibration data (sensor_L / sensor_R)
 │   ├── proxy/                      # Standalone force-proxy collection (sensor_L / sensor_R)
@@ -38,7 +38,11 @@ haptic-experiment/
 │   ├── 9DTact-main/                # 9DTact tactile sensor source code
 │   └── pyRobotiqGripper-master/    # Robotiq gripper driver
 ├── thesis/                         # Thesis manuscript (LaTeX source)
+│   ├── figures/                    # Thesis figures
+│   ├── main.tex                    # Main LaTeX file
+│   └── references.bib              # References
 ├── .gitignore                      # Git ignore rules
+├── ESP32_GENERIC_C6-<...>.bin      # MicroPython firmware for ESP32-C6
 ├── pyrightconfig.json              # Python type checking config
 ├── README.md                       # This file
 └── requirements.txt                # Required dependencies
@@ -70,10 +74,10 @@ ROS is not required.
 
 **1. Create and activate the conda environment**
 ```bash
-# conda remove -n hapticf --all -y   # uncomment to wipe an existing env before recreating
+# conda remove -n hapticf --all -y            # uncomment to wipe an existing env before recreating
 conda create -n hapticf python=3.10 -y
 conda activate hapticf
-conda env config vars set PYTHONNOUSERSITE=1    # isolate from ~/.local
+conda env config vars set PYTHONNOUSERSITE=1  # isolate from ~/.local
 conda deactivate && conda activate hapticf
 ```
 
@@ -130,12 +134,12 @@ wget -O run/hand_landmarker.task \
 **5. Flash MicroPython onto the ESP32-C6**
 Download the firmware `.bin` for your board from the [MicroPython downloads page](https://micropython.org/download/ESP32_GENERIC_C6/) and place it in the repo root.
 ```bash
-ls /dev/tty{ACM}*   # ttyACM0 = ESP32-C6
+ls /dev/ttyACM*   # ttyACM0 = ESP32-C6
 ```
 Then flash it:
 ```bash
 python -m esptool --chip esp32c6 --port /dev/ttyACM0 erase-flash
-python -m esptool --chip esp32c6 --port /dev/ttyACM0 --baud 460800 write-flash -z 0x0 ESP32_GENERIC_C6-20260710-v1_28_0.bin
+python -m esptool --chip esp32c6 --port /dev/ttyACM0 --baud 460800 write-flash -z 0x0 ESP32_GENERIC_C6-20260406-v1.28.0.bin
 ```
 > This guide was last verified working against ESP32-C6 MicroPython firmware **v1.28.0**.
 
@@ -166,14 +170,12 @@ Then set `HAND_CAM_INDEX`, `TACTILE_CAM_L`, and `TACTILE_CAM_R` in `kernel/camer
 You need the calibration board (`src/9DTact-main/9DTact_Design/fabrication/calibration_board.STL`) and a ball matching `BallRad` in `run/shape_config.yaml` (default 4.0mm). Run per side:
 
 ```bash
-cd run
-python setup.py calibrate-camera --side left     # board
-python setup.py calibrate-sensor --side left     # ball
-python setup.py reconstruct      --side left     # verify: any object
-cd ..
+python run/setup.py calibrate-camera --side left     # board
+python run/setup.py calibrate-sensor --side left     # ball
+python run/setup.py reconstruct      --side left     # verify: any object
 ```
 
-Press **`y`** with nothing touching the sensor (reference frame), press the board/ball onto it, then **`y`** again. `q` exits. Repeat for `--side right`.
+Press **`y`** with nothing touching the sensor (reference frame), press the board/ball onto it, then **`y`** again. For reconstruct, press `y` to start imaging, and `q` to exit imaging. Open3D warnings will appear but they are ignorable. Repeat for `--side right`.
 
 Each side's calibration lands in `data/calibration/sensor_L` / `sensor_R` (the path is set by `calibration_root_dir` in `run/shape_config.yaml`, with `sensor_<id>` appended per side).
 
@@ -251,7 +253,6 @@ The board runs the **receiver** (`firmware/stream.py`); `experiment.py` is the s
 > are **not** what `experiment.py` talks to — use `stream.py`.
 
 ```bash
-conda activate hapticf
 python -m mpremote connect /dev/ttyACM0 fs cp firmware/haptic.py :
 python -m mpremote connect /dev/ttyACM0 fs cp firmware/stream.py :
 python -m mpremote connect /dev/ttyACM0 repl
@@ -281,7 +282,6 @@ g.disconnect()
 **3. Run the experiment**
 
 ```bash
-conda activate hapticf
 python run/experiment.py --condition visual_only --participant P01 --object fragile --out data/experiment_logs
 python run/experiment.py --condition visual_only --participant P01 --object deformable --out data/experiment_logs
 python run/experiment.py --condition lra --participant P01 --object deformable --out data/experiment_logs
