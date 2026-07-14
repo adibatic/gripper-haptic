@@ -298,8 +298,6 @@ Columns per row (~30 Hz while recording is active):
 | `left_force_proxy` / `right_force_proxy` | Deformation volume — grip-force proxy (uncalibrated), left/right sensor. Replaces the dead `current_mA`. See "Optional — Force Calibration" in Setup & Installation. |
 | `left_force_N` / `right_force_N` | Calibrated force (N) per side, `FORCE_CAL_A_<SIDE>*volume + FORCE_CAL_B_<SIDE>`; empty unless that side's calibration constants are set in `experiment.py` |
 | `left_max_depth_mm` / `right_max_depth_mm` | Raw max sensor indentation depth (mm), per side |
-| `left_haptic_intensity` / `right_haptic_intensity` | 0.0–1.0 values streamed to ESP32 — left drives the thumb motor, right drives the index motor |
-| `motion_mode` | Always `hand_tracking` |
 
 
 The per-side force proxy is `volume` from `compute_metrics()` (`kernel/tactile.py`); the underlying per-frame metrics are:
