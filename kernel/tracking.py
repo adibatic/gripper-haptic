@@ -7,6 +7,12 @@ hand_tracking_loop is the experiment's foreground loop — experiment.py's main(
 blocks on it and passes in the shared stop_event. `state` / `recording` are
 experiment.py's SharedState / RecordingState, duck-typed here so this module
 doesn't import experiment.py back.
+
+Keys: 'r' start/stop a trial, 'o' toggle object class, 'c' cycle condition,
+SPACE pause/resume tracking, 'q' quit. 'c' and SPACE are gated by
+`recording` (must be paused and not recording — see RecordingState in
+experiment.py); a condition change that needs different ESP32 firmware walks
+the operator through reflashing it via `haptic_link` (_handle_firmware_swap).
 """
 
 from __future__ import annotations
@@ -79,11 +85,12 @@ def create_hand_detector(model_path: str):
 # GUI OVERLAY
 # =============================================================================
 
-def _draw_overlay(frame, target_pos: float, finger_dist: float,
-                   state: SharedState, recording: RecordingState):
-    """Draws the status box: target position, finger distance, haptics, recording."""
+def _draw_overlay(frame, target_pos: float, finger_dist: float, state: SharedState,
+                   active: bool, paused: bool, condition: str, current_object: str):
+    """Draws the status box: target position, finger distance, haptics,
+    recording/condition state, and the paused/live banner."""
     overlay = frame.copy()
-    cv2.rectangle(overlay, (15, 15), (320, 140), (0, 0, 0), -1)
+    cv2.rectangle(overlay, (15, 15), (320, 160), (0, 0, 0), -1)
     cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
 
     cv2.putText(frame, f"Target Pos: {int(target_pos)} / {MAX_POS}", (25, 40),
@@ -97,11 +104,14 @@ def _draw_overlay(frame, target_pos: float, finger_dist: float,
     cv2.putText(frame, f"Haptic R (index): {state.right.intensity:.2f}", (25, 100),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-    active, current_object = recording.snapshot()
-    rec_text = (f"REC trial {recording.trial_number} ({current_object})" if active
-                else f"Not recording — object: {current_object} (press 'r')")
+    rec_text = (f"REC ({condition}/{current_object})" if active
+                else f"Not recording — {condition}/{current_object} (press 'r')")
     rec_color = (0, 0, 255) if active else (180, 180, 180)
     cv2.putText(frame, rec_text, (25, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, rec_color, 1)
+
+    pause_text = "PAUSED (SPACE to resume)" if paused else "LIVE (SPACE to pause)"
+    pause_color = (0, 165, 255) if paused else (0, 200, 0)
+    cv2.putText(frame, pause_text, (25, 145), cv2.FONT_HERSHEY_SIMPLEX, 0.6, pause_color, 2)
 
 
 # =============================================================================
@@ -114,7 +124,7 @@ def _prompt_fragile_outcome(frame, recording):
     stopped, so log_loop can tag the saved CSV's filename."""
     prompt = frame.copy()
     cv2.rectangle(prompt, (15, 150), (620, 200), (0, 0, 0), -1)
-    cv2.putText(prompt, f"Trial {recording.trial_number} (fragile) ended -- "
+    cv2.putText(prompt, "This fragile trial ended -- "
                 "object survived intact? [Y]es / [N]o",
                 (25, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 255), 1)
     cv2.imshow("Robotic Gripper Vision Feed", prompt)
@@ -125,7 +135,35 @@ def _prompt_fragile_outcome(frame, recording):
         if key in (ord('n'), ord('N')):
             return "break"
 
-def hand_tracking_loop(cap, detector, state: SharedState, recording: RecordingState, stop_event):
+
+def _handle_firmware_swap(haptic_link, new_condition, new_firmware):
+    """Walks the operator through reflashing the ESP32 when the new
+    condition's CONDITION_FIRMWARE entry differs from the previous one.
+    Releases the serial port so mpremote/esptool can use it (this process
+    holds it exclusively otherwise), blocks until the operator confirms,
+    then reopens it. The video window will look frozen for this duration —
+    that's expected, tracking is paused and no frames are being pumped."""
+    print(f"\n[Firmware] '{new_condition}' needs different ESP32 firmware than the "
+          f"previous condition. Releasing {haptic_link.port} so it can be reflashed.")
+    haptic_link.close()
+    if new_firmware is None:
+        print("  -> Physically disconnect the ESP32, or make sure its current firmware "
+              "isn't wired to drive any actuator (visual_only should feel nothing).")
+    else:
+        print("  -> In another terminal:")
+        print(f"       python -m mpremote connect {haptic_link.port} fs cp firmware/haptic.py :")
+        print(f"       python -m mpremote connect {haptic_link.port} fs cp firmware/stream.py :")
+        print(f"     Edit METHOD = \"{new_firmware}\" at the top of firmware/stream.py BEFORE "
+              f"copying it, then in the REPL:")
+        print("       exec(open('stream.py').read())")
+        print("     Detach with Ctrl-X once it's running.")
+    input("  Press ENTER here once the ESP32 is ready (reflashed/reconnected) to resume streaming... ")
+    haptic_link.reconnect()
+    print(f"[Firmware] Reopened {haptic_link.port}. Resume tracking with SPACE when ready.")
+
+
+def hand_tracking_loop(cap, detector, state: SharedState, recording: RecordingState,
+                        haptic_link, stop_event):
     """Runs until stop_event is set: maps each frame's pinch distance to
     state.target_pos (which motion_loop sends to the gripper) and draws the
     overlay."""
@@ -208,9 +246,14 @@ def hand_tracking_loop(cap, detector, state: SharedState, recording: RecordingSt
         if abs(smoothed_target_pos - last_committed_target) < 1.0:
             smoothed_target_pos = last_committed_target
 
-        state.target_pos = smoothed_target_pos
+        active, paused, condition, current_object = recording.snapshot()
+        if not paused:
+            # Frozen while paused: the gripper holds its last commanded
+            # position instead of chasing the hand during setup/reflash.
+            state.target_pos = smoothed_target_pos
 
-        _draw_overlay(frame, smoothed_target_pos, current_dist, state, recording)
+        _draw_overlay(frame, smoothed_target_pos, current_dist, state,
+                      active, paused, condition, current_object)
 
         cv2.imshow("Robotic Gripper Vision Feed", frame)
 
@@ -218,15 +261,23 @@ def hand_tracking_loop(cap, detector, state: SharedState, recording: RecordingSt
         if key in (ord('q'), ord('Q')):
             stop_event.set()
             break
+        elif key == ord(' '):
+            new_state = recording.toggle_pause()
+            if new_state is None:
+                print("\n[Pause] Cannot pause/resume while recording — stop the trial ('r') first.")
+            else:
+                print(f"\n[Pause] {'PAUSED' if new_state else 'RESUMED — tracking live'}")
         elif key in (ord('r'), ord('R')):
             now = time.time()
             if now - last_record_toggle_time > 0.5:
-                active, current_object = recording.snapshot()
+                active, _, _, current_object = recording.snapshot()
                 if active and current_object == "fragile":
                     outcome = _prompt_fragile_outcome(frame, recording)
                     recording.toggle_recording(outcome=outcome)
                 else:
-                    recording.toggle_recording()
+                    result = recording.toggle_recording()
+                    if result is None:
+                        print("\n[Record] Cannot start recording while paused — press SPACE to resume first.")
                 last_record_toggle_time = now
         elif key in (ord('o'), ord('O')):
             changed, obj = recording.toggle_object()
@@ -234,3 +285,13 @@ def hand_tracking_loop(cap, detector, state: SharedState, recording: RecordingSt
                 print(f"\n[Object] Current object class set to: {obj}")
             else:
                 print("\n[Object] Cannot switch object class while recording — stop ('r') first.")
+        elif key in (ord('c'), ord('C')):
+            result = recording.cycle_condition()
+            if result is None:
+                print("\n[Condition] Cannot cycle condition unless paused and not recording "
+                      "— press SPACE to pause first.")
+            else:
+                new_condition, new_firmware, firmware_changed = result
+                print(f"\n[Condition] Switched to: {new_condition}")
+                if firmware_changed:
+                    _handle_firmware_swap(haptic_link, new_condition, new_firmware)

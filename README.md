@@ -14,9 +14,8 @@ runs on the ESP32-C6, not the PC).
 
 ```text
 gripper-haptic/
-├── data/                           # Experimental data (logs + calibration + proxy)
+├── data/                           # Experimental data (logs + calibration)
 │   ├── calibration/                # Per-sensor calibration data (sensor_L / sensor_R)
-│   ├── proxy/                      # Standalone force-proxy collection (sensor_L / sensor_R)
 │   ├── experiment_logs/            # Logs from experiment.py
 │   └── results/                    # Results from analysis.py
 ├── designs/                        # CAD models and 3D print assets
@@ -181,27 +180,11 @@ Each side's calibration lands in `data/calibration/sensor_L` / `sensor_R` (the p
 
 > **Press firmly and squarely.** `calibrate-camera` must find every dot on the board; dots that only graze the gel come out too faint to detect. If it fails, it reports how many it found, saves a debug overlay showing which ones were missed, and names the likely cause.
 
-**8. Collect grip force proxy via gel deformation**
-The Robotiq exposes no F/T reading and its `gCU` current register reads 0 mA regardless of contact, so grip force is derived from gel deformation instead (`deformation = height_map − baseline`). `experiment.py` computes this live per trial; `run/setup.py collect` is the standalone version for calibration/characterization only.
+**8. Optional — Force Calibration (convert deformation to Newtons)**
 
-| Metric | Meaning |
-| --- | --- |
-| `volume` | Σ\|deformation\| over the contact region — headline force proxy |
-| `area_px` | Pixels in contact |
-| `max_deform_mm` | 99th-percentile deformation depth |
-| `mean_deform_mm` | Mean deformation over the contact region |
+The Robotiq exposes no F/T reading and its `gCU` current register reads 0 mA regardless of contact, so grip force is derived from gel deformation instead (`deformation = height_map − baseline`). `experiment.py` computes this live per trial and logs it as `left_force_proxy`/`right_force_proxy` (see the trial-output column table under "Experiment" for what `volume`/`area_px`/`max_deform_mm`/`mean_deform_mm` mean).
 
-```bash
-python run/setup.py collect --side left  --rate 20 --duration 30 --show --out data/proxy/sensor_L_fragile     # egg
-python run/setup.py collect --side right --rate 20 --duration 30 --show --out data/proxy/sensor_R_fragile
-python run/setup.py collect --side left --rate 20 --duration 30 --show --out data/proxy/sensor_L_deformable   # sponge
-python run/setup.py collect --side right --rate 20 --duration 30 --show --out data/proxy/sensor_R_deformable
-```
-`collect` is standalone and needs **no Newton calibration** — the raw deformation proxy is the deliverable. Each side writes to `data/proxy/sensor_L` / `sensor_R` by default (override with `--out`), mirroring the calibration layout. Its default `--contact-thresh` is the sensitive `LOW_DEFORM_THRESH_MM` (0.03 mm, vs. the 0.1 mm `CONTACT_THRESH_MM` used at trial time), so **fragile and deformable objects** — which barely indent the gel — still register their low deformation. Pass `--contact-thresh 0.1` if you want it to match the trial threshold instead.
-
-`volume` is uncalibrated (∝ force, not Newtons) — fine for cross-condition comparison as-is, since Friedman/Wilcoxon are rank-based and a monotonic rescaling cannot change the p-values.
-
-**Optional — convert the proxy to Newtons.** Only needed if you want to report absolute force; the study's rank-based analysis does not require it. Run the guided calibration once per side:
+`volume` (the deformation proxy logged per trial) is uncalibrated (∝ force, not Newtons) — fine for cross-condition comparison as-is, since Friedman/Wilcoxon are rank-based and a monotonic rescaling cannot change the p-values. This step is only needed if you want to report absolute force in Newtons; the study's rank-based analysis does not require it. Run the guided calibration once per side:
 
 ```bash
 python run/setup.py calibrate-force --side left
@@ -236,12 +219,6 @@ ls /dev/tty{USB,ACM}*   # ttyACM0 = ESP32-C6, ttyUSB0 = Robotiq (via USB-RS485)
 ```
 * Camera indices correctly assigned in `kernel/camera.py` (Setup & Installation, Step 5).
 * Left and right sensors fully calibrated (Setup & Installation, Step 6).
-
-> **Before your first participant — go/no-go check:**
-> 1. Gripper **open / sensor untouched** at launch — the baseline is captured at startup, so contact here corrupts every `volume`.
-> 2. Record one **throwaway trial** (`r` to start/stop): confirm the `Fp:` readout rises on contact and returns to ~0 on release, and that the haptic actuator actually fires.
-> 3. Reporting **Newtons**? Calibrate ([3b](#3b-grip-force-modeling-deformation-proxy)) and then freeze the gel/sensor/`--contact-thresh` for the rest of the study. For **relative** cross-condition comparison, skip calibration.
-> 4. Relaunch `experiment.py` **per participant** so a drifting gel baseline doesn't bias `volume`.
 
 **1. Start the ESP32 receiver**
 
@@ -281,30 +258,29 @@ g.disconnect()
 
 **3. Run the experiment**
 
+One launch now covers a whole participant — all 3 conditions x 2 objects — instead of relaunching per condition/object. `--condition`/`--object` are just the STARTING values; cycle through the rest at runtime with `c`/`o`:
+
 ```bash
 python run/experiment.py --condition visual_only --participant P01 --object fragile --out data/experiment_logs
-python run/experiment.py --condition visual_only --participant P01 --object deformable --out data/experiment_logs
-python run/experiment.py --condition lra --participant P01 --object deformable --out data/experiment_logs
-python run/experiment.py --condition lra --participant P01 --object fragile --out data/experiment_logs
-python run/experiment.py --condition tactiles --participant P01 --object fragile --out data/experiment_logs
-python run/experiment.py --condition tactiles --participant P01 --object deformable --out data/experiment_logs
 ```
 
 | Flag | Values | Description |
 | --- | --- | --- |
-| `--condition` | `visual_only`, `lra`, `tactiles` | Labels the saved data with the feedback condition. Does **not** switch actuator hardware — that depends on which firmware is loaded on the ESP32. |
-| `--participant` | any string, e.g. `P01` | Participant ID, included in trial filenames. |
+| `--condition` | `visual_only`, `lra`, `tactiles` | STARTING condition label for trial filenames. Cycle at runtime with **`c`** (only while paused and not recording — see Controls). Labels the saved data only — actual actuator behavior depends on which firmware is loaded on the ESP32; switching to/from a condition that needs different firmware walks you through reflashing it. |
+| `--participant` | any string, e.g. `P01` | Participant ID, included in trial filenames. Relaunch per participant so a drifting gel baseline doesn't bias `volume`. |
 | `--object` | `fragile`, `deformable` | Starting object class for trial filenames. Switch mid-session with **`o`** (cannot switch while recording). |
 | `--out` | directory path | Where to save trial CSVs. Default: `data/experiment_logs`. |
 
 **Controls:**
 
-Gripper position is driven entirely by hand-tracking — no manual/keyboard override.
+Gripper position is driven entirely by hand-tracking — no manual/keyboard override. The session **starts paused**: nothing moves or buzzes until you resume.
 
 | Key | Action |
 | --- | --- |
-| `r` | Start / stop recording a trial |
+| `SPACE` | Pause / resume hand tracking. Paused freezes the gripper at its last position and sends 0-intensity to the haptics — use it whenever adjusting the rig, swapping objects, or between conditions. Blocked while a trial is recording. |
+| `r` | Start / stop recording a trial. Blocked while paused — resume first. |
 | `o` | Toggle object class (`fragile` ↔ `deformable`) — only when not recording |
+| `c` | Cycle condition (`visual_only` → `lra` → `tactiles` → ...) — only while paused and not recording. If the new condition needs different ESP32 firmware, walks you through releasing the serial port, reflashing (`mpremote`), and reconnecting before you resume. |
 | `q` | Quit |
 
 **Trial output files:**
@@ -319,11 +295,21 @@ Columns per row (~30 Hz while recording is active):
 | --- | --- |
 | `t` | Seconds since trial start |
 | `gripper_pos_bit` | Raw Robotiq position (0–225) |
-| `left_force_proxy` / `right_force_proxy` | Deformation volume — grip-force proxy (uncalibrated), left/right sensor. Replaces the dead `current_mA`. See [3b](#3b-grip-force-modeling-deformation-proxy) |
+| `left_force_proxy` / `right_force_proxy` | Deformation volume — grip-force proxy (uncalibrated), left/right sensor. Replaces the dead `current_mA`. See "Optional — Force Calibration" in Setup & Installation. |
 | `left_force_N` / `right_force_N` | Calibrated force (N) per side, `FORCE_CAL_A_<SIDE>*volume + FORCE_CAL_B_<SIDE>`; empty unless that side's calibration constants are set in `experiment.py` |
 | `left_max_depth_mm` / `right_max_depth_mm` | Raw max sensor indentation depth (mm), per side |
 | `left_haptic_intensity` / `right_haptic_intensity` | 0.0–1.0 values streamed to ESP32 — left drives the thumb motor, right drives the index motor |
-| `motion_mode` | Always `hand_tracking` (manual mode removed) |
+| `motion_mode` | Always `hand_tracking` |
+
+
+The per-side force proxy is `volume` from `compute_metrics()` (`kernel/tactile.py`); the underlying per-frame metrics are:
+
+| Metric | Meaning |
+| --- | --- |
+| `volume` | Σ\|deformation\| over the contact region — headline force proxy |
+| `area_px` | Pixels in contact |
+| `max_deform_mm` | 99th-percentile deformation depth |
+| `mean_deform_mm` | Mean deformation over the contact region |
 
 > **Schema note:** this uses left/right column pairs, replacing the older single-sensor columns (`force_proxy`, `force_N`, `max_depth_mm`, `haptic_intensity`). `analysis.py` reads this schema and collapses the two sides per metric via `--collapse` (see below).
 
