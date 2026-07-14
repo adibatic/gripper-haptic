@@ -94,12 +94,22 @@ class RecordingState:
         self.active = False
         self.trial_number = 0
         self.current_object = initial_object
+        self.last_outcome = None   # set when stopping a fragile trial: "success" or "break"
 
-    def toggle_recording(self) -> bool:
-        """Flips recording; returns the new state."""
+    def toggle_recording(self, outcome: str = None) -> bool:
+        """Flips recording; returns the new state. `outcome` is stashed only
+        when stopping a trial, so log_loop can tag the file it's about to close."""
         with self._lock:
             self.active = not self.active
+            if not self.active:
+                self.last_outcome = outcome
             return self.active
+
+    def consume_outcome(self):
+        """Returns and clears the outcome set by the last toggle_recording(outcome=...)."""
+        with self._lock:
+            outcome, self.last_outcome = self.last_outcome, None
+            return outcome
 
     def toggle_object(self):
         """Flips fragile/deformable. Returns (changed, object); changed is
@@ -159,14 +169,7 @@ def motion_loop(gripper: GripperController, state: SharedState):
 
 # Tactile sensing & haptic streaming
 def sensor_process_main(side: str, camera_index: int, shared_reading: SharedTactileReading,
-                         sensor_stop_event: mp.Event):
-    """Runs one TactileSensor's read loop in its own OS PROCESS, not a thread.
-
-    The per-frame rectify + height-map math is CPU-bound enough that running
-    two of these as threads starves the main process's GIL — badly enough
-    that the Qt hand-tracking window stops repainting even though the vision
-    loop itself keeps running fine. A separate process has no GIL to share.
-    """
+                         sensor_stop_event: mp.Event, ready_event: mp.Event, start_streaming_event: mp.Event):
     sensor = TactileSensor(side, camera_index)
     try:
         sensor.connect()
@@ -174,9 +177,16 @@ def sensor_process_main(side: str, camera_index: int, shared_reading: SharedTact
         print(f"\n[Haptic] Capturing {sensor.label} tactile baseline — keep it untouched ...")
         sensor.capture_baseline()
         print(f"[Haptic] {sensor.label.capitalize()} baseline captured.")
-        
+
         interval = 1.0 / HAPTIC_HZ
         print(f"[Haptic] {sensor.label.capitalize()} 9DTact sensor ready.")
+        ready_event.set()
+
+        # Hold off streaming until BOTH sensors have connected + baselined.
+        # Left's continuous 30Hz reads were saturating the USB hub it shares
+        # with the right camera, so right's own connect attempts never got a
+        # clean frame while left was already streaming.
+        start_streaming_event.wait()
 
         while not sensor_stop_event.is_set() and sensor.is_open:
             t0 = time.monotonic()
@@ -279,7 +289,13 @@ def log_loop(gripper: GripperController, recording: RecordingState, state: Share
                 # Recording just stopped — close the file
                 if csv_file is not None:
                     csv_file.close()
-                    print(f"\n[Log] Trial {recording.trial_number} saved.")
+                    outcome = recording.consume_outcome()
+                    if trial_object == "fragile" and outcome is not None:
+                        tagged_fpath = fpath.rsplit(".csv", 1)[0] + f"_{outcome}.csv"
+                        os.rename(fpath, tagged_fpath)
+                        print(f"\n[Log] Trial {recording.trial_number} saved -> {os.path.basename(tagged_fpath)}")
+                    else:
+                        print(f"\n[Log] Trial {recording.trial_number} saved.")
                 csv_file = None
                 writer = None
 
@@ -403,21 +419,66 @@ def main():
     gripper.start()
     print("ready.")
 
-    print(f"Initializing camera feed on {resolve(HAND_CAM_INDEX)} …", end=" ", flush=True)
-    cap = open_camera(HAND_CAM_INDEX)
-    if cap is None:
-        print(f"\n[ERROR] Could not open {resolve(HAND_CAM_INDEX)}. Indices shift when "
-              f"cameras re-enumerate — check `ls -l /dev/v4l/by-path/` and update "
-              f"kernel/camera.py. Exiting.")
-        return
-    print("ready.")
-
     state = SharedState()
     recording = RecordingState(initial_object=args.object)
     haptic_link = HapticLink(ESP32_PORT, ESP32_BAUD)
     sensor_stop_event = mp.Event()
+    sensor_ready = {"left": mp.Event(), "right": mp.Event()}
+    start_streaming_event = mp.Event()
 
-    # Start the hardware background threads
+    # Tactile sensors are started FIRST and the rest of startup waits for them.
+    # The right sensor's first frames are fragile (device opens fine, then
+    # returns None for several reads) and it loses that race every time it
+    # has to share CPU with MediaPipe/EGL init or hand-tracking inference —
+    # confirmed by it connecting instantly once those stop competing. Give
+    # both sensors a contention-free window before anything else starts.
+    print("Connecting tactile sensors …")
+    sensor_processes = {
+        "left": mp.Process(target=sensor_process_main,
+                            args=("left", TACTILE_CAM_L, state.left, sensor_stop_event, sensor_ready["left"], start_streaming_event),
+                            daemon=True),
+        "right": mp.Process(target=sensor_process_main,
+                             args=("right", TACTILE_CAM_R, state.right, sensor_stop_event, sensor_ready["right"], start_streaming_event),
+                             daemon=True),
+    }
+    sensor_processes["left"].start()
+    time.sleep(4.0)   # stagger so both sensors' initial burst reads don't collide on the shared USB bus
+    sensor_processes["right"].start()
+
+    def _abort_startup(message):
+        print(f"\n[ERROR] {message}")
+        sensor_stop_event.set()
+        for p in sensor_processes.values():
+            if p.is_alive():
+                p.terminate()
+        gripper.close()
+
+    SENSOR_CONNECT_TIMEOUT = 60.0
+    deadline = time.monotonic() + SENSOR_CONNECT_TIMEOUT
+    for side, ready in sensor_ready.items():
+        proc = sensor_processes[side]
+        while not ready.is_set():
+            if not proc.is_alive():
+                _abort_startup(f"{side} tactile sensor process died before connecting "
+                                f"(see its traceback above). Exiting.")
+                return
+            if time.monotonic() > deadline:
+                _abort_startup(f"{side} tactile sensor did not connect within "
+                                f"{SENSOR_CONNECT_TIMEOUT:.0f}s. Exiting.")
+                return
+            time.sleep(0.2)
+    print("Both tactile sensors ready.")
+    start_streaming_event.set()   # only now do both sensors begin their continuous read loops
+
+    print(f"Initializing camera feed on {resolve(HAND_CAM_INDEX)} …", end=" ", flush=True)
+    cap = open_camera(HAND_CAM_INDEX)
+    if cap is None:
+        _abort_startup(f"Could not open {resolve(HAND_CAM_INDEX)}. Indices shift when "
+                        f"cameras re-enumerate — check `ls -l /dev/v4l/by-path/` and update "
+                        f"kernel/camera.py. Exiting.")
+        return
+    print("ready.")
+
     threads = [
         threading.Thread(target=status_loop, args=(gripper, state), daemon=True),
         threading.Thread(target=motion_loop, args=(gripper, state), daemon=True),
@@ -426,18 +487,6 @@ def main():
     ]
     for t in threads:
         t.start()
-
-    # Tactile sensors run as separate processes. Their CPU-bound
-    # per-frame math would otherwise starve the main process's GIL and freeze
-    # the Qt hand-tracking window.
-    sensor_processes = [
-        mp.Process(target=sensor_process_main, args=("left", TACTILE_CAM_L, state.left, sensor_stop_event), daemon=True),
-        mp.Process(target=sensor_process_main, args=("right", TACTILE_CAM_R, state.right, sensor_stop_event), daemon=True),
-    ]
-    for i, p in enumerate(sensor_processes):
-        if i > 0:
-            time.sleep(2.0)   # stagger startup so both sensors' initial burst reads don't collide on the shared USB bus
-        p.start()
 
     print(f"  [Controls] Press 'r' in the video window to start/stop recording a trial.")
     print(f"  [Controls] Press 'o' in the video window to toggle object class (fragile/deformable) when not recording.")
@@ -457,7 +506,8 @@ def main():
         print("      https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
               "hand_landmarker/float16/latest/hand_landmarker.task")
         print("  Or point --model-path at an existing copy.")
-        stop_event.set()
+        _abort_startup("Missing hand landmarker model.")
+        cap.release()
         return
 
     detector = create_hand_detector(model_path)
@@ -469,7 +519,7 @@ def main():
     sensor_stop_event.set()
     for t in threads:
         t.join(timeout=1.0)
-    for p in sensor_processes:
+    for p in sensor_processes.values():
         p.join(timeout=2.0)
         if p.is_alive():
             p.terminate()

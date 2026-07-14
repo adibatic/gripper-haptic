@@ -42,7 +42,8 @@ OBJECTS = ["fragile", "deformable"]
 # <participant>_<condition>_<object>_trial<N>.csv
 FNAME_RE = re.compile(
     r"^(?P<participant>[^_]+)_(?P<condition>visual_only|lra|tactiles)_"
-    r"(?P<object>fragile|deformable)_trial(?P<trial>\d+)\.csv$"
+    r"(?P<object>fragile|deformable)_trial(?P<trial>\d+)"
+    r"(?:_(?P<outcome>success|break))?\.csv$"
 )
 
 
@@ -181,11 +182,20 @@ def load_all_trials(trials_dir, contact_threshold_mm, collapse):
             print(f"WARNING: {fname} is empty or unreadable, skipped.")
             continue
 
+        outcome = m.group("outcome")
+        # Only fragile trials carry this tag (experiment.py's y/n breakage
+        # prompt). Untagged fragile trials (recorded before this feature
+        # existed, or where the prompt was skipped) and all deformable
+        # trials get None here, which reduce_to_participant_condition_object()
+        # and the Section 5.3/5.4 tests already treat as missing data.
+        fragile_survived = {"success": 1.0, "break": 0.0}.get(outcome)
+
         row = {
             "participant": m.group("participant"),
             "condition": m.group("condition"),
             "object": m.group("object"),
             "trial_num": int(m.group("trial")),
+            "fragile_survived": fragile_survived,
         }
         row.update(metrics)
         rows.append(row)
@@ -231,7 +241,8 @@ def reduce_to_participant_condition_object(trial_df):
         plus an n_trials column.
     """
     metric_cols = ["peak_force_proxy", "peak_depth_mm",
-                   "time_to_first_contact_s", "force_overshoot_proxy"]
+                   "time_to_first_contact_s", "force_overshoot_proxy",
+                   "fragile_survived"]
 
     grouped = trial_df.groupby(["participant", "condition", "object"])
     out_rows = []
@@ -476,6 +487,99 @@ def write_lra_vs_tactiles_report(all_results, out_dir):
                 ])
     print(f"Wrote {path}")
 
+def write_fragile_breakage_summary(trial_df, out_dir):
+    """Section 5.7 (descriptive): raw success/break counts per condition,
+    over all fragile trials with a recorded outcome (untagged trials, which
+    predate the y/n prompt or skipped it, are excluded and reported)."""
+    path = os.path.join(out_dir, "section_5_7_fragile_breakage.csv")
+    fragile = trial_df[trial_df["object"] == "fragile"]
+    tagged = fragile[fragile["fragile_survived"].notna()]
+    n_untagged = len(fragile) - len(tagged)
+    if n_untagged > 0:
+        print(f"NOTE: {n_untagged} fragile trial(s) have no recorded success/break "
+              f"outcome — excluded from section_5_7_fragile_breakage.csv.")
+    with open(path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["condition", "n_trials", "n_success", "n_break", "success_rate"])
+        for condition in CONDITIONS:
+            sub = tagged[tagged["condition"] == condition]
+            if len(sub) == 0:
+                writer.writerow([condition, 0, 0, 0, ""])
+                continue
+            n_success = int(sub["fragile_survived"].sum())
+            n_total = len(sub)
+            writer.writerow([condition, n_total, n_success, n_total - n_success,
+                              f"{n_success / n_total:.4f}"])
+    print(f"Wrote {path}")
+
+def mcnemar_fragile_survival(reduced_df):
+    """Section 5.4 (fragile only): exact McNemar test on fragile_survived —
+    the statistically correct test for paired binary outcomes across two
+    conditions (Wilcoxon, used for the other four Section 5.1 metrics, is
+    not appropriate for a 0/1 outcome).
+
+    Requires each participant to have an UNAMBIGUOUS binary outcome per
+    condition (both fragile reps agreeing on success or break). Participants
+    whose two reps disagree (median 0.5) are dropped, with a note, since the
+    test needs one classification per subject per condition.
+
+    Args:
+        reduced_df: Output of reduce_to_participant_condition_object().
+
+    Returns:
+        None if too few usable participants, else a dict with n, b, c
+        (discordant pair counts) and p (exact two-sided binomial).
+    """
+    sub = reduced_df[reduced_df["object"] == "fragile"]
+    pivot = sub.pivot(index="participant", columns="condition", values="fragile_survived")
+    complete = pivot.dropna(subset=["lra", "tactiles"], how="any")
+
+    n_dropped = len(pivot) - len(complete)
+    if n_dropped > 0:
+        print(f"NOTE: fragile_survived McNemar: dropping {n_dropped} participant(s) "
+              f"missing lra or tactiles.")
+
+    ambiguous = complete[(complete["lra"] == 0.5) | (complete["tactiles"] == 0.5)]
+    if len(ambiguous) > 0:
+        print(f"NOTE: fragile_survived McNemar: dropping {len(ambiguous)} participant(s) "
+              f"whose two fragile reps disagreed (median 0.5) under lra or tactiles — "
+              f"McNemar needs one binary classification per participant per condition.")
+    complete = complete.drop(ambiguous.index)
+
+    if len(complete) < 4:
+        print(f"WARNING: fragile_survived McNemar: only {len(complete)} usable "
+              f"participant(s) — too few for a meaningful test. Skipping.")
+        return None
+
+    lra = complete["lra"].to_numpy()
+    tactiles = complete["tactiles"].to_numpy()
+
+    # Discordant pairs: b = survived under lra but not tactiles, c = reverse.
+    b = int(np.sum((lra == 1.0) & (tactiles == 0.0)))
+    c = int(np.sum((lra == 0.0) & (tactiles == 1.0)))
+
+    if b + c == 0:
+        print("NOTE: fragile_survived McNemar: no discordant pairs (lra and tactiles "
+              "always agree) — p is undefined, reporting p=1.0.")
+        return {"n": len(complete), "b": b, "c": c, "p": 1.0}
+
+    result = stats.binomtest(min(b, c), b + c, p=0.5)
+    return {"n": len(complete), "b": b, "c": c, "p": float(result.pvalue)}
+
+def write_fragile_mcnemar_report(result, out_dir):
+    """Writes the McNemar result for fragile_survived (lra vs tactiles) to
+    section_5_4_fragile_mcnemar.csv — a separate file from
+    section_5_4_lra_vs_tactiles.csv since the test/statistic differ."""
+    path = os.path.join(out_dir, "section_5_4_fragile_mcnemar.csv")
+    with open(path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["n", "b_lra_survived_only", "c_tactiles_survived_only", "mcnemar_p"])
+        if result is None:
+            writer.writerow(["", "", "", ""])
+        else:
+            writer.writerow([result["n"], result["b"], result["c"], f"{result['p']:.4f}"])
+    print(f"Wrote {path}")
+
 
 # ---------------------------------------------------------------------------
 # Section 5.5 — Time-Series Visualisation
@@ -652,6 +756,8 @@ def main():
     trial_df.to_csv(os.path.join(args.out, "section_5_1_per_trial_metrics.csv"), index=False)
     print(f"Wrote {os.path.join(args.out, 'section_5_1_per_trial_metrics.csv')} "
           f"({len(trial_df)} trials)")
+    
+    write_fragile_breakage_summary(trial_df, args.out)
 
     reduced_df = reduce_to_participant_condition_object(trial_df)
     reduced_df.to_csv(os.path.join(args.out, "section_5_1_reduced_metrics.csv"), index=False)
@@ -670,6 +776,10 @@ def main():
     for metric in metrics:
         lra_tactiles_results[metric] = lra_vs_tactiles(reduced_df, metric)
     write_lra_vs_tactiles_report(lra_tactiles_results, args.out)
+
+    print("\nRunning Section 5.4 (fragile breakage: McNemar lra vs tactiles)...")
+    mcnemar_result = mcnemar_fragile_survival(reduced_df)
+    write_fragile_mcnemar_report(mcnemar_result, args.out)
 
     print("\nGenerating Section 5.5 time-series figures...")
     plot_representative_trials(args.trials_dir, args.out, args.collapse)

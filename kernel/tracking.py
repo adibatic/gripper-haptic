@@ -108,6 +108,23 @@ def _draw_overlay(frame, target_pos: float, finger_dist: float,
 # TRACKING LOOP
 # =============================================================================
 
+def _prompt_fragile_outcome(frame, recording):
+    """Blocks (this thread only — the sensor processes keep running) until
+    'y'/'n' answers whether the fragile object survived the trial just
+    stopped, so log_loop can tag the saved CSV's filename."""
+    prompt = frame.copy()
+    cv2.rectangle(prompt, (15, 150), (620, 200), (0, 0, 0), -1)
+    cv2.putText(prompt, f"Trial {recording.trial_number} (fragile) ended -- "
+                "object survived intact? [Y]es / [N]o",
+                (25, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 255), 1)
+    cv2.imshow("Robotic Gripper Vision Feed", prompt)
+    while True:
+        key = cv2.waitKey(0) & 0xFF
+        if key in (ord('y'), ord('Y')):
+            return "success"
+        if key in (ord('n'), ord('N')):
+            return "break"
+
 def hand_tracking_loop(cap, detector, state: SharedState, recording: RecordingState, stop_event):
     """Runs until stop_event is set: maps each frame's pinch distance to
     state.target_pos (which motion_loop sends to the gripper) and draws the
@@ -204,7 +221,12 @@ def hand_tracking_loop(cap, detector, state: SharedState, recording: RecordingSt
         elif key in (ord('r'), ord('R')):
             now = time.time()
             if now - last_record_toggle_time > 0.5:
-                recording.toggle_recording()
+                active, current_object = recording.snapshot()
+                if active and current_object == "fragile":
+                    outcome = _prompt_fragile_outcome(frame, recording)
+                    recording.toggle_recording(outcome=outcome)
+                else:
+                    recording.toggle_recording()
                 last_record_toggle_time = now
         elif key in (ord('o'), ord('O')):
             changed, obj = recording.toggle_object()
