@@ -307,11 +307,14 @@ def log_loop(gripper: GripperController, recording: RecordingState, state: Share
              out_dir: str, participant: str):
     """Writes one CSV row per tick while recording; a new file per trial.
 
-    File: <out_dir>/<participant>_<condition>_<object>_trial<N>.csv (N is
-    counted independently per condition/object combo — see
-    RecordingState.next_trial_number()). condition/object are now read live
-    from `recording` since a single launch now covers every combo for a
-    participant, rather than being fixed for the whole process.
+    File: <out_dir>/<participant>/<participant>_<condition>_<object>_trial<N>.csv
+    (N is counted independently per condition/object combo — see
+    RecordingState.next_trial_number()). Trials are grouped into one
+    subfolder per participant since a full run is 2 objects x 3 conditions x
+    N trials each — keeping every participant's files together avoids one
+    flat directory with everyone's trials interleaved. condition/object are
+    read live from `recording` since a single launch now covers every combo
+    for a participant, rather than being fixed for the whole process.
     Columns: t, gripper_pos_bit, left/right_force_proxy, left/right_force_N,
     left/right_max_depth_mm. A force_N column is empty unless that side's
     FORCE_CAL constants are set. Haptic intensity isn't logged — it's a pure
@@ -320,7 +323,8 @@ def log_loop(gripper: GripperController, recording: RecordingState, state: Share
     can't reproduce.
     """
     interval = 1.0 / HAPTIC_HZ
-    os.makedirs(out_dir, exist_ok=True)
+    participant_dir = os.path.join(out_dir, participant)
+    os.makedirs(participant_dir, exist_ok=True)
 
     def _force_n(volume, cal_a, cal_b):
         """Newton value from a calibrated (A, B) pair, or '' if unset."""
@@ -350,7 +354,7 @@ def log_loop(gripper: GripperController, recording: RecordingState, state: Share
                 trial_object = current_object
                 trial_num = recording.next_trial_number()
                 fname = f"{participant}_{trial_condition}_{trial_object}_trial{trial_num}.csv"
-                fpath = os.path.join(out_dir, fname)
+                fpath = os.path.join(participant_dir, fname)
                 csv_file = open(fpath, "w", newline="")
                 writer = csv.writer(csv_file)
                 writer.writerow(["t", "gripper_pos_bit",
@@ -442,7 +446,8 @@ def main():
     parser.add_argument(
         "--out",
         default=os.path.join(CONFIG_DIR, "..", "data", "experiment_logs"),
-        help="Directory to save trial CSVs."
+        help="Base directory for trial CSVs; each participant's trials are "
+             "written into a <out>/<participant>/ subfolder."
     )
 
     parser.add_argument(
