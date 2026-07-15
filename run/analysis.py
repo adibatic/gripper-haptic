@@ -2,8 +2,11 @@
 analysis.py
 
 Thesis Chapter 5 (Sections 5.1, 5.3-5.6). Reads the trial CSVs written by
-experiment.py (<participant>_<condition>_<object>_trial<N>.csv) plus a Likert
-CSV, and writes every table and figure.
+experiment.py (<trials-dir>/<participant>/<participant>_<condition>_<object>_
+trial<N>.csv) plus a Likert CSV, and writes every table and figure.
+--trials-dir is scanned recursively, so it also picks up flat/legacy layouts
+where trial CSVs sit directly in --trials-dir instead of a per-participant
+subfolder.
 
     python run/analysis.py --trials-dir data/experiment_logs --out results \\
         [--likert-csv ...] [--collapse sum_n|max]
@@ -45,6 +48,13 @@ FNAME_RE = re.compile(
     r"(?P<object>fragile|deformable)_trial(?P<trial>\d+)"
     r"(?:_(?P<outcome>success|break))?\.csv$"
 )
+
+
+def _find_trial_csvs(trials_dir):
+    """Recursively finds every *.csv under trials_dir, so both the current
+    <trials_dir>/<participant>/*.csv layout (experiment.py) and a flat
+    <trials_dir>/*.csv layout (legacy runs) are picked up."""
+    return sorted(glob.glob(os.path.join(trials_dir, "**", "*.csv"), recursive=True))
 
 
 # ---------------------------------------------------------------------------
@@ -166,7 +176,7 @@ def load_all_trials(trials_dir, contact_threshold_mm, collapse):
         ValueError: If no valid trial CSVs are found.
     """
     rows = []
-    paths = sorted(glob.glob(os.path.join(trials_dir, "*.csv")))
+    paths = _find_trial_csvs(trials_dir)
     unmatched = []
 
     for path in paths:
@@ -601,7 +611,7 @@ def plot_representative_trials(trials_dir, out_dir, collapse, n_per_condition=2)
         n_per_condition: How many trials to plot per condition.
     """
     paths_by_condition = defaultdict(list)
-    for path in sorted(glob.glob(os.path.join(trials_dir, "*.csv"))):
+    for path in _find_trial_csvs(trials_dir):
         fname = os.path.basename(path)
         m = FNAME_RE.match(fname)
         if m:

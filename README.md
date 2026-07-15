@@ -16,10 +16,10 @@ runs on the ESP32-C6, not the PC).
 gripper-haptic/
 ├── data/                           # Experimental data (logs + calibration)
 │   ├── calibration/                # Per-sensor calibration data (sensor_L / sensor_R)
-│   ├── experiment_logs/            # Logs from experiment.py
+│   ├── experiment_logs/            # Logs from experiment.py, one subfolder per participant (P01/, P02/, ...)
 │   └── results/                    # Results from analysis.py
 ├── designs/                        # CAD models and 3D print assets
-├── firmware/                       # Runs ON the ESP32-C6 (MicroPython)
+├── firmware/                       # Runs on the ESP32-C6 (MicroPython)
 │   ├── haptic.py                   # LRA + TacTiles driver library
 │   └── stream.py                   # Live stream receiver for experiment.py
 ├── kernel/                         # Host-side modules imported by run/ scripts
@@ -217,7 +217,14 @@ conda activate hapticf
 ```bash
 ls /dev/tty{USB,ACM}*   # ttyACM0 = ESP32-C6, ttyUSB0 = Robotiq (via USB-RS485)
 ```
-* Camera indices correctly assigned in `kernel/camera.py` (Setup & Installation, Step 5).
+* Camera indices correctly assigned in `kernel/camera.py` (Setup & Installation, Step 5). 
+
+```bash
+ls -l /dev/v4l/by-path/
+ffplay /dev/videox   # replace x with index to check (-video-index0)
+```
+Then set `HAND_CAM_INDEX`, `TACTILE_CAM_L`, and `TACTILE_CAM_R` in `kernel/camera.py` to the corresponding `index0` paths.
+
 * Left and right sensors fully calibrated (Setup & Installation, Step 6).
 
 **1. Start the ESP32 receiver**
@@ -269,7 +276,7 @@ python run/experiment.py --condition visual_only --participant P01 --object frag
 | `--condition` | `visual_only`, `lra`, `tactiles` | STARTING condition label for trial filenames. Cycle at runtime with **`c`** (only while paused and not recording — see Controls). Labels the saved data only — actual actuator behavior depends on which firmware is loaded on the ESP32; switching to/from a condition that needs different firmware walks you through reflashing it. |
 | `--participant` | any string, e.g. `P01` | Participant ID, included in trial filenames. Relaunch per participant so a drifting gel baseline doesn't bias `volume`. |
 | `--object` | `fragile`, `deformable` | Starting object class for trial filenames. Switch mid-session with **`o`** (cannot switch while recording). |
-| `--out` | directory path | Where to save trial CSVs. Default: `data/experiment_logs`. |
+| `--out` | directory path | Base directory for trial CSVs. Default: `data/experiment_logs`. Each participant's trials are written into a `<out>/<participant>/` subfolder — with 3 conditions x 2 objects x N trials per participant, this keeps each participant's files together instead of one flat directory mixing everyone's trials. |
 
 **Controls:**
 
@@ -286,7 +293,7 @@ Gripper position is driven entirely by hand-tracking — no manual/keyboard over
 **Trial output files:**
 
 ```
-data/experiment_logs/<participant>_<condition>_<object>_trial<N>.csv
+data/experiment_logs/<participant>/<participant>_<condition>_<object>_trial<N>.csv
 ```
 
 Columns per row (~30 Hz while recording is active):
@@ -320,6 +327,8 @@ python run/analysis.py \
   --out results \
   --collapse sum_n
 ```
+
+`--trials-dir` is scanned recursively, so pointing it at `data/experiment_logs` picks up every participant's trial CSVs from their `P01/`, `P02/`, ... subfolders in one pass — no need to run analysis.py per participant.
 
 See `run/analysis.py` for the full Chapter 5 analysis pipeline (Friedman test, Wilcoxon, time-series figures).
 
