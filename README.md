@@ -285,7 +285,7 @@ Gripper position is driven entirely by hand-tracking — no manual/keyboard over
 | Key | Action |
 | --- | --- |
 | `SPACE` | Pause / resume hand tracking. Paused freezes the gripper at its last position and sends 0-intensity to the haptics — use it whenever adjusting the rig, swapping objects, or between conditions. Blocked while a trial is recording. |
-| `r` | Start / stop recording a trial. Blocked while paused — resume first. |
+| `r` | Start / stop recording a trial. Blocked while paused — resume first. Stopping a trial prompts `[Y]es`/`[N]o` (fragile objects only, survived intact?) then `[S]ave`/`[D]iscard` — pick `D` to throw away a bad take (aborted grasp, setup mistake, etc.) instead of writing it to disk. |
 | `o` | Toggle object class (`fragile` ↔ `deformable`) — only when not recording |
 | `c` | Cycle condition (`visual_only` → `lra` → `tactiles` → ...) — only while paused and not recording. If the new condition needs different ESP32 firmware, walks you through releasing the serial port, reflashing (`mpremote`), and reconnecting before you resume. |
 | `q` | Quit |
@@ -295,6 +295,8 @@ Gripper position is driven entirely by hand-tracking — no manual/keyboard over
 ```
 data/experiment_logs/<participant>/<participant>_<condition>_<object>_trial<N>.csv
 ```
+
+Discarded trials (`D` at the save/discard prompt) are not written — the CSV is deleted after the prompt and that trial number is skipped, so gaps in `trial<N>` numbering are expected and not a sign of missing data.
 
 Columns per row (~30 Hz while recording is active):
 

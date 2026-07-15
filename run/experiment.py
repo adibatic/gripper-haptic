@@ -110,26 +110,30 @@ class RecordingState:
         self.condition = initial_condition
         self.current_object = initial_object
         self.last_outcome = None   # set when stopping a fragile trial: "success" or "break"
+        self.last_discard = False  # set when the operator chose not to save the trial just stopped
         self._trial_counts = {}    # (condition, object) -> count, independent per combo
 
-    def toggle_recording(self, outcome: str = None):
+    def toggle_recording(self, outcome: str = None, discard: bool = False):
         """Flips recording; returns the new state, or None if blocked
         (still paused — this only blocks the START transition, never the
-        stop). `outcome` is stashed only when stopping a trial, so log_loop
-        can tag the file it's about to close."""
+        stop). `outcome`/`discard` are stashed only when stopping a trial,
+        so log_loop can tag or delete the file it's about to close."""
         with self._lock:
             if not self.active and self.paused:
                 return None
             self.active = not self.active
             if not self.active:
                 self.last_outcome = outcome
+                self.last_discard = discard
             return self.active
 
-    def consume_outcome(self):
-        """Returns and clears the outcome set by the last toggle_recording(outcome=...)."""
+    def consume_trial_result(self):
+        """Returns and clears (outcome, discard) set by the last
+        toggle_recording(outcome=..., discard=...)."""
         with self._lock:
-            outcome, self.last_outcome = self.last_outcome, None
-            return outcome
+            outcome, discard = self.last_outcome, self.last_discard
+            self.last_outcome, self.last_discard = None, False
+            return outcome, discard
 
     def toggle_object(self):
         """Flips fragile/deformable. Returns (changed, object); changed is
@@ -321,6 +325,11 @@ def log_loop(gripper: GripperController, recording: RecordingState, state: Share
     clip(max_depth_mm / DEPTH_SATURATION_MM, 0, 1) rescale (kernel/tactile.py)
     with no analysis.py use, so it added nothing recomputing from max_depth_mm
     can't reproduce.
+
+    If the operator discards the trial (save/discard prompt in
+    kernel/tracking.py after stopping), the file is deleted instead of kept
+    — e.g. a bad take, an aborted grasp, or a setup mistake that shouldn't
+    pollute the trial count analysis.py reads.
     """
     interval = 1.0 / HAPTIC_HZ
     participant_dir = os.path.join(out_dir, participant)
@@ -368,8 +377,11 @@ def log_loop(gripper: GripperController, recording: RecordingState, state: Share
                 # Recording just stopped — close the file
                 if csv_file is not None:
                     csv_file.close()
-                    outcome = recording.consume_outcome()
-                    if trial_object == "fragile" and outcome is not None:
+                    outcome, discard = recording.consume_trial_result()
+                    if discard:
+                        os.remove(fpath)
+                        print(f"\n[Log] Trial {trial_num} discarded (not saved).")
+                    elif trial_object == "fragile" and outcome is not None:
                         tagged_fpath = fpath.rsplit(".csv", 1)[0] + f"_{outcome}.csv"
                         os.rename(fpath, tagged_fpath)
                         print(f"\n[Log] Trial {trial_num} saved -> {os.path.basename(tagged_fpath)}")
@@ -571,7 +583,8 @@ def main():
         t.start()
 
     print(f"  [Controls] Press SPACE to pause/resume hand tracking (starts PAUSED — resume when ready).")
-    print(f"  [Controls] Press 'r' to start/stop recording a trial (only while resumed).")
+    print(f"  [Controls] Press 'r' to start/stop recording a trial (only while resumed). "
+          f"Stopping prompts Save/Discard for the trial just recorded.")
     print(f"  [Controls] Press 'o' to toggle object class (fragile/deformable) when not recording.")
     print(f"  [Controls] Press 'c' to cycle condition (visual_only -> lra -> tactiles) when paused and not recording.")
     print(f"  [Controls] Press 'q' to quit.\n")
