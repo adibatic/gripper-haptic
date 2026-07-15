@@ -136,6 +136,23 @@ def _prompt_fragile_outcome(frame, recording):
             return "break"
 
 
+def _prompt_save_trial(frame):
+    """Blocks (this thread only) until 's'/'d' answers whether the trial
+    just stopped should be kept, so log_loop can delete a bad take (e.g. an
+    aborted grasp or a setup mistake) instead of writing it to disk."""
+    prompt = frame.copy()
+    cv2.rectangle(prompt, (15, 150), (620, 200), (0, 0, 0), -1)
+    cv2.putText(prompt, "Save this trial? [S]ave / [D]iscard",
+                (25, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 255), 1)
+    cv2.imshow("Robotic Gripper Vision Feed", prompt)
+    while True:
+        key = cv2.waitKey(0) & 0xFF
+        if key in (ord('s'), ord('S')):
+            return True
+        if key in (ord('d'), ord('D')):
+            return False
+
+
 def _handle_firmware_swap(haptic_link, new_condition, new_firmware):
     """Walks the operator through reflashing the ESP32 when the new
     condition's CONDITION_FIRMWARE entry differs from the previous one.
@@ -271,9 +288,10 @@ def hand_tracking_loop(cap, detector, state: SharedState, recording: RecordingSt
             now = time.time()
             if now - last_record_toggle_time > 0.5:
                 active, _, _, current_object = recording.snapshot()
-                if active and current_object == "fragile":
-                    outcome = _prompt_fragile_outcome(frame, recording)
-                    recording.toggle_recording(outcome=outcome)
+                if active:
+                    outcome = _prompt_fragile_outcome(frame, recording) if current_object == "fragile" else None
+                    save = _prompt_save_trial(frame)
+                    recording.toggle_recording(outcome=outcome, discard=not save)
                 else:
                     result = recording.toggle_recording()
                     if result is None:

@@ -25,9 +25,9 @@ import os
 import cv2
 import threading
 
-HAND_CAM_INDEX = 2   # Hand-tracking webcam
-TACTILE_CAM_L  = 4   # Left tactile sensor
-TACTILE_CAM_R  = 0   # Right tactile sensor
+HAND_CAM_INDEX = 4   # Hand-tracking webcam
+TACTILE_CAM_L  = 0   # Left tactile sensor
+TACTILE_CAM_R  = 2   # Right tactile sensor
 
 TACTILE_CAMS = (TACTILE_CAM_L, TACTILE_CAM_R)
 
