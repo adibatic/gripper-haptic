@@ -8,8 +8,10 @@ experiment.py), or test_haptic.py / test_tactiles.py for bench self-tests.
 Two actuator paths:
     LRA vibmotors — init_bridges() + ACDriver. Bipolar AC carrier; bench-
         confirmed that unipolar PWM produces no motion on this hardware.
-    TacTiles     — init_tactiles() + TacTiles.pulse(). Bistable pin actuators
-        on H-bridge legs; momentary pulses, rate-limited for thermal safety.
+    TacTiles     — init_tactiles() + TactileVibrationDriver. Bistable pin
+        actuators on H-bridge legs, driven as a continuous burst/gap
+        vibration (same tick()-per-loop design as ACDriver) so intensity
+        maps to pulse rate instead of a single threshold-gated tap.
 
 The legacy PWM helpers (init_pwms / apply_pattern / stop_duties / stop_all) and
 the stream_mode() / tactiles_stream_mode() receivers below are superseded by
@@ -392,3 +394,87 @@ def tactiles_vibrate_intensity(tactile, intensity, duration_s,
     gap_ms = int(TACTILE_VIBRATE_GAP_MAX_MS
                  - intensity * (TACTILE_VIBRATE_GAP_MAX_MS - TACTILE_VIBRATE_GAP_MIN_MS))
     tactiles_vibrate(tactile, duration_s, burst_count=burst_count, gap_ms=gap_ms)
+
+
+# ============ NON-BLOCKING TACTILE VIBRATION (vibmotor parity) =============
+# run_tactiles_stream() in stream.py used to fire a single momentary pulse()
+# (6ms) whenever a channel crossed a 0.5 threshold, rate-limited to once per
+# 500ms — nothing like the vibmotor's continuous, intensity-proportional
+# buzz, hence "barely any actuation" at the low/mid intensities where most
+# grip readings live. This driver reuses the exact same burst/gap timing as
+# tactiles_vibrate_intensity() above (same constants, same thermal budget)
+# but as a tick()-driven state machine, so it can run continuously and
+# share the loop with a second channel without blocking — the same design
+# ACDriver uses for the LRA path.
+
+class TactileVibrationDriver:
+    """Non-blocking sustained vibration for one TacTiles actuator.
+
+    tick() never sleeps — call it every loop pass, like ACDriver.tick().
+    Intensity continuously scales the inter-burst gap (TACTILE_VIBRATE_GAP_*),
+    so the actuator buzzes the whole time intensity > 0 instead of tapping
+    once per threshold crossing.
+    """
+
+    def __init__(self, tactile):
+        self.tactile = tactile
+        self._intensity = 0.0
+        self._state = 'gap'   # 'gap' | 'fwd' | 'rev' | 'between'
+        self._pulses_done = 0
+        self._next_ms = time.ticks_ms()
+
+    def set_intensity(self, val):
+        """Sets the target intensity, clamped to [0.0, 1.0]."""
+        self._intensity = max(0.0, min(1.0, val))
+
+    def _gap_ms(self):
+        return int(TACTILE_VIBRATE_GAP_MAX_MS - self._intensity *
+                   (TACTILE_VIBRATE_GAP_MAX_MS - TACTILE_VIBRATE_GAP_MIN_MS))
+
+    def tick(self):
+        """Advances the burst/gap state machine by one tick and writes the
+        H-bridge pins. Call as fast as possible — never sleeps."""
+        now = time.ticks_ms()
+
+        if self._intensity <= 0.0:
+            if self._state != 'gap':
+                self.tactile.off()
+                self._state = 'gap'
+                self._pulses_done = 0
+            self._next_ms = now
+            return
+
+        if time.ticks_diff(now, self._next_ms) < 0:
+            return   # not due yet
+
+        if self._state == 'gap':
+            self.tactile.in1.value(1); self.tactile.in2.value(0)
+            self._state = 'fwd'
+            self._next_ms = time.ticks_add(now, TACTILE_PULSE_MS)
+        elif self._state == 'fwd':
+            self.tactile.in1.value(0); self.tactile.in2.value(1)
+            self._state = 'rev'
+            self._next_ms = time.ticks_add(now, TACTILE_PULSE_MS)
+        elif self._state == 'rev':
+            self.tactile.off()
+            self._pulses_done += 1
+            if self._pulses_done >= TACTILE_VIBRATE_BURST_COUNT:
+                self._pulses_done = 0
+                self._state = 'gap'
+                self._next_ms = time.ticks_add(now, self._gap_ms())
+            else:
+                self._state = 'between'
+                between_ms = max(0, (TACTILE_BURST_US // 1000) - 2 * TACTILE_PULSE_MS)
+                self._next_ms = time.ticks_add(now, between_ms)
+        elif self._state == 'between':
+            self.tactile.in1.value(1); self.tactile.in2.value(0)
+            self._state = 'fwd'
+            self._next_ms = time.ticks_add(now, TACTILE_PULSE_MS)
+
+    def stop(self):
+        """Zeroes intensity and turns the actuator off immediately."""
+        self._intensity = 0.0
+        self.tactile.off()
+        self._state = 'gap'
+        self._pulses_done = 0
+# ==========================================================================
