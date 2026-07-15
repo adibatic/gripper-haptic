@@ -36,11 +36,6 @@ THUMB, INDEX = 0, 1   # M1 = thumb (driven by left sensor), M2 = index (right se
 METHOD = "vibmotor"   # "vibmotor" for --condition lra, "tactiles" for --condition tactiles
 
 WATCHDOG_MS = 200     # drop both channels to 0 if no packet arrives within this window
-
-# tactiles only: fire a pulse when a channel's value exceeds this, at most once
-# per rate-limit window (protects the actuator's ~120 switches/min thermal budget).
-TACTILE_PULSE_THRESHOLD = 0.5
-TACTILE_RATE_LIMIT_MS   = 500
 # -----------------------------------------------------------------------------
 
 assert METHOD in ("vibmotor", "tactiles")
@@ -108,40 +103,44 @@ def run_vibmotor_stream():
 
 
 def run_tactiles_stream():
-    """TacTiles path. Pulses a channel when its intensity exceeds
-    TACTILE_PULSE_THRESHOLD, rate-limited per channel to protect the
-    actuator's thermal budget."""
+    """TacTiles path. Mirrors run_vibmotor_stream(): one non-blocking
+    TactileVibrationDriver per channel, ticked every loop pass so thumb and
+    index buzz continuously with intensity mapped to pulse rate — not a
+    single threshold-gated tap every 500ms."""
     poll = select.poll()
     poll.register(sys.stdin, select.POLLIN)
 
     tactiles = init_tactiles()
-    last_action = {THUMB: time.ticks_ms(), INDEX: time.ticks_ms()}  # type: ignore
+    drv_thumb = TactileVibrationDriver(tactiles[THUMB])
+    drv_index = TactileVibrationDriver(tactiles[INDEX])
     last_rx = time.ticks_ms()  # type: ignore
 
     try:
         print("🔧 STREAM TacTiles | THUMB<-left  INDEX<-right | "
               "waiting for packets from experiment.py... Ctrl-C to stop")
         while True:
+            # 1) Non-blocking packet check (timeout 0 -> never stalls the drivers)
             if poll.poll(0):
                 parsed = parse_packet(sys.stdin.readline())
                 if parsed is not None:
                     left, right = parsed
-                    now = time.ticks_ms()  # type: ignore
-                    for ch, val in ((THUMB, left), (INDEX, right)):
-                        if (val > TACTILE_PULSE_THRESHOLD and
-                                time.ticks_diff(now, last_action[ch]) > TACTILE_RATE_LIMIT_MS):  # type: ignore
-                            tactiles[ch].pulse()
-                            last_action[ch] = now
-                    last_rx = now
+                    drv_thumb.set_intensity(left)
+                    drv_index.set_intensity(right)
+                    last_rx = time.ticks_ms()  # type: ignore
 
+            # 2) Watchdog: silence both if the host went quiet (chip stays awake)
             if time.ticks_diff(time.ticks_ms(), last_rx) > WATCHDOG_MS:  # type: ignore
-                stop_all_tactiles(tactiles)
+                drv_thumb.set_intensity(0.0)
+                drv_index.set_intensity(0.0)
 
-            time.sleep_ms(2)  # type: ignore  # tactiles are event-driven; no carrier to starve
+            # 3) Advance both burst/gap state machines and write the pins
+            drv_thumb.tick()
+            drv_index.tick()
     except KeyboardInterrupt:
         pass
     finally:
-        stop_all_tactiles(tactiles)
+        drv_thumb.stop()
+        drv_index.stop()
         disable_drivers()
         print("\n✅ Done, actuators off.")
 

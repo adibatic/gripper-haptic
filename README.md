@@ -384,7 +384,7 @@ Selected via `METHOD = "tactiles"` in `firmware/stream.py`. TacTiles are bistabl
 | `pulse` | 3 ms forward + 3 ms reverse → quick tap, no sustained contact |
 | `burst` | Rapid sequence of pulses, up to ~200 Hz in short windows |
 
-Sustained vibration is approximated by repeated bursts with a gap between them. The gap is set automatically based on intensity, keeping the long-term switch rate under the hardware thermal limit of ~120 switches/minute. In streaming mode, a pulse fires when the incoming value exceeds 0.5, with a 500 ms per-channel rate limit.
+Sustained vibration is approximated by repeated bursts with a gap between them, driven non-blocking (`TactileVibrationDriver`, mirroring the LRA path's `ACDriver`) so both channels buzz continuously and independently. The gap between bursts is set continuously from intensity — short gap (more frequent bursts) at high intensity, long gap at low intensity — keeping the long-term switch rate under the hardware thermal limit of ~120 switches/minute. This gives the same "buzzes the whole time intensity > 0" feel as the vibmotor path, rather than a single tap fired only when a threshold is crossed.
 
 | Channel | Finger | IN1 Pin | IN2 Pin |
 | --- | --- | --- | --- |
