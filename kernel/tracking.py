@@ -39,7 +39,16 @@ from gripper import MAX_POS
 # =============================================================================
 
 # Hand tracking
-PINCH_DIST_PX      = 30         # Range: 10 to 60
+# PINCH_DIST_PX is raised from the bare-finger value (~30px) because the LRA/
+# TacTiles actuator body mounted on the thumb and index fingertips adds
+# physical standoff between the two contact points — with the hardware on,
+# thumb and index never actually reach 30px apart, so the gripper undershot
+# MAX_POS (never fully closed) and the whole mapped travel looked compressed
+# relative to the operator's real finger motion. Retune per rig/actuator
+# thickness: with the actuator on, pinch fingers fully together and read
+# `Finger Dist` off the on-screen overlay, then set PINCH_DIST_PX a few px
+# above that floor.
+PINCH_DIST_PX      = 40         # Range: 10 to 60
 SPREAD_DIST_PX     = 180        # Range: 120 to 280
 FINGER_DEADBAND_PX = 1.5        # Suppresses raw MediaPipe webcam jitter
 
@@ -68,14 +77,23 @@ def open_camera(index: int):
 
 
 def create_hand_detector(model_path: str):
-    """Builds the MediaPipe hand landmarker (single hand, VIDEO mode)."""
+    """Builds the MediaPipe hand landmarker (single hand, VIDEO mode).
+
+    Confidence thresholds are lower than MediaPipe's defaults because the
+    TacTiles/LRA actuator body mounted on the thumb and index fingertips
+    partially covers exactly the landmarks (4, 8) this module tracks —
+    with the stock 0.6/0.75/0.75 thresholds that occlusion was enough to
+    drop hand presence entirely ("No Hand" / MediaPipe going "off") during
+    the tactiles condition. Lowering the thresholds lets MediaPipe keep
+    tracking through the partial occlusion instead of losing the hand.
+    """
     base_options = python.BaseOptions(model_asset_path=model_path)
     options = vision.HandLandmarkerOptions(
         base_options=base_options,
         num_hands=1,
-        min_hand_detection_confidence=0.6,
-        min_hand_presence_confidence=0.75,
-        min_tracking_confidence=0.75,
+        min_hand_detection_confidence=0.4,
+        min_hand_presence_confidence=0.5,
+        min_tracking_confidence=0.5,
         running_mode=vision.RunningMode.VIDEO
     )
     return vision.HandLandmarker.create_from_options(options)

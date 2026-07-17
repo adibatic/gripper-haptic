@@ -25,7 +25,7 @@ LOW_DEFORM_THRESH_MM = 0.03     # Sensitive threshold for fragile/deformable
                                 # register low-deformation contact the trial-time
                                 # CONTACT_THRESH_MM would miss.
 BASELINE_FRAMES     = 30        # Frames averaged for zeroing
-DEPTH_SATURATION_MM = 0.9       # Depth mapped to haptic intensity 1.0
+DEPTH_SATURATION_MM = 2.0       # Depth mapped to haptic intensity 1.0
 
 
 @dataclass

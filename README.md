@@ -342,6 +342,20 @@ See `run/analysis.py` for the full Chapter 5 analysis pipeline (Friedman test, W
 
 ## Hardware Reference
 
+### Gripper Range & Fixture Safety
+
+> **Sensor fixture protection.** Commanding a full close against a rigid object that doesn't compress drives the jaws into it past the point of pure closing force — the excess torque has nowhere to go but into tilting the 9DTact sensor fixture, which has broken the mount a few times. Two mitigations, both retunable if it keeps happening on harder objects:
+> - **`MAX_POS`** (`kernel/gripper.py`) is capped at `195`, below the Robotiq's true mechanical closed position (`225`), leaving margin before jaw hard-stop.
+> - **`MAX_SAFE_DEPTH_MM`** (`run/experiment.py`, default `0.7`mm) is a runtime cutoff in `motion_loop`: once either sensor's `max_depth_mm` reaches this depth, the object has stopped compressing, and `motion_loop` blocks any *further* closing (opening is never blocked) until depth drops back down. It's set below `DEPTH_SATURATION_MM` (`kernel/tactile.py`, `0.9`mm — where haptic intensity saturates to 1.0) so it engages before the gel is fully bottomed out. A `[Safety] Max sensor depth reached ...` message prints to the console when it first engages.
+
+### Hand Tracking (`kernel/tracking.py`)
+
+MediaPipe HandLandmarker maps the thumb-tip/index-tip landmark distance (per frame) to the gripper's target position; `PINCH_DIST_PX` is the pixel distance treated as "fully closed" and `SPREAD_DIST_PX` as "fully open".
+
+> **Actuator occlusion — MediaPipe dropping out during `tactiles`.** The LRA/TacTiles actuator body is mounted directly on the thumb and index fingertips, i.e. right over the landmarks (`4`, `8`) this module tracks. With MediaPipe's default confidence thresholds (`0.6`/`0.75`/`0.75`), that partial occlusion was enough to lose hand presence entirely ("No Hand" on the overlay) once the actuator hardware was in frame — this is the "mediapipe is off" symptom during the tactiles condition. `create_hand_detector()` now uses lower thresholds (`min_hand_detection_confidence=0.4`, `min_hand_presence_confidence=0.5`, `min_tracking_confidence=0.5`) so tracking survives the occlusion. If detection still drops out on your rig, lower these further — but each notch down trades some jitter/false-positive resistance for detection robustness.
+
+> **Gripper travel shorter than the operator's real finger motion.** The actuator body also adds physical standoff between the thumb and index contact points, so with the hardware on, fingers can no longer physically reach the bare-finger `PINCH_DIST_PX` (previously `30`px) — the gripper undershot `MAX_POS` and never fully closed, making the whole mapped range feel compressed. `PINCH_DIST_PX` is now `45`px. Retune per rig/actuator thickness: with the actuator mounted, pinch your fingers fully together, read `Finger Dist` off the on-screen overlay, and set `PINCH_DIST_PX` a few px above that floor (comment in `kernel/tracking.py` gives the suggested `10`–`60` tuning range).
+
 ### Robotiq 2F-85 (`kernel/gripper.py`)
 
 The gripper is controlled from the host PC via Modbus RTU at 115200 baud over a USB-to-RS485 adapter (`/dev/ttyUSB0`). The `pyrobotiqgripper` library handles activation, calibration, and position commands.
@@ -385,6 +399,8 @@ Selected via `METHOD = "tactiles"` in `firmware/stream.py`. TacTiles are bistabl
 | `burst` | Rapid sequence of pulses, up to ~200 Hz in short windows |
 
 Sustained vibration is approximated by repeated bursts with a gap between them, driven non-blocking (`TactileVibrationDriver`, mirroring the LRA path's `ACDriver`) so both channels buzz continuously and independently. The gap between bursts is set continuously from intensity — short gap (more frequent bursts) at high intensity, long gap at low intensity — keeping the long-term switch rate under the hardware thermal limit of ~120 switches/minute. This gives the same "buzzes the whole time intensity > 0" feel as the vibmotor path, rather than a single tap fired only when a threshold is crossed.
+
+> **Vibration intensity tuning.** `TACTILE_PULSE_MS` (each tap's pin-throw duration) and `TACTILE_VIBRATE_GAP_MIN_MS` (the burst gap floor at intensity 1.0) in `firmware/haptic.py` control how strong the buzz feels — longer pulses and a lower gap floor both read as more intense. Current defaults are `TACTILE_PULSE_MS = 4` and `TACTILE_VIBRATE_GAP_MIN_MS = 35` (up from `3`/`50`). If the actuator runs hot at these settings, raise `TACTILE_VIBRATE_GAP_MIN_MS` back up first — it directly trades off against the ~120 switches/minute thermal limit noted above; `TACTILE_BURST_US` must stay `> 2 * TACTILE_PULSE_MS * 1000` if you change `TACTILE_PULSE_MS` again.
 
 | Channel | Finger | IN1 Pin | IN2 Pin |
 | --- | --- | --- | --- |

@@ -59,6 +59,16 @@ GRIPPER_PORT    = "/dev/ttyUSB0"
 MOTION_HZ       = 25
 OUTPUT_DEADBAND = 3             # Filters motor stutter when hand is stationary
 
+# Safety: once either 9DTact sensor's gel deformation reaches this depth, the
+# object has stopped compressing (rigid contact) and any further closing just
+# drives the jaw into it — that torque has nowhere to go but into tilting the
+# sensor fixture, which has broken the mount before. Set below
+# DEPTH_SATURATION_MM (tactile.py, 0.9mm — where haptic intensity saturates)
+# so the cutoff engages before the gel is fully bottomed out. Only blocks
+# further CLOSING; opening is never blocked. Retune down if fixtures keep
+# breaking on harder objects.
+MAX_SAFE_DEPTH_MM = 0.7
+
 # Tactile sensor (contact/zeroing/intensity constants live in tactile.py)
 FORCE_CAL_A_LEFT,  FORCE_CAL_B_LEFT  = None, None
 FORCE_CAL_A_RIGHT, FORCE_CAL_B_RIGHT = None, None
@@ -216,14 +226,30 @@ def status_loop(gripper: GripperController, state: SharedState):
 # Gripper motion Loop
 def motion_loop(gripper: GripperController, state: SharedState):
     """Sends state.target_pos to the gripper at MOTION_HZ, filtered by
-    OUTPUT_DEADBAND to stop motor stutter when the hand is still."""
+    OUTPUT_DEADBAND to stop motor stutter when the hand is still.
+
+    Depth safety cutoff: once either sensor's max_depth_mm reaches
+    MAX_SAFE_DEPTH_MM, the object has stopped compressing, so any further
+    closing is blocked (opening is never blocked) to protect the sensor
+    fixture — see MAX_SAFE_DEPTH_MM above for why."""
     interval = 1.0 / MOTION_HZ
     last_sent_pos = -1
+    was_overloaded = False
 
     while not stop_event.is_set():
         t0 = time.monotonic()
 
         final_pos = int(state.target_pos)
+
+        overloaded = (state.left.max_depth_mm >= MAX_SAFE_DEPTH_MM or
+                      state.right.max_depth_mm >= MAX_SAFE_DEPTH_MM)
+        if overloaded and last_sent_pos != -1:
+            final_pos = min(final_pos, last_sent_pos)
+        if overloaded and not was_overloaded:
+            print(f"\n[Safety] Max sensor depth reached (>= {MAX_SAFE_DEPTH_MM}mm) — "
+                  f"blocking further closing to protect the sensor fixture.")
+        was_overloaded = overloaded
+
         if abs(final_pos - last_sent_pos) > OUTPUT_DEADBAND:
             gripper.move(final_pos)
             last_sent_pos = final_pos
