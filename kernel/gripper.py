@@ -12,6 +12,15 @@ import threading
 from pyrobotiqgripper import RobotiqGripper
 
 # Mechanical limits / move defaults (0-255). Port and rates live in experiment.py.
+# MAX_POS is capped below the Robotiq's true mechanical closed position (225)
+# because commanding a full close against a rigid object that doesn't
+# compress drives the jaws into it past the point of pure closing force —
+# the excess torque has nowhere to go but into tilting the 9DTact sensor
+# fixture, which has broken the mount a few times. 195 leaves margin before
+# jaw hard-stop while still reaching full contact on fragile/deformable
+# objects. Retune down further if fixtures keep breaking on harder objects;
+# see also MAX_SAFE_DEPTH_MM in experiment.py, which stops further closing
+# once sensor deformation shows the object won't compress any more.
 MAX_POS = 225                   # Fully-closed position in bits (0 = open)
 SPEED   = 200
 FORCE   = 100

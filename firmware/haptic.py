@@ -43,14 +43,21 @@ TACTILE_PINS   = [      # IN1/IN2 pairs for TacTiles H-bridges
 TACTILE_TIMEOUT_MS  = 200
 TACTILE_ENGAGE_MS   =   6
 TACTILE_DISENGAGE_MS=  10
-TACTILE_PULSE_MS    =   3
+# Bumped 3 -> 4ms so each vibration tap has more pin throw (more perceptible
+# "hit"), and TACTILE_BURST_US raised to match (must stay > 2*PULSE_MS*1000).
+TACTILE_PULSE_MS    =   4
 TACTILE_STAGGER_MS  =  10
 TACTILE_BURST_COUNT =  10
-TACTILE_BURST_US    = 8000   # interval per pulse (must be > 2*PULSE_MS*1000)
+TACTILE_BURST_US    = 9000   # interval per pulse (must be > 2*PULSE_MS*1000)
 TACTILE_VIBRATE_BURST_COUNT = 10   # pulses per burst window (~50 ms)
-TACTILE_VIBRATE_GAP_MIN_MS  = 50   # gap at intensity 1.0
+# Gap floor lowered 50 -> 35ms so max-intensity vibration bursts more often
+# (more intense buzz at high grip force) while still respecting the thermal
+# limit below.
+TACTILE_VIBRATE_GAP_MIN_MS  = 35   # gap at intensity 1.0
 TACTILE_VIBRATE_GAP_MAX_MS  = 400  # gap at intensity 0.0
-# thermal limit: ~120 switches/min → keep long-term average below 2 Hz
+# thermal limit: ~120 switches/min → keep long-term average below 2 Hz.
+# Re-check actual switch rate on hardware after tuning PULSE_MS/GAP_MIN —
+# if the actuator runs hot, raise GAP_MIN back up first.
 # ==================================================
 
 
