@@ -25,7 +25,21 @@ LOW_DEFORM_THRESH_MM = 0.03     # Sensitive threshold for fragile/deformable
                                 # register low-deformation contact the trial-time
                                 # CONTACT_THRESH_MM would miss.
 BASELINE_FRAMES     = 30        # Frames averaged for zeroing
-DEPTH_SATURATION_MM = 2.0       # Depth mapped to haptic intensity 1.0
+
+# Depth mapped to haptic intensity 1.0. Deformable objects barely indent the
+# gel (see LOW_DEFORM_THRESH_MM above) and MAX_SAFE_DEPTH_MM (experiment.py,
+# 0.7mm) blocks further closing once depth reaches it — so with a single
+# 2.0mm saturation point, deformable trials could never physically reach
+# above ~0.35 intensity and the motors always felt weak. Split by object
+# class so deformable trials still reach 1.0 within the safe depth range,
+# with a small margin below MAX_SAFE_DEPTH_MM before the safety cutoff
+# engages. Keyed by RecordingState.current_object ("fragile"/"deformable");
+# read() defaults to "fragile" for callers (setup.py) that don't track
+# object class.
+DEPTH_SATURATION_MM = {
+    "fragile":    2.0,
+    "deformable": 0.6,
+}
 
 
 @dataclass
@@ -296,11 +310,16 @@ class TactileSensor:
     def capture_baseline(self, frames: int = BASELINE_FRAMES):
         self.baseline = capture_baseline(self.sensor, frames)
 
-    def read(self):
-        """Returns (intensity, max_depth_mm, force_proxy) for the current frame."""
+    def read(self, object_class: str = "fragile"):
+        """Returns (intensity, max_depth_mm, force_proxy) for the current frame.
+
+        object_class selects the DEPTH_SATURATION_MM saturation point (see
+        above) — "fragile" or "deformable".
+        """
         height_map = self._height_map()
         volume, _, max_deform, _, _ = compute_metrics(height_map, self.baseline, CONTACT_THRESH_MM)
-        intensity = max(0.0, min(1.0, max_deform / DEPTH_SATURATION_MM))
+        saturation_mm = DEPTH_SATURATION_MM[object_class]
+        intensity = max(0.0, min(1.0, max_deform / saturation_mm))
         return intensity, max_deform, volume
 
     @property

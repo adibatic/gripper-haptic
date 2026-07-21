@@ -67,6 +67,13 @@ def intercepted_video_capture(device, *args, **kwargs):
 
     if device in TACTILE_CAMS:
         cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        # V4L2's default capture queue is several frames deep. If a read()
+        # (reconstruction/height-map math) ever takes longer than one frame
+        # interval, unread frames pile up in that queue and every subsequent
+        # read() returns a progressively staler frame — perceived as growing
+        # haptic feedback delay over a session. Pinning the queue to 1 makes
+        # a slow reader drop frames instead of falling behind.
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
     return cap
 
