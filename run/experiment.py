@@ -68,7 +68,7 @@ OUTPUT_DEADBAND = 3             # Filters motor stutter when hand is stationary
 # before the gel is fully bottomed out on either class. Only blocks further
 # CLOSING; opening is never blocked. Retune down if fixtures keep breaking on
 # harder objects.
-MAX_SAFE_DEPTH_MM = 0.7
+MAX_SAFE_DEPTH_MM = 1.0
 
 # Tactile sensor (contact/zeroing/intensity constants live in tactile.py)
 FORCE_CAL_A_LEFT,  FORCE_CAL_B_LEFT  = None, None
