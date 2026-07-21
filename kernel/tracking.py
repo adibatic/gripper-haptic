@@ -318,6 +318,10 @@ def hand_tracking_loop(cap, detector, state: SharedState, recording: RecordingSt
         elif key in (ord('o'), ord('O')):
             changed, obj = recording.toggle_object()
             if changed:
+                # Mirror into shared memory — the sensor processes run
+                # separately from this thread and read object_class each
+                # tick to pick the right DEPTH_SATURATION_MM (tactile.py).
+                state.object_class.value = 0 if obj == "fragile" else 1
                 print(f"\n[Object] Current object class set to: {obj}")
             else:
                 print("\n[Object] Cannot switch object class while recording — stop ('r') first.")

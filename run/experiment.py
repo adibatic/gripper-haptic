@@ -62,11 +62,12 @@ OUTPUT_DEADBAND = 3             # Filters motor stutter when hand is stationary
 # Safety: once either 9DTact sensor's gel deformation reaches this depth, the
 # object has stopped compressing (rigid contact) and any further closing just
 # drives the jaw into it — that torque has nowhere to go but into tilting the
-# sensor fixture, which has broken the mount before. Set below
-# DEPTH_SATURATION_MM (tactile.py, 0.9mm — where haptic intensity saturates)
-# so the cutoff engages before the gel is fully bottomed out. Only blocks
-# further CLOSING; opening is never blocked. Retune down if fixtures keep
-# breaking on harder objects.
+# sensor fixture, which has broken the mount before. Set below both
+# DEPTH_SATURATION_MM entries (tactile.py — 2.0mm fragile, 0.6mm deformable,
+# where haptic intensity saturates per object class) so the cutoff engages
+# before the gel is fully bottomed out on either class. Only blocks further
+# CLOSING; opening is never blocked. Retune down if fixtures keep breaking on
+# harder objects.
 MAX_SAFE_DEPTH_MM = 0.7
 
 # Tactile sensor (contact/zeroing/intensity constants live in tactile.py)
@@ -96,11 +97,19 @@ CONDITION_FIRMWARE = {"visual_only": None, "lra": "vibmotor", "tactiles": "tacti
 
 @dataclass
 class SharedState:
-    """Written by the main thread (target_pos) and the two tactile-sensor
-    processes (left/right, via shared memory): read by haptics, logging, GUI."""
+    """Written by the main thread (target_pos, object_class) and the two
+    tactile-sensor processes (left/right, via shared memory): read by
+    haptics, logging, GUI.
+
+    object_class mirrors RecordingState.current_object across the process
+    boundary — the sensor processes run separately from the main process
+    and can't see RecordingState's plain attribute directly, so
+    tracking.py's 'o' handler mirrors it in here (0=fragile, 1=deformable)
+    for sensor_process_main to read each tick (see TactileSensor.read())."""
     target_pos: float = 0.0
     left: SharedTactileReading = field(default_factory=SharedTactileReading)
     right: SharedTactileReading = field(default_factory=SharedTactileReading)
+    object_class: mp.Value = field(default_factory=lambda: mp.Value('i', 0))
 
 
 class RecordingState:
@@ -259,8 +268,12 @@ def motion_loop(gripper: GripperController, state: SharedState):
 
 
 # Tactile sensing & haptic streaming
+OBJECT_CLASSES = ("fragile", "deformable")   # index into by state.object_class.value
+
+
 def sensor_process_main(side: str, camera_index: int, shared_reading: SharedTactileReading,
-                         sensor_stop_event: mp.Event, ready_event: mp.Event, start_streaming_event: mp.Event):
+                         sensor_stop_event: mp.Event, ready_event: mp.Event, start_streaming_event: mp.Event,
+                         object_class_shared: mp.Value):
     sensor = TactileSensor(side, camera_index)
     try:
         sensor.connect()
@@ -281,7 +294,8 @@ def sensor_process_main(side: str, camera_index: int, shared_reading: SharedTact
 
         while not sensor_stop_event.is_set() and sensor.is_open:
             t0 = time.monotonic()
-            intensity, max_depth, force_proxy = sensor.read()
+            object_class = OBJECT_CLASSES[object_class_shared.value]
+            intensity, max_depth, force_proxy = sensor.read(object_class=object_class)
             shared_reading.set(intensity, max_depth, force_proxy)
             elapsed = time.monotonic() - t0
             time.sleep(max(0.0, interval - elapsed))
@@ -348,7 +362,7 @@ def log_loop(gripper: GripperController, recording: RecordingState, state: Share
     Columns: t, gripper_pos_bit, left/right_force_proxy, left/right_force_N,
     left/right_max_depth_mm. A force_N column is empty unless that side's
     FORCE_CAL constants are set. Haptic intensity isn't logged — it's a pure
-    clip(max_depth_mm / DEPTH_SATURATION_MM, 0, 1) rescale (kernel/tactile.py)
+    clip(max_depth_mm / DEPTH_SATURATION_MM[object_class], 0, 1) rescale (tactile.py)
     with no analysis.py use, so it added nothing recomputing from max_depth_mm
     can't reproduce.
 
@@ -541,6 +555,7 @@ def main():
 
     state = SharedState()
     recording = RecordingState(initial_condition=args.condition, initial_object=args.object)
+    state.object_class.value = OBJECT_CLASSES.index(args.object)
     haptic_link = HapticLink(ESP32_PORT, ESP32_BAUD)
     sensor_stop_event = mp.Event()
     sensor_ready = {"left": mp.Event(), "right": mp.Event()}
@@ -555,10 +570,10 @@ def main():
     print("Connecting tactile sensors …")
     sensor_processes = {
         "left": mp.Process(target=sensor_process_main,
-                            args=("left", TACTILE_CAM_L, state.left, sensor_stop_event, sensor_ready["left"], start_streaming_event),
+                            args=("left", TACTILE_CAM_L, state.left, sensor_stop_event, sensor_ready["left"], start_streaming_event, state.object_class),
                             daemon=True),
         "right": mp.Process(target=sensor_process_main,
-                             args=("right", TACTILE_CAM_R, state.right, sensor_stop_event, sensor_ready["right"], start_streaming_event),
+                             args=("right", TACTILE_CAM_R, state.right, sensor_stop_event, sensor_ready["right"], start_streaming_event, state.object_class),
                              daemon=True),
     }
     sensor_processes["left"].start()
