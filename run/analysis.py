@@ -93,10 +93,36 @@ def _combined_series(df, collapse):
     return force, depth, force_label
 
 
+def _count_reversals(force_segment):
+    """Counts local direction reversals (sign changes in consecutive
+    differences) in a 1D force segment, ignoring NaNs. Used as a proxy for
+    force-correction oscillations — each reversal is one up-then-down or
+    down-then-up turn in the force trace. Returns None if fewer than 3
+    finite samples (too short to have a direction to reverse)."""
+    finite = force_segment[np.isfinite(force_segment)]
+    if len(finite) < 3:
+        return None
+    d = np.diff(finite)
+    d = d[d != 0]  # flat runs don't count as a direction
+    if len(d) < 2:
+        return 0
+    signs = np.sign(d)
+    return int(np.sum(signs[1:] != signs[:-1]))
+
+
 def compute_trial_metrics(trial_csv_path, contact_threshold_mm, collapse):
-    """Compute the four per-trial metrics specified in thesis Section 5.1
-    from one trial CSV (schema: t, gripper_pos_bit, left/right_force_proxy,
-    left/right_force_N, left/right_max_depth_mm).
+    """Compute the per-trial metrics from one trial CSV (schema: t,
+    gripper_pos_bit, left/right_force_proxy, left/right_force_N,
+    left/right_max_depth_mm): the four thesis Section 5.1 metrics, plus
+    three Section 5.8 trajectory-shape metrics added to characterize *how*
+    a grasp unfolds, not just its outcome — approach_rate_mm_s (how fast
+    depth rises during the approach), n_force_reversals_post_plateau (force
+    correction oscillations once contact is established), and
+    time_above_90pct_peak_s (dwell time at high force). These support the
+    object-mechanics-interaction analysis: fragile objects reward a force
+    CEILING (fewer/smaller reversals, less dwell near peak), deformable
+    objects reward graded CONFORMING control (no ceiling to avoid), so the
+    same haptic feedback is expected to shape these differently by object.
 
     The two sensors are collapsed to one force + one depth series by
     _combined_series(collapse); force is the deformation-based grip-force
@@ -116,9 +142,11 @@ def compute_trial_metrics(trial_csv_path, contact_threshold_mm, collapse):
 
     Returns:
         A dict with peak_force_proxy, peak_depth_mm,
-        time_to_first_contact_s, force_overshoot_proxy — or None if the
-        CSV is empty. (Metric keys are kept stable across collapse modes;
-        under sum_n the two force values are in Newtons, not proxy units.)
+        time_to_first_contact_s, force_overshoot_proxy,
+        approach_rate_mm_s, n_force_reversals_post_plateau,
+        time_above_90pct_peak_s — or None if the CSV is empty. (Metric keys
+        are kept stable across collapse modes; under sum_n the force-based
+        values are in Newtons, not proxy units.)
     """
     df = pd.read_csv(trial_csv_path)
     if df.empty:
@@ -132,37 +160,77 @@ def compute_trial_metrics(trial_csv_path, contact_threshold_mm, collapse):
 
     # Time to first contact: first t where depth exceeds contact_threshold_mm
     # (depth is the max of both sides, so this is first-of-either-finger).
-    contact_idx = np.where(depth > contact_threshold_mm)[0]
-    time_to_first_contact = float(t[contact_idx[0]]) if len(contact_idx) > 0 else None
+    contact_idx_arr = np.where(depth > contact_threshold_mm)[0]
+    contact_idx = int(contact_idx_arr[0]) if len(contact_idx_arr) > 0 else None
+    time_to_first_contact = float(t[contact_idx]) if contact_idx is not None else None
+
+    # Plateau: first index at which depth reaches within 5% of its own
+    # trial-maximum — i.e. the first time depth hits (peak_depth * 0.95).
+    # This is an operational definition chosen for this script and shared
+    # by force_overshoot_proxy AND the two post-plateau metrics below; if
+    # you adopt a different plateau definition when writing the thesis,
+    # update it here AND in Section 5.1/5.8's text so all stay consistent.
+    plateau_idx = None
+    if peak_depth is not None and peak_depth > 0:
+        plateau_idx_arr = np.where(depth >= 0.95 * peak_depth)[0]
+        if len(plateau_idx_arr) > 0:
+            plateau_idx = int(plateau_idx_arr[0])
 
     # Force overshoot: rise in the force after depth reaches its plateau.
-    # Plateau is defined here as the first index at which depth reaches
-    # within 5% of its own trial-maximum — i.e. the first time depth hits
-    # (peak_depth * 0.95). This is an operational definition chosen for this
-    # script; if you adopt a different plateau definition when writing the
-    # thesis, update it here AND in Section 5.1's text so the two stay consistent.
     overshoot = None
-    if peak_force is not None and peak_depth is not None and peak_depth > 0:
-        plateau_idx = np.where(depth >= 0.95 * peak_depth)[0]
-        if len(plateau_idx) > 0:
-            j = plateau_idx[0]
-            force_at_plateau = force[j]
-            tail = force[j:]
-            if np.isfinite(force_at_plateau) and np.isfinite(tail).any():
-                overshoot = float(np.nanmax(tail)) - float(force_at_plateau)
+    if peak_force is not None and plateau_idx is not None:
+        force_at_plateau = force[plateau_idx]
+        tail = force[plateau_idx:]
+        if np.isfinite(force_at_plateau) and np.isfinite(tail).any():
+            overshoot = float(np.nanmax(tail)) - float(force_at_plateau)
+
+    # Approach rate (Section 5.8): mean rate of depth increase from first
+    # contact to plateau, mm/s. None if contact and plateau coincide/invert
+    # (zero or negative elapsed time — e.g. depth is already at 95% of its
+    # max on the very first contacted sample).
+    approach_rate = None
+    if contact_idx is not None and plateau_idx is not None and plateau_idx > contact_idx:
+        dt = t[plateau_idx] - t[contact_idx]
+        if dt > 0:
+            d_depth = depth[plateau_idx] - depth[contact_idx]
+            approach_rate = float(d_depth / dt)
+
+    # Force-correction reversals post-plateau (Section 5.8): direction
+    # changes in the force trace once contact has plateaued — a proxy for
+    # how much a participant "hunts" for the right grip force rather than
+    # settling.
+    n_reversals = None
+    if plateau_idx is not None:
+        n_reversals = _count_reversals(force[plateau_idx:])
+
+    # Dwell time above 90% of peak force (Section 5.8), over the whole
+    # trial: sum of the time interval FOLLOWING each sample that is itself
+    # >= 0.9 * peak_force. An interval-count approximation (not exact
+    # trapezoidal integration under the threshold crossing), consistent
+    # with the ~30 Hz sample rate.
+    time_above_90pct_peak = None
+    if peak_force is not None and peak_force > 0 and np.isfinite(force).sum() >= 2:
+        threshold = 0.9 * peak_force
+        above = np.isfinite(force) & (force >= threshold)
+        dt = np.diff(t)
+        time_above_90pct_peak = float(np.nansum(dt[above[:-1]]))
 
     return {
         "peak_force_proxy": peak_force,
         "peak_depth_mm": peak_depth,
         "time_to_first_contact_s": time_to_first_contact,
         "force_overshoot_proxy": overshoot,
+        "approach_rate_mm_s": approach_rate,
+        "n_force_reversals_post_plateau": n_reversals,
+        "time_above_90pct_peak_s": time_above_90pct_peak,
     }
 
 
 def load_all_trials(trials_dir, contact_threshold_mm, collapse):
     """Scan trials_dir for files matching FNAME_RE, compute per-trial
     metrics for each, and return a long-format DataFrame with one row per
-    trial: participant, condition, object, trial_num, + the four metrics.
+    trial: participant, condition, object, trial_num, + the seven metrics
+    from compute_trial_metrics() (four Section 5.1 + three Section 5.8).
 
     Args:
         trials_dir: Directory to scan for trial CSVs.
@@ -251,7 +319,8 @@ def reduce_to_participant_condition_object(trial_df):
     """
     metric_cols = ["peak_force_proxy", "peak_depth_mm",
                    "time_to_first_contact_s", "force_overshoot_proxy",
-                   "fragile_survived"]
+                   "approach_rate_mm_s", "n_force_reversals_post_plateau",
+                   "time_above_90pct_peak_s", "fragile_survived"]
 
     grouped = trial_df.groupby(["participant", "condition", "object"])
     out_rows = []
@@ -496,6 +565,158 @@ def write_lra_vs_tactiles_report(all_results, out_dir):
                 ])
     print(f"Wrote {path}")
 
+
+# ---------------------------------------------------------------------------
+# Section 5.9 — TOST Equivalence (LRA vs TacTiles)
+#
+# Section 5.4's Wilcoxon test can only fail to reject "no difference" — it
+# cannot show the two actuators ARE equivalent. Two One-Sided Tests (TOST)
+# is the standard way to make that a positive, defensible claim: it rejects
+# H0 = "the true difference is at least as large as the equivalence margin"
+# in favor of H1 = "the true difference is smaller than the margin", in
+# BOTH directions. If both one-sided tests reject, the two conditions are
+# statistically equivalent within that margin.
+#
+# The margin is a judgment call — the smallest difference you'd consider
+# practically meaningful — expressed here as a multiple of the metric's
+# own pooled standard deviation (an effect-size-scaled margin, so it is
+# comparable across metrics with different units). --equiv-margin-sd
+# defaults to 0.5 (a "medium" Cohen's d); tighten it (e.g. 0.3) for a
+# stricter equivalence claim, or loosen it, but state your choice and its
+# justification explicitly in the thesis text — this script does not pick
+# it for you beyond the default.
+# ---------------------------------------------------------------------------
+
+def tost_equivalence(a, b, margin_sd, alpha=0.05):
+    """Paired TOST (two one-sided t-tests) for whether `a` and `b` are
+    equivalent within margin_sd * pooled_sd.
+
+    Args:
+        a, b: Paired 1D arrays (same participants, same order).
+        margin_sd: Equivalence margin as a multiple of the pooled SD of a
+            and b combined (effect-size-scaled, unitless).
+        alpha: Significance level for each one-sided test (default 0.05,
+            i.e. an overall two-one-sided-tests equivalence claim at the
+            conventional 5% level).
+
+    Returns:
+        None if fewer than 3 pairs. Otherwise a dict with n, margin
+        (in the metric's raw units), mean_diff, p_lower, p_upper,
+        p_tost (= max of the two, the standard TOST reporting statistic),
+        and equivalent (bool, p_tost < alpha).
+    """
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    n = len(a)
+    if n < 3:
+        return None
+
+    pooled_sd = float(np.std(np.concatenate([a, b]), ddof=1))
+    margin = margin_sd * pooled_sd
+    if margin == 0:
+        # Degenerate: metric is constant across all observations. Equivalent
+        # by definition (mean_diff is necessarily 0 too).
+        return {"n": n, "margin": 0.0, "mean_diff": 0.0,
+                "p_lower": 0.0, "p_upper": 0.0, "p_tost": 0.0, "equivalent": True}
+
+    diffs = a - b
+    mean_diff = float(np.mean(diffs))
+    sd_diff = float(np.std(diffs, ddof=1))
+
+    if sd_diff == 0:
+        # No variance in the paired difference: equivalence is exact
+        # (mean_diff within margin) or exactly violated, deterministically.
+        equivalent = abs(mean_diff) < margin
+        p = 0.0 if equivalent else 1.0
+        return {"n": n, "margin": margin, "mean_diff": mean_diff,
+                "p_lower": p, "p_upper": p, "p_tost": p, "equivalent": equivalent}
+
+    se = sd_diff / np.sqrt(n)
+    df = n - 1
+    # H0: mean_diff <= -margin (too far below zero) vs H1: mean_diff > -margin
+    t_lower = (mean_diff + margin) / se
+    p_lower = float(stats.t.sf(t_lower, df))
+    # H0: mean_diff >= margin (too far above zero) vs H1: mean_diff < margin
+    t_upper = (mean_diff - margin) / se
+    p_upper = float(stats.t.cdf(t_upper, df))
+    p_tost = max(p_lower, p_upper)
+
+    return {
+        "n": n, "margin": margin, "mean_diff": mean_diff,
+        "p_lower": p_lower, "p_upper": p_upper, "p_tost": p_tost,
+        "equivalent": p_tost < alpha,
+    }
+
+
+def lra_vs_tactiles_tost(reduced_df, metric, margin_sd, alpha=0.05):
+    """Section 5.9: TOST equivalence between lra and tactiles for `metric`,
+    on the same complete-case participants as lra_vs_tactiles() (Section
+    5.4), so the two sections are directly comparable — 5.4 asks "is there
+    a detectable difference," 5.9 asks "can we rule out a difference of at
+    least margin_sd standard deviations."
+
+    Args:
+        reduced_df: Output of reduce_to_participant_condition_object().
+        metric: Column name to test.
+        margin_sd: Equivalence margin, see tost_equivalence().
+        alpha: Per-side significance level, see tost_equivalence().
+
+    Returns:
+        Dict keyed by object ('fragile'/'deformable'); each value is None
+        (too few complete cases) or tost_equivalence()'s result dict.
+    """
+    results = {}
+    for obj in OBJECTS:
+        sub = reduced_df[reduced_df["object"] == obj]
+        pivot = sub.pivot(index="participant", columns="condition", values=metric)
+        complete = pivot.dropna(subset=["lra", "tactiles"], how="any")
+        n_dropped = len(pivot) - len(complete)
+        if n_dropped > 0:
+            print(f"NOTE: {metric}/{obj} (TOST lra vs tactiles): dropping {n_dropped} "
+                  f"participant(s) missing lra or tactiles.")
+
+        if len(complete) < 3:
+            print(f"WARNING: {metric}/{obj} (TOST lra vs tactiles): only {len(complete)} "
+                  f"complete participant(s) — skipping.")
+            results[obj] = None
+            continue
+
+        results[obj] = tost_equivalence(
+            complete["lra"].to_numpy(), complete["tactiles"].to_numpy(), margin_sd, alpha)
+    return results
+
+
+def write_tost_equivalence_report(all_results, margin_sd, alpha, out_dir):
+    """Writes a CSV summary table for Section 5.9, one row per metric x object.
+
+    Args:
+        all_results: {metric: lra_vs_tactiles_tost() result}, one entry per
+            tested metric.
+        margin_sd: The equivalence margin used (echoed into every row so the
+            table is self-describing if read out of context).
+        alpha: The per-side significance level used.
+        out_dir: Directory to write section_5_9_tost_equivalence.csv into.
+    """
+    path = os.path.join(out_dir, "section_5_9_tost_equivalence.csv")
+    with open(path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["metric", "object", "n", "margin_sd", "alpha", "margin_raw",
+                          "mean_diff_lra_minus_tactiles", "p_lower", "p_upper", "p_tost",
+                          "equivalent"])
+        for metric, by_object in all_results.items():
+            for obj, res in by_object.items():
+                if res is None:
+                    writer.writerow([metric, obj, "", margin_sd, alpha, "", "", "", "", "", ""])
+                    continue
+                writer.writerow([
+                    metric, obj, res["n"], margin_sd, alpha,
+                    f"{res['margin']:.4f}", f"{res['mean_diff']:.4f}",
+                    f"{res['p_lower']:.4f}", f"{res['p_upper']:.4f}", f"{res['p_tost']:.4f}",
+                    res["equivalent"],
+                ])
+    print(f"Wrote {path}")
+
+
 def write_fragile_breakage_summary(trial_df, out_dir):
     """Section 5.7 (descriptive): raw success/break counts per condition,
     over all fragile trials with a recorded outcome (untagged trials, which
@@ -587,6 +808,233 @@ def write_fragile_mcnemar_report(result, out_dir):
             writer.writerow(["", "", "", ""])
         else:
             writer.writerow([result["n"], result["b"], result["c"], f"{result['p']:.4f}"])
+    print(f"Wrote {path}")
+
+
+# ---------------------------------------------------------------------------
+# Section 5.7 (inferential) — Fragile survival across ALL THREE conditions
+#
+# section_5_7_fragile_breakage.csv (above) reports raw counts only, and the
+# Section 5.4 McNemar tests lra vs tactiles alone. The headline contrast of
+# the study — vision-only vs haptic breakage — had no significance test, so
+# this block adds one, at two levels:
+#
+#   PRIMARY (rate level): each participant's fragile-survival PROPORTION per
+#   condition (successes / fragile trials), then Friedman across the three
+#   conditions + pairwise Wilcoxon signed-rank with Holm. This keeps the
+#   graded information (e.g. 2/5 vs 4/5 survived) that carries the effect,
+#   and handles the unequal per-participant trial counts (P05/P07/P08/P10
+#   ran many more fragile trials than the rest).
+#
+#   CONSERVATIVE (binary level): collapse each participant/condition to a
+#   single survive/break majority vote, then Cochran's Q + pairwise McNemar
+#   with Holm. This is the all-or-nothing view; it is much less powerful
+#   because most participants survive the majority of trials in EVERY
+#   condition, so the majority-vote is near-constant and the vision effect —
+#   which lives in the proportion, not the majority — largely washes out.
+#   Reported alongside the rate test as a robustness check, not the headline.
+# ---------------------------------------------------------------------------
+
+def _fragile_survival_rate(trial_df, conditions):
+    """Participant x condition fragile-survival PROPORTION (mean of per-trial
+    0/1 outcomes), over participants with at least one outcome-tagged fragile
+    trial in every one of `conditions`. Returns (pivot, n_incomplete)."""
+    fragile = trial_df[(trial_df["object"] == "fragile")
+                       & (trial_df["fragile_survived"].notna())]
+    pivot = (fragile.groupby(["participant", "condition"])["fragile_survived"]
+             .mean().unstack())
+    # Keep only conditions we test, then require all present per participant.
+    for c in conditions:
+        if c not in pivot.columns:
+            pivot[c] = np.nan
+    complete = pivot.dropna(subset=conditions, how="any")
+    return complete[conditions], len(pivot) - len(complete)
+
+
+def _fragile_survival_binary(reduced_df, conditions):
+    """Participant x condition binary fragile-survival matrix, restricted to
+    participants with an UNAMBIGUOUS (non-0.5) majority-vote outcome in every
+    one of `conditions`.
+
+    fragile_survived in reduced_df is the median of a participant's per-trial
+    0/1 breakage outcomes — i.e. a majority vote (1 = most fragile reps
+    survived, 0 = most broke). An even split lands on 0.5 and is dropped here,
+    since both Cochran's Q and McNemar need one binary classification per
+    participant per condition.
+
+    Returns (pivot, n_incomplete, n_ambiguous): the complete/unambiguous pivot
+    plus counts of the participants removed for each reason.
+    """
+    sub = reduced_df[reduced_df["object"] == "fragile"]
+    pivot = sub.pivot(index="participant", columns="condition", values="fragile_survived")
+    complete = pivot.dropna(subset=conditions, how="any")
+    n_incomplete = len(pivot) - len(complete)
+
+    amb = np.zeros(len(complete), dtype=bool)
+    for c in conditions:
+        amb |= (complete[c] == 0.5).to_numpy()
+    n_ambiguous = int(amb.sum())
+    complete = complete.loc[~amb]
+    return complete, n_incomplete, n_ambiguous
+
+
+def _cochran_q(binary_matrix):
+    """Cochran's Q for N x k paired binary data (0/1).
+
+    Q = (k-1)[k * sum(C_j^2) - (sum C_j)^2] / [k * sum(R_i) - sum(R_i^2)]
+    where C_j is each condition's column total and R_i each participant's row
+    total; Q ~ chi-square with k-1 df. Participants who are constant across all
+    conditions (all survive or all break) contribute 0 to the denominator and
+    so drop out naturally, as they should. Returns (Q, p, dof).
+    """
+    X = np.asarray(binary_matrix, dtype=float)
+    _, k = X.shape
+    col = X.sum(axis=0)
+    row = X.sum(axis=1)
+    denom = k * np.sum(row) - np.sum(row ** 2)
+    if denom == 0:
+        # Every participant is constant across conditions — no discordance,
+        # Q is undefined. Report Q=0, p=1 (no evidence of a difference).
+        return 0.0, 1.0, k - 1
+    q = (k - 1) * (k * np.sum(col ** 2) - np.sum(col) ** 2) / denom
+    dof = k - 1
+    return float(q), float(stats.chi2.sf(q, dof)), dof
+
+
+def _mcnemar_binary(a, b):
+    """Exact (binomial) McNemar for two paired binary vectors.
+    Returns (b_count, c_count, p) where b_count = a-survived-only,
+    c_count = b-survived-only. p=1.0 when there are no discordant pairs."""
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    b_only = int(np.sum((a == 1.0) & (b == 0.0)))
+    c_only = int(np.sum((a == 0.0) & (b == 1.0)))
+    if b_only + c_only == 0:
+        return b_only, c_only, 1.0
+    p = stats.binomtest(min(b_only, c_only), b_only + c_only, p=0.5).pvalue
+    return b_only, c_only, float(p)
+
+
+PAIRS = [("visual_only", "lra"), ("visual_only", "tactiles"), ("lra", "tactiles")]
+
+
+def _rate_level_survival(trial_df):
+    """PRIMARY test: Friedman across conditions + pairwise Wilcoxon (Holm) on
+    per-participant fragile-survival proportions. Returns None if too few
+    complete participants, else a dict with n, friedman_stat/friedman_p,
+    medians, and pairwise [(a, b, w_stat, raw_p, holm_p), ...]."""
+    rates, n_incomplete = _fragile_survival_rate(trial_df, CONDITIONS)
+    if n_incomplete > 0:
+        print(f"NOTE: fragile survival (rate, 3-way): dropping {n_incomplete} "
+              f"participant(s) without outcome-tagged fragile trials in every condition.")
+    if len(rates) < 3:
+        print(f"WARNING: fragile survival (rate): only {len(rates)} complete "
+              f"participant(s) — too few for Friedman/Wilcoxon. Skipping.")
+        return None
+
+    cols = [rates[c].to_numpy() for c in CONDITIONS]
+    fr_stat, fr_p = stats.friedmanchisquare(*cols)
+
+    raw, stats_ = [], []
+    for a_name, b_name in PAIRS:
+        a, b = rates[a_name].to_numpy(), rates[b_name].to_numpy()
+        if np.all(a - b == 0):
+            print(f"WARNING: fragile survival rate: {a_name} vs {b_name} has zero "
+                  f"variance in paired differences — Wilcoxon undefined, skipping pair.")
+            stats_.append(None)
+            raw.append(1.0)
+            continue
+        w_stat, w_p = stats.wilcoxon(a, b)
+        stats_.append(w_stat)
+        raw.append(w_p)
+    holm = holm_bonferroni(raw)
+    pairwise = [(a, b, stats_[i], raw[i], holm[i]) for i, (a, b) in enumerate(PAIRS)]
+
+    return {
+        "n": len(rates),
+        "friedman_stat": float(fr_stat), "friedman_p": float(fr_p),
+        "medians": {c: float(np.median(rates[c])) for c in CONDITIONS},
+        "pairwise": pairwise,
+    }
+
+
+def _binary_level_survival(reduced_df):
+    """CONSERVATIVE complement: Cochran's Q + pairwise McNemar (Holm) on the
+    per-participant majority-vote survive/break outcome. Returns None if too
+    few usable participants, else a dict with n, cochran_q/cochran_p/
+    cochran_dof, and pairwise [(a, b, a_only, b_only, raw_p, holm_p), ...]."""
+    complete, n_incomplete, n_ambiguous = _fragile_survival_binary(reduced_df, CONDITIONS)
+    if n_incomplete > 0:
+        print(f"NOTE: fragile survival (binary, 3-way): dropping {n_incomplete} "
+              f"participant(s) missing at least one condition.")
+    if n_ambiguous > 0:
+        print(f"NOTE: fragile survival (binary, 3-way): dropping {n_ambiguous} "
+              f"participant(s) whose fragile reps split evenly (median 0.5) somewhere.")
+    if len(complete) < 4:
+        print(f"WARNING: fragile survival (binary): only {len(complete)} usable "
+              f"participant(s) — too few for a meaningful test. Skipping.")
+        return None
+
+    q, q_p, dof = _cochran_q(complete[CONDITIONS].to_numpy())
+    raw, counts = [], []
+    for a_name, b_name in PAIRS:
+        a_only, b_only, p = _mcnemar_binary(complete[a_name], complete[b_name])
+        counts.append((a_only, b_only))
+        raw.append(p)
+    holm = holm_bonferroni(raw)
+    pairwise = [(a, b, counts[i][0], counts[i][1], raw[i], holm[i])
+                for i, (a, b) in enumerate(PAIRS)]
+    return {"n": len(complete), "cochran_q": q, "cochran_p": q_p,
+            "cochran_dof": dof, "pairwise": pairwise}
+
+
+def fragile_survival_across_conditions(trial_df, reduced_df):
+    """Section 5.7 (inferential): test fragile survival across all three
+    conditions — the study's headline contrast, which the count-only
+    breakage table and the lra-vs-tactiles McNemar never tested. Runs the
+    rate-level test (primary) and the binary majority-vote test
+    (conservative). Returns {"rate": ..., "binary": ...}."""
+    return {"rate": _rate_level_survival(trial_df),
+            "binary": _binary_level_survival(reduced_df)}
+
+
+def write_fragile_survival_tests_report(result, out_dir):
+    """Writes the Section 5.7 inferential breakage tests to
+    section_5_7_fragile_survival_tests.csv, one row per comparison, with a
+    `level` column separating the rate-level (primary) and binary-level
+    (conservative) analyses so both can be read from one table."""
+    path = os.path.join(out_dir, "section_5_7_fragile_survival_tests.csv")
+    rate, binary = result["rate"], result["binary"]
+    with open(path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["level", "n", "omnibus_test", "omnibus_stat", "omnibus_dof",
+                          "omnibus_p", "comparison", "pairwise_test",
+                          "a_survived_only", "b_survived_only", "pairwise_p", "holm_p"])
+
+        if rate is not None:
+            med = ";".join(f"{c}={rate['medians'][c]:.3f}" for c in CONDITIONS)
+            for a_name, b_name, w_stat, raw_p, holm_p in rate["pairwise"]:
+                writer.writerow([
+                    "rate", rate["n"], "friedman", f"{rate['friedman_stat']:.4f}", 2,
+                    f"{rate['friedman_p']:.4f}", f"{a_name}_vs_{b_name}", "wilcoxon",
+                    "", "",
+                    f"{raw_p:.4f}", f"{holm_p:.4f}",
+                ])
+            writer.writerow(["rate_medians", rate["n"], "", "", "", "", med,
+                             "", "", "", "", ""])
+        else:
+            writer.writerow(["rate", "", "friedman", "", "", "", "", "", "", "", "", ""])
+
+        if binary is not None:
+            for a_name, b_name, a_only, b_only, raw_p, holm_p in binary["pairwise"]:
+                writer.writerow([
+                    "binary", binary["n"], "cochran_q", f"{binary['cochran_q']:.4f}",
+                    binary["cochran_dof"], f"{binary['cochran_p']:.4f}",
+                    f"{a_name}_vs_{b_name}", "mcnemar", a_only, b_only,
+                    f"{raw_p:.4f}", f"{holm_p:.4f}",
+                ])
+        else:
+            writer.writerow(["binary", "", "cochran_q", "", "", "", "", "", "", "", "", ""])
     print(f"Wrote {path}")
 
 
@@ -756,6 +1204,15 @@ def main():
                               "Newtons) — the headline once calibrated. max: max of the raw "
                               "force proxies (uncalibrated) — works pre-calibration. Depth is "
                               "max(L,R) either way. Run both and confirm findings agree.")
+    parser.add_argument("--equiv-margin-sd", type=float, default=0.5,
+                         help="Section 5.9 TOST equivalence margin, as a multiple of each "
+                              "metric's pooled SD (effect-size-scaled). Default 0.5 (a "
+                              "'medium' Cohen's d) — this is a judgment call about the "
+                              "smallest difference you'd consider practically meaningful; "
+                              "state and justify your choice in the thesis text.")
+    parser.add_argument("--equiv-alpha", type=float, default=0.05,
+                         help="Per-side significance level for the Section 5.9 TOST test "
+                              "(default 0.05, the conventional two-one-sided-tests level).")
     args = parser.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
@@ -775,20 +1232,36 @@ def main():
 
     print("\nRunning Section 5.3 (cross-condition Friedman + Wilcoxon)...")
     metrics = ["peak_force_proxy", "peak_depth_mm", "time_to_first_contact_s", "force_overshoot_proxy"]
+    trajectory_metrics = ["approach_rate_mm_s", "n_force_reversals_post_plateau",
+                           "time_above_90pct_peak_s"]
+    all_metrics = metrics + trajectory_metrics
     cross_condition_results = {}
-    for metric in metrics:
+    for metric in all_metrics:
         cross_condition_results[metric] = friedman_and_pairwise(reduced_df, metric, args.out)
     write_cross_condition_report(cross_condition_results, args.out)
 
     print("\nRunning Section 5.4 (LRA vs TacTiles direct comparison)...")
     lra_tactiles_results = {}
-    for metric in metrics:
+    for metric in all_metrics:
         lra_tactiles_results[metric] = lra_vs_tactiles(reduced_df, metric)
     write_lra_vs_tactiles_report(lra_tactiles_results, args.out)
 
     print("\nRunning Section 5.4 (fragile breakage: McNemar lra vs tactiles)...")
     mcnemar_result = mcnemar_fragile_survival(reduced_df)
     write_fragile_mcnemar_report(mcnemar_result, args.out)
+
+    print(f"\nRunning Section 5.9 (TOST equivalence, lra vs tactiles, "
+          f"margin={args.equiv_margin_sd} pooled SD, alpha={args.equiv_alpha})...")
+    tost_results = {}
+    for metric in all_metrics:
+        tost_results[metric] = lra_vs_tactiles_tost(
+            reduced_df, metric, args.equiv_margin_sd, args.equiv_alpha)
+    write_tost_equivalence_report(tost_results, args.equiv_margin_sd, args.equiv_alpha, args.out)
+
+    print("\nRunning Section 5.7 (fragile survival across conditions: rate-level "
+          "Friedman/Wilcoxon + binary Cochran's Q/McNemar, incl. vision vs haptic)...")
+    survival_tests = fragile_survival_across_conditions(trial_df, reduced_df)
+    write_fragile_survival_tests_report(survival_tests, args.out)
 
     print("\nGenerating Section 5.5 time-series figures...")
     plot_representative_trials(args.trials_dir, args.out, args.collapse)
