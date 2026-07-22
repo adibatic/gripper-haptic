@@ -32,7 +32,7 @@ from haptic import *
 # ------------------------------------------------------------------ CONFIG ---
 THUMB, INDEX = 0, 1   # M1 = thumb (driven by left sensor), M2 = index (right sensor)
 
-METHOD = "tactiles"   # "vibmotor" for --condition lra, "tactiles" for --condition tactiles
+METHOD = "vibmotor"   # "vibmotor" for --condition lra, "tactiles" for --condition tactiles
 
 WATCHDOG_MS = 200     # drop both channels to 0 if no packet arrives within this window
 # -----------------------------------------------------------------------------
