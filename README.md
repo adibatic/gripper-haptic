@@ -235,7 +235,7 @@ Then set `HAND_CAM_INDEX`, `TACTILE_CAM_L`, and `TACTILE_CAM_R` in `kernel/camer
 
 **1. Start the ESP32 receiver**
 
-The board runs the **receiver** (`firmware/stream.py`); `experiment.py` is the sender. `stream.py` is a stream-only receiver dedicated to the experiment — it parses `experiment.py`'s `"{left:.4f},{right:.4f}\n"` packets and drives the two channels **independently** (left -> thumb/M1, right -> index/M2). Set `METHOD` in `firmware/stream.py` to match your `--condition`: `"vibmotor"` for `lra`, `"tactiles"` for `tactiles`. (For `visual_only` you don't need to run this file at all.)
+The board runs the **receiver** (`firmware/stream.py`); `experiment.py` is the sender. `stream.py` is a stream-only receiver dedicated to the experiment — it parses `experiment.py`'s `"{left:.4f},{right:.4f}\n"` packets and drives the two channels **independently** (left -> thumb, right -> index). Set `METHOD` in `firmware/stream.py` to match your `--condition`: `"vibmotor"` for `lra`, `"tactiles"` for `tactiles`. (For `visual_only` you don't need to run this file at all.) Also set `HAND` in `firmware/stream.py` to match your `--hand` (`"right"`: thumb=M1/index=M2, `"left"`: thumb=M5/index=M4) — a left-hand mount is wired to a different pin pair.
 
 > `stream.py` already implements the 2-value protocol above. The older
 > `stream_mode()` / `tactiles_stream_mode()` in `firmware/haptic.py` are the
@@ -251,7 +251,7 @@ python -m mpremote connect /dev/ttyACM0 repl
 In the REPL, start it, then detach with **Ctrl-X** (frees the port, leaves it running):
 
 ```python
- 
+exec(open('stream.py').read())
 ```
 
 **2. Activate the gripper (once per power-cycle)**
@@ -280,13 +280,14 @@ python run/experiment.py --condition visual_only --participant P01 --object frag
 | Flag | Values | Description |
 | --- | --- | --- |
 | `--condition` | `visual_only`, `lra`, `tactiles` | STARTING condition label for trial filenames. Cycle at runtime with **`c`** (only while paused and not recording — see Controls). Labels the saved data only — actual actuator behavior depends on which firmware is loaded on the ESP32; switching to/from a condition that needs different firmware walks you through reflashing it. |
+| `--hand` | `right` (default), `left` | Which hand wears the actuator glove. Printed at startup and passed to the reflash prompt so you set `HAND` in `firmware/stream.py` to match (`right`: thumb=0/index=1, `left`: thumb=4/index=3) — labeling/reflash-instruction only, does not itself move anything. |
 | `--participant` | any string, e.g. `P01` | Participant ID, included in trial filenames. Relaunch per participant so a drifting gel baseline doesn't bias `volume`. |
 | `--object` | `fragile`, `deformable` | Starting object class for trial filenames. Switch mid-session with **`o`** (cannot switch while recording). |
 | `--out` | directory path | Base directory for trial CSVs. Default: `data/experiment_logs`. Each participant's trials are written into a `<out>/<participant>/` subfolder — with 3 conditions x 2 objects x N trials per participant, this keeps each participant's files together instead of one flat directory mixing everyone's trials. |
 
 **Controls:**
 
-Gripper position is driven entirely by hand-tracking — no manual/keyboard override. The session **starts paused**: nothing moves or buzzes until you resume.
+Gripper position is driven entirely by hand-tracking — no manual/keyboard override. The session **starts paused**: nothing moves or buzzes until you resume. The same key legend is drawn on-screen (bottom-left of the video feed) as a reminder.
 
 | Key | Action |
 | --- | --- |
@@ -397,12 +398,14 @@ NSLEEP is held HIGH (no sleep) via GPIO 19.
 
 ### TacTiles Pin Actuators
 
-Selected via `METHOD = "tactiles"` in `firmware/stream.py`. TacTiles are bistable pin actuators driven by H-bridges. Each actuator is controlled by an IN1/IN2 pair — a short forward pulse engages the pin toward the skin; a reverse pulse retracts it. Because the actuator latches mechanically, zero power is drawn while held.
+Selected via `METHOD = "tactiles"` in `firmware/stream.py`. TacTiles are bistable pin actuators driven by H-bridges. Each actuator is controlled by an IN1/IN2 pair — a short pulse in one direction engages the pin toward the skin; the opposite direction retracts it. Because the actuator latches mechanically, zero power is drawn while held.
+
+> Bench-confirmed the pin only contacts skin on the IN2 pulse, not IN1 — backwards from the H-bridge's nominal "forward" convention. `TacTiles.engage()`/`disengage()` (`firmware/haptic.py`) pulse IN2/IN1 accordingly, so `engage` always means contact and `disengage` always means retract regardless of the underlying pin direction.
 
 | Mode | Behaviour |
 | --- | --- |
-| `engage` | 6 ms forward pulse → pin contacts skin, latches |
-| `disengage` | 10 ms reverse pulse → pin retracts, latches |
+| `engage` | 6 ms IN2 pulse → pin contacts skin, latches |
+| `disengage` | 10 ms IN1 pulse → pin retracts, latches |
 | `pulse` | 3 ms forward + 3 ms reverse → quick tap, no sustained contact |
 | `burst` | Rapid sequence of pulses, up to ~200 Hz in short windows |
 

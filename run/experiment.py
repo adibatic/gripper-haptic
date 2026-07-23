@@ -489,6 +489,18 @@ def main():
     )
 
     parser.add_argument(
+        "--hand",
+        default="right",
+        choices=["right", "left"],
+        help=(
+            "Which hand wears the actuator glove. Determines the THUMB/INDEX "
+            "pin pair firmware/stream.py must use (right: thumb=0/index=1, "
+            "left: thumb=4/index=3) — set HAND to match at the top of "
+            "firmware/stream.py before flashing/running it."
+        )
+    )
+
+    parser.add_argument(
         "--object",
         default="fragile",
         choices=["fragile", "deformable"],
@@ -623,6 +635,9 @@ def main():
     for t in threads:
         t.start()
 
+    print(f"  [Hand] Actuator glove: {args.hand}-handed "
+          f"(thumb={'0' if args.hand == 'right' else '4'}, index={'1' if args.hand == 'right' else '3'} "
+          f"on firmware/stream.py — set HAND=\"{args.hand}\" there before flashing).")
     print(f"  [Controls] Press SPACE to pause/resume hand tracking (starts PAUSED — resume when ready).")
     print(f"  [Controls] Press 'r' to start/stop recording a trial (only while resumed). "
           f"Stopping prompts Save/Discard for the trial just recorded.")
@@ -650,7 +665,7 @@ def main():
 
     detector = create_hand_detector(model_path)
 
-    hand_tracking_loop(cap, detector, state, recording, haptic_link, stop_event)
+    hand_tracking_loop(cap, detector, state, recording, haptic_link, stop_event, hand=args.hand)
 
     print("\nStopping Window & Threads …")
     stop_event.set()

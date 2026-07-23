@@ -35,7 +35,7 @@ THUMB, INDEX, MIDDLE, RING, PINKY = 0, 1, 2, 3, 4
 
 FINGERS   = [THUMB, INDEX]   # any subset, e.g. [THUMB, INDEX, MIDDLE, RING, PINKY]
 INTENSITY = 1.0              # 0.0-1.0, applied to every finger
-ON_S      = 6.0              # seconds the motors buzz
+ON_S      = 3.0              # seconds the motors buzz
 OFF_S     = 3.0              # seconds the motors rest
 # -----------------------------------------------------------------------------
 
