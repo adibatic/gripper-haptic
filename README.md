@@ -36,6 +36,10 @@ gripper-haptic/
 ├── src/                            # Source submodules and core libraries
 │   ├── 9DTact-main/                # 9DTact tactile sensor source code
 │   └── pyRobotiqGripper-master/    # Robotiq gripper driver
+├── tests/                          # Board-only bench self-tests (MicroPython)
+│   ├── test_tactiles.py            # TacTiles continuous burst/gap vibration, ON/OFF loop
+│   ├── test_tactiles2.py           # TacTiles binary engage/disengage latch, ON/OFF loop
+│   └── test_vibmotor.py            # LRA vibmotor (ACDriver) buzz, ON/rest loop
 ├── thesis/                         # Thesis manuscript (LaTeX source)
 │   ├── figures/                    # Thesis figures
 │   ├── main.tex                    # Main LaTeX file
@@ -247,7 +251,7 @@ python -m mpremote connect /dev/ttyACM0 repl
 In the REPL, start it, then detach with **Ctrl-X** (frees the port, leaves it running):
 
 ```python
-exec(open('stream.py').read())
+ 
 ```
 
 **2. Activate the gripper (once per power-cycle)**
@@ -413,6 +417,22 @@ Sustained vibration is approximated by repeated bursts with a gap between them, 
 | T3 | Middle | GPIO 6 | GPIO 7 |
 | T4 | Ring | GPIO 0 | GPIO 1 |
 | T5 | Pinky | GPIO 4 | GPIO 5 |
+
+### Bench Self-Tests (`tests/`)
+
+Board-only sanity checks — no host PC, gripper, or live stream needed. Copy
+`firmware/haptic.py` plus the test file to the board and `exec()` it in the
+REPL (see each file's docstring for the exact `mpremote` commands); use
+`mpremote repl`, not `mpremote run`, so Ctrl-C reaches the board and turns
+every actuator off.
+
+| File | Actuator | Behaviour |
+| --- | --- | --- |
+| `test_tactiles.py` | TacTiles | Continuous burst/gap vibration, `ON_S` seconds ON / `OFF_S` seconds OFF |
+| `test_tactiles2.py` | TacTiles | Binary latch — `engage()` held for `ON_S`, `disengage()` held for `OFF_S`, no buzzing |
+| `test_vibmotor.py` | LRA vibmotor | `ACDriver` bipolar AC buzz, `ON_S` seconds ON / `OFF_S` seconds rest |
+
+All three default to `THUMB, INDEX` at full intensity on a 6s ON / 3s OFF loop — edit `FINGERS`/`INTENSITY`/`ON_S`/`OFF_S` at the top of each file to change it.
 
 ---
 
