@@ -9,7 +9,7 @@ ON_S / OFF_S cycle so you can watch/feel every finger engage at once.
 Copy the library + this test to the board, then exec it in the REPL:
 
     python -m mpremote connect /dev/ttyACM0 fs cp firmware/haptic.py :
-    python -m mpremote connect /dev/ttyACM0 fs cp firmware/test_tactiles.py :
+    python -m mpremote connect /dev/ttyACM0 fs cp tests/test_tactiles.py :
     python -m mpremote connect /dev/ttyACM0 repl
     >>> exec(open('test_tactiles.py').read())
 
@@ -39,8 +39,8 @@ THUMB, INDEX, MIDDLE, RING, PINKY = 0, 1, 2, 3, 4
 
 FINGERS   = [THUMB, INDEX]   # any subset, e.g. [THUMB, INDEX, MIDDLE, RING, PINKY]
 INTENSITY = 1.0              # 0.0–1.0, applied to every finger
-ON_S      = 20.0              # seconds all fingers vibrate together
-OFF_S     = 1.0              # seconds all fingers stay off
+ON_S      = 6.0              # seconds all fingers vibrate together
+OFF_S     = 3.0              # seconds all fingers stay off
 # -----------------------------------------------------------------------------
 
 assert len(FINGERS) > 0 and len(FINGERS) == len(set(FINGERS))
