@@ -154,9 +154,14 @@ def stream_mode(pwms):
 
 # ================= TACTILE MODES =================
 class TacTiles:
-    """One bistable pin actuator on an IN1/IN2 H-bridge leg. A forward pulse
-    engages the pin, a reverse pulse retracts it; both latch mechanically, so
-    it draws zero power while held."""
+    """One bistable pin actuator on an IN1/IN2 H-bridge leg. A pulse in one
+    direction engages the pin, the opposite direction retracts it; both
+    latch mechanically, so it draws zero power while held.
+
+    Bench-confirmed the pin only contacts skin on the IN2-first pulse, not
+    IN1-first — backwards from the H-bridge's nominal "forward" convention
+    on this hardware. engage()/disengage() below pulse IN2/IN1 accordingly
+    so callers keep the intuitive engage=contact, disengage=retract meaning."""
 
     def __init__(self, in1_pin, in2_pin):
         """Claims the IN1/IN2 GPIO pins as outputs and starts off (both low)."""
@@ -170,16 +175,16 @@ class TacTiles:
         self.in2.value(0)
 
     def engage(self):
-        """Forward pulse (TACTILE_ENGAGE_MS) — pin contacts skin and latches."""
-        self.in1.value(1)
-        self.in2.value(0)
+        """IN2 pulse (TACTILE_ENGAGE_MS) — pin contacts skin and latches."""
+        self.in1.value(0)
+        self.in2.value(1)
         time.sleep_ms(TACTILE_ENGAGE_MS)
         self.off()
 
     def disengage(self):
-        """Reverse pulse (TACTILE_DISENGAGE_MS) — pin retracts and latches."""
-        self.in1.value(0)
-        self.in2.value(1)
+        """IN1 pulse (TACTILE_DISENGAGE_MS) — pin retracts and latches."""
+        self.in1.value(1)
+        self.in2.value(0)
         time.sleep_ms(TACTILE_DISENGAGE_MS)
         self.off()
 

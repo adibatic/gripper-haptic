@@ -3,12 +3,15 @@
 stream.py — runs ON THE ESP32-C6 (MicroPython).
 
 Live haptic receiver for experiment.py. Parses "{left},{right}\n" lines and
-drives the two channels independently: left -> thumb (M1), right -> index (M2).
+drives the two channels independently: left -> thumb, right -> index.
 If no packet arrives within WATCHDOG_MS both channels drop to 0, but the driver
 chip stays awake so the next packet vibrates immediately.
 
 Set METHOD to match the host's --condition: "vibmotor" for lra, "tactiles" for
-tactiles. visual_only needs no receiver at all.
+tactiles. visual_only needs no receiver at all. Set HAND to match the host's
+--hand ("right" or "left") — it picks which physical pin pair THUMB/INDEX
+point at, since a left-hand mount is wired to different pins than a right-hand
+one (see CONFIG below).
 
     python -m mpremote connect /dev/ttyACM0 fs cp firmware/haptic.py :
     python -m mpremote connect /dev/ttyACM0 fs cp firmware/stream.py :
@@ -30,7 +33,12 @@ if not hasattr(time, 'ticks_ms'):
 from haptic import *
 
 # ------------------------------------------------------------------ CONFIG ---
-THUMB, INDEX = 0, 1   # M1 = thumb (driven by left sensor), M2 = index (right sensor)
+HAND = "right"        # "right" or "left" — must match experiment.py's --hand.
+                       # Sets which physical pin pair THUMB/INDEX point at, since
+                       # a left-hand mount is wired to different TACTILE_PINS legs.
+THUMB, INDEX = (0, 1) if HAND == "right" else (4, 3)
+# right: M1 = thumb (driven by left sensor), M2 = index (right sensor)
+# left:  M5 = thumb (driven by left sensor), M4 = index (right sensor)
 
 METHOD = "vibmotor"   # "vibmotor" for --condition lra, "tactiles" for --condition tactiles
 
@@ -38,6 +46,7 @@ WATCHDOG_MS = 200     # drop both channels to 0 if no packet arrives within this
 # -----------------------------------------------------------------------------
 
 assert METHOD in ("vibmotor", "tactiles")
+assert HAND in ("right", "left")
 
 
 def parse_packet(line):

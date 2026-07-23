@@ -35,7 +35,7 @@ from haptic import init_tactiles, stop_all_tactiles
 THUMB, INDEX, MIDDLE, RING, PINKY = 0, 1, 2, 3, 4
 
 FINGERS      = [THUMB, INDEX]   # any subset, e.g. [THUMB, INDEX, MIDDLE, RING, PINKY]
-ON_S         = 6.0              # seconds all fingers stay engaged (ON)
+ON_S         = 3.0              # seconds all fingers stay engaged (ON)
 OFF_S        = 3.0              # seconds all fingers stay disengaged (OFF)
 RESTRIKE_MS  = 25                # gap before a second engage() pulse, for more felt pressure
 # -----------------------------------------------------------------------------

@@ -103,10 +103,19 @@ def create_hand_detector(model_path: str):
 # GUI OVERLAY
 # =============================================================================
 
+_CONTROLS_TEXT = [
+    "SPACE  pause/resume",
+    "r      start/stop trial",
+    "o      toggle object class",
+    "c      cycle condition",
+    "q      quit",
+]
+
+
 def _draw_overlay(frame, target_pos: float, finger_dist: float, state: SharedState,
                    active: bool, paused: bool, condition: str, current_object: str):
-    """Draws the status box: target position, finger distance, haptics,
-    recording/condition state, and the paused/live banner."""
+    """Draws the status box (target position, finger distance, haptics,
+    recording/condition state, paused/live banner) and a controls legend."""
     overlay = frame.copy()
     cv2.rectangle(overlay, (15, 15), (320, 160), (0, 0, 0), -1)
     cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
@@ -130,6 +139,16 @@ def _draw_overlay(frame, target_pos: float, finger_dist: float, state: SharedSta
     pause_text = "PAUSED (SPACE to resume)" if paused else "LIVE (SPACE to pause)"
     pause_color = (0, 165, 255) if paused else (0, 200, 0)
     cv2.putText(frame, pause_text, (25, 145), cv2.FONT_HERSHEY_SIMPLEX, 0.6, pause_color, 2)
+
+    # Controls legend — small box, bottom-left, independent of the status box above.
+    h = frame.shape[0]
+    legend_top = h - 20 - 18 * len(_CONTROLS_TEXT) - 10
+    legend_overlay = frame.copy()
+    cv2.rectangle(legend_overlay, (15, legend_top), (230, h - 15), (0, 0, 0), -1)
+    cv2.addWeighted(legend_overlay, 0.6, frame, 0.4, 0, frame)
+    for i, line in enumerate(_CONTROLS_TEXT):
+        cv2.putText(frame, line, (25, legend_top + 20 + 18 * i),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
 
 
 # =============================================================================
@@ -171,7 +190,7 @@ def _prompt_save_trial(frame):
             return False
 
 
-def _handle_firmware_swap(haptic_link, new_condition, new_firmware):
+def _handle_firmware_swap(haptic_link, new_condition, new_firmware, hand):
     """Walks the operator through reflashing the ESP32 when the new
     condition's CONDITION_FIRMWARE entry differs from the previous one.
     Releases the serial port so mpremote/esptool can use it (this process
@@ -188,8 +207,8 @@ def _handle_firmware_swap(haptic_link, new_condition, new_firmware):
         print("  -> In another terminal:")
         print(f"       python -m mpremote connect {haptic_link.port} fs cp firmware/haptic.py :")
         print(f"       python -m mpremote connect {haptic_link.port} fs cp firmware/stream.py :")
-        print(f"     Edit METHOD = \"{new_firmware}\" at the top of firmware/stream.py BEFORE "
-              f"copying it, then in the REPL:")
+        print(f"     Edit METHOD = \"{new_firmware}\" and HAND = \"{hand}\" at the top of "
+              f"firmware/stream.py BEFORE copying it, then in the REPL:")
         print("       exec(open('stream.py').read())")
         print("     Detach with Ctrl-X once it's running.")
     input("  Press ENTER here once the ESP32 is ready (reflashed/reconnected) to resume streaming... ")
@@ -198,10 +217,12 @@ def _handle_firmware_swap(haptic_link, new_condition, new_firmware):
 
 
 def hand_tracking_loop(cap, detector, state: SharedState, recording: RecordingState,
-                        haptic_link, stop_event):
+                        haptic_link, stop_event, hand: str = "right"):
     """Runs until stop_event is set: maps each frame's pinch distance to
     state.target_pos (which motion_loop sends to the gripper) and draws the
-    overlay."""
+    overlay. `hand` ("right"/"left") is only used to tell the operator which
+    firmware/stream.py HAND setting to reflash with on a condition change
+    that needs different ESP32 firmware — see _handle_firmware_swap()."""
     smoothed_target_pos = 0.0
     last_committed_target = 0.0
     stable_dist = -1.0
@@ -334,4 +355,4 @@ def hand_tracking_loop(cap, detector, state: SharedState, recording: RecordingSt
                 new_condition, new_firmware, firmware_changed = result
                 print(f"\n[Condition] Switched to: {new_condition}")
                 if firmware_changed:
-                    _handle_firmware_swap(haptic_link, new_condition, new_firmware)
+                    _handle_firmware_swap(haptic_link, new_condition, new_firmware, hand)
