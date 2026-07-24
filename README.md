@@ -332,9 +332,9 @@ The per-side force proxy is `volume` from `compute_metrics()` (`kernel/tactile.p
 ```bash
 python run/analysis.py \
   --trials-dir data/experiment_logs \
-  --likert-csv data/experiment_logs/likert_responses.csv \
+  --likert-csv data/likert/likert_responses.csv \
   --out results \
-  --collapse sum_n
+  --collapse max
 ```
 
 `--trials-dir` is scanned recursively, so pointing it at `data/experiment_logs` picks up every participant's trial CSVs from their `P01/`, `P02/`, ... subfolders in one pass — no need to run analysis.py per participant.

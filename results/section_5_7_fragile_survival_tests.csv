@@ -1,0 +1,8 @@
+level,n,omnibus_test,omnibus_stat,omnibus_dof,omnibus_p,comparison,pairwise_test,a_survived_only,b_survived_only,pairwise_p,holm_p
+rate,20,friedman,8.4000,2,0.0150,visual_only_vs_lra,wilcoxon,,,0.0166,0.0499
+rate,20,friedman,8.4000,2,0.0150,visual_only_vs_tactiles,wilcoxon,,,0.0481,0.0963
+rate,20,friedman,8.4000,2,0.0150,lra_vs_tactiles,wilcoxon,,,0.6927,0.6927
+rate_medians,20,,,,,visual_only=0.600;lra=0.800;tactiles=0.900,,,,,
+binary,20,cochran_q,4.0000,2,0.1353,visual_only_vs_lra,mcnemar,1,5,0.2188,0.6562
+binary,20,cochran_q,4.0000,2,0.1353,visual_only_vs_tactiles,mcnemar,2,2,1.0000,1.0000
+binary,20,cochran_q,4.0000,2,0.1353,lra_vs_tactiles,mcnemar,5,1,0.2188,0.6562
