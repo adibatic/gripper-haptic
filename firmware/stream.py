@@ -8,10 +8,13 @@ If no packet arrives within WATCHDOG_MS both channels drop to 0, but the driver
 chip stays awake so the next packet vibrates immediately.
 
 Set METHOD to match the host's --condition: "vibmotor" for lra, "tactiles" for
-tactiles. visual_only needs no receiver at all. Set HAND to match the host's
---hand ("right" or "left") — it picks which physical pin pair THUMB/INDEX
-point at, since a left-hand mount is wired to different pins than a right-hand
-one (see CONFIG below).
+tactiles (continuous burst/gap vibration, TactileVibrationDriver — the
+mechanism the study's first 19 participants' tactiles-condition data was
+collected under), "tactiles2" for tactiles2 (binary engage/disengage contact
+latch from tests/test_tactiles2.py, TactileLatchDriver). visual_only needs no
+receiver at all. Set HAND to match the host's --hand ("right" or "left") — it
+picks which physical pin pair THUMB/INDEX point at, since a left-hand mount is
+wired to different pins than a right-hand one (see CONFIG below).
 
     python -m mpremote connect /dev/ttyACM0 fs cp firmware/haptic.py :
     python -m mpremote connect /dev/ttyACM0 fs cp firmware/stream.py :
@@ -40,12 +43,14 @@ THUMB, INDEX = (0, 1) if HAND == "right" else (4, 3)
 # right: M1 = thumb (driven by left sensor), M2 = index (right sensor)
 # left:  M5 = thumb (driven by left sensor), M4 = index (right sensor)
 
-METHOD = "vibmotor"   # "vibmotor" for --condition lra, "tactiles" for --condition tactiles
+METHOD = "vibmotor"   # "vibmotor" for --condition lra, "tactiles" for --condition
+                      # tactiles (vibration), "tactiles2" for --condition
+                      # tactiles2 (binary contact latch)
 
 WATCHDOG_MS = 200     # drop both channels to 0 if no packet arrives within this window
 # -----------------------------------------------------------------------------
 
-assert METHOD in ("vibmotor", "tactiles")
+assert METHOD in ("vibmotor", "tactiles", "tactiles2")
 assert HAND in ("right", "left")
 
 
@@ -111,10 +116,11 @@ def run_vibmotor_stream():
 
 
 def run_tactiles_stream():
-    """TacTiles path. Mirrors run_vibmotor_stream(): one non-blocking
-    TactileVibrationDriver per channel, ticked every loop pass so thumb and
-    index buzz continuously with intensity mapped to pulse rate — not a
-    single threshold-gated tap every 500ms."""
+    """TacTiles path (--condition tactiles). Mirrors run_vibmotor_stream():
+    one non-blocking TactileVibrationDriver per channel, ticked every loop
+    pass so thumb and index buzz continuously with intensity mapped to pulse
+    rate — not a single threshold-gated tap every 500ms. This is the
+    mechanism the study's tactiles-condition data was collected under."""
     poll = select.poll()
     poll.register(sys.stdin, select.POLLIN)
 
@@ -153,10 +159,58 @@ def run_tactiles_stream():
         print("\n✅ Done, actuators off.")
 
 
+def run_tactiles2_stream():
+    """TacTiles path (--condition tactiles2). One non-blocking
+    TactileLatchDriver per channel, ticked every loop pass. Uses the
+    tests/test_tactiles2.py mechanism — engage() + restrike then hold latched
+    while a channel's intensity is at/above TACTILE_LATCH_THRESHOLD (grasp
+    contact), a single disengage() when it drops back below — instead of
+    TactileVibrationDriver's continuous burst/gap buzz used by --condition
+    tactiles."""
+    poll = select.poll()
+    poll.register(sys.stdin, select.POLLIN)
+
+    tactiles = init_tactiles()
+    drv_thumb = TactileLatchDriver(tactiles[THUMB])
+    drv_index = TactileLatchDriver(tactiles[INDEX])
+    last_rx = time.ticks_ms()  # type: ignore
+
+    try:
+        print("🔧 STREAM TacTiles2 (binary latch) | THUMB<-left  INDEX<-right | "
+              "waiting for packets from experiment.py... Ctrl-C to stop")
+        while True:
+            # 1) Non-blocking packet check (timeout 0 -> never stalls the drivers)
+            if poll.poll(0):
+                parsed = parse_packet(sys.stdin.readline())
+                if parsed is not None:
+                    left, right = parsed
+                    drv_thumb.set_intensity(left)
+                    drv_index.set_intensity(right)
+                    last_rx = time.ticks_ms()  # type: ignore
+
+            # 2) Watchdog: silence both if the host went quiet (chip stays awake)
+            if time.ticks_diff(time.ticks_ms(), last_rx) > WATCHDOG_MS:  # type: ignore
+                drv_thumb.set_intensity(0.0)
+                drv_index.set_intensity(0.0)
+
+            # 3) Advance both latch state machines and write the pins
+            drv_thumb.tick()
+            drv_index.tick()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        drv_thumb.stop()
+        drv_index.stop()
+        disable_drivers()
+        print("\n✅ Done, actuators off.")
+
+
 try:
     if METHOD == "vibmotor":
         run_vibmotor_stream()
-    else:
+    elif METHOD == "tactiles":
         run_tactiles_stream()
+    else:
+        run_tactiles2_stream()
 except KeyboardInterrupt:
     print("\n⏹ Stopped")

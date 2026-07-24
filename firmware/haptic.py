@@ -3,15 +3,25 @@ haptic.py — runs ON THE ESP32-C6 (MicroPython).
 
 Actuator driver library for both haptic methods. Not host code: copy it to the
 board and let an entry point import it — stream.py (the live receiver for
-experiment.py), or test_haptic.py / test_tactiles.py for bench self-tests.
+experiment.py), or test_haptic.py / test_tactiles.py / test_tactiles2.py for
+bench self-tests.
 
 Two actuator paths:
     LRA vibmotors — init_bridges() + ACDriver. Bipolar AC carrier; bench-
         confirmed that unipolar PWM produces no motion on this hardware.
-    TacTiles     — init_tactiles() + TactileVibrationDriver. Bistable pin
-        actuators on H-bridge legs, driven as a continuous burst/gap
-        vibration (same tick()-per-loop design as ACDriver) so intensity
-        maps to pulse rate instead of a single threshold-gated tap.
+    TacTiles     — init_tactiles(), with two selectable drivers:
+        - TactileVibrationDriver: continuous burst/gap vibration (same
+          tick()-per-loop design as ACDriver) so intensity maps to pulse
+          rate. This is what stream.py's METHOD = "tactiles" drives
+          experiment.py's "tactiles" condition with — the mechanism the
+          study's first 19 participants' tactiles-condition data was
+          collected under.
+        - TactileLatchDriver: binary contact/no-contact latch (same
+          engage()/restrike/disengage mechanism as tests/test_tactiles2.py)
+          — crossing the contact threshold fires engage() + a restrike pulse
+          and holds (zero power while held); dropping back below it fires a
+          single disengage(). Selected via stream.py's METHOD = "tactiles2",
+          which drives experiment.py's "tactiles2" condition.
 
 The legacy PWM helpers (init_pwms / apply_pattern / stop_duties / stop_all) and
 the stream_mode() / tactiles_stream_mode() receivers below are superseded by
@@ -58,6 +68,19 @@ TACTILE_VIBRATE_GAP_MAX_MS  = 400  # gap at intensity 0.0
 # thermal limit: ~120 switches/min → keep long-term average below 2 Hz.
 # Re-check actual switch rate on hardware after tuning PULSE_MS/GAP_MIN —
 # if the actuator runs hot, raise GAP_MIN back up first.
+
+# TactileLatchDriver (binary contact/no-contact, see class below): the
+# intensity level at/above which a channel is considered "in contact" and
+# engaged; below it, disengaged. Same restrike gap as tests/test_tactiles2.py.
+# Kept low (not 0.5) on purpose: intensity is deform_mm/DEPTH_SATURATION_MM
+# (kernel/tactile.py), and MAX_SAFE_DEPTH_MM (run/experiment.py) blocks further
+# closing at 1.0mm depth — for fragile objects (2.0mm saturation) that caps
+# intensity at ~0.5 right at the safety cutoff, so a 0.5 threshold would only
+# ever latch at the edge of the closing-block boundary (never reliably) and
+# feel like no feedback at all. 0.1 fires on any real gel deformation instead
+# of waiting for near-max grip force.
+TACTILE_LATCH_THRESHOLD = 0.1
+TACTILE_RESTRIKE_MS     = 25
 # ==================================================
 
 
@@ -489,4 +512,71 @@ class TactileVibrationDriver:
         self.tactile.off()
         self._state = 'gap'
         self._pulses_done = 0
+# ==========================================================================
+
+
+# ============ NON-BLOCKING TACTILE LATCH (test_tactiles2 mechanism) ========
+# stream.py's tactiles path (--condition tactiles) drives TactileVibrationDriver
+# above — a continuous burst/gap buzz whose rate scales with intensity, the
+# tests/test_tactiles.py mechanism, and what the study's first 19
+# participants' tactiles-condition data was collected under.
+# tests/test_tactiles2.py demonstrated a different, binary mechanism instead:
+# engage() once at the start of contact (plus a restrike pulse RESTRIKE_MS
+# later, since the first pulse doesn't always fully seat the pin), then hold
+# the latch — no buzzing — until contact ends, at which point a single
+# disengage() retracts and latches the other way. Because the actuator is
+# bistable, it draws zero power while held either way. TactileLatchDriver
+# below reproduces that same mechanism as a tick()-driven state machine so it
+# can react to a live 0-1 intensity stream instead of test_tactiles2.py's
+# fixed ON_S/OFF_S timer, while sharing a loop with a second channel like the
+# other drivers. It's selected via stream.py's METHOD = "tactiles2", which
+# drives experiment.py's "tactiles2" condition.
+
+class TactileLatchDriver:
+    """Non-blocking binary engage/disengage latch for one TacTiles actuator,
+    mirroring tests/test_tactiles2.py: crossing TACTILE_LATCH_THRESHOLD
+    upward fires engage() immediately and schedules a restrike engage()
+    TACTILE_RESTRIKE_MS later, then holds latched; crossing back downward
+    fires a single disengage(). No repeated pulsing while held in either
+    state.
+
+    tick() never sleeps beyond the brief engage()/disengage() pulse itself
+    (6-10ms) — call it every loop pass, like the other drivers' tick().
+    """
+
+    def __init__(self, tactile):
+        self.tactile = tactile
+        self._intensity = 0.0
+        self._engaged = False
+        self._restrike_due = None
+
+    def set_intensity(self, val):
+        """Sets the target intensity, clamped to [0.0, 1.0]."""
+        self._intensity = max(0.0, min(1.0, val))
+
+    def tick(self):
+        """Advances the latch state machine by one tick and, on a state
+        change, fires the pin pulse."""
+        now = time.ticks_ms()
+        contact = self._intensity >= TACTILE_LATCH_THRESHOLD
+
+        if contact and not self._engaged:
+            self.tactile.engage()
+            self._engaged = True
+            self._restrike_due = time.ticks_add(now, TACTILE_RESTRIKE_MS)
+        elif not contact and self._engaged:
+            self.tactile.disengage()
+            self._engaged = False
+            self._restrike_due = None
+        elif self._restrike_due is not None and time.ticks_diff(now, self._restrike_due) >= 0:
+            self.tactile.engage()   # restrike: first pulse may not fully seat the pin against skin
+            self._restrike_due = None
+
+    def stop(self):
+        """Disengages (if latched) and zeroes intensity — immediate stop."""
+        if self._engaged:
+            self.tactile.disengage()
+        self._intensity = 0.0
+        self._engaged = False
+        self._restrike_due = None
 # ==========================================================================
