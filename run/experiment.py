@@ -87,13 +87,17 @@ HAPTIC_HZ  = 15                 # Sensor read + serial send rate
 # Global runtime state
 stop_event = threading.Event()  # For stopping all threads
 
-CONDITIONS = ["visual_only", "lra", "tactiles"]
+CONDITIONS = ["visual_only", "lra", "tactiles", "tactiles2"]
 # ESP32 firmware METHOD (firmware/stream.py) each condition needs. None means
 # no firmware should be driving actuators for this condition — physically
 # disconnect the ESP32, or make sure its current firmware isn't wired to move
 # anything. Used by RecordingState.cycle_condition() to decide whether a
 # condition change needs the reflash handoff in kernel/tracking.py.
-CONDITION_FIRMWARE = {"visual_only": None, "lra": "vibmotor", "tactiles": "tactiles"}
+# "tactiles2" drives the binary engage/disengage contact latch
+# (TactileLatchDriver, mirroring tests/test_tactiles2.py) instead of
+# "tactiles"'s continuous burst/gap vibration (TactileVibrationDriver) — see
+# firmware/stream.py's run_tactiles2_stream().
+CONDITION_FIRMWARE = {"visual_only": None, "lra": "vibmotor", "tactiles": "tactiles", "tactiles2": "tactiles2"}
 
 @dataclass
 class SharedState:
@@ -174,7 +178,7 @@ class RecordingState:
 
     def cycle_condition(self):
         """Advances to the next condition (visual_only -> lra -> tactiles ->
-        ...). Returns (new_condition, new_firmware, firmware_changed), or
+        tactiles2 -> ...). Returns (new_condition, new_firmware, firmware_changed), or
         None if blocked (must be paused and not recording — a condition
         change can require swapping ESP32 firmware, so it's gated like a
         hardware change). firmware_changed tells the caller whether to run
@@ -354,7 +358,7 @@ def log_loop(gripper: GripperController, recording: RecordingState, state: Share
     File: <out_dir>/<participant>/<participant>_<condition>_<object>_trial<N>.csv
     (N is counted independently per condition/object combo — see
     RecordingState.next_trial_number()). Trials are grouped into one
-    subfolder per participant since a full run is 2 objects x 3 conditions x
+    subfolder per participant since a full run is 2 objects x 4 conditions x
     N trials each — keeping every participant's files together avoids one
     flat directory with everyone's trials interleaved. condition/object are
     read live from `recording` since a single launch now covers every combo
@@ -642,7 +646,7 @@ def main():
     print(f"  [Controls] Press 'r' to start/stop recording a trial (only while resumed). "
           f"Stopping prompts Save/Discard for the trial just recorded.")
     print(f"  [Controls] Press 'o' to toggle object class (fragile/deformable) when not recording.")
-    print(f"  [Controls] Press 'c' to cycle condition (visual_only -> lra -> tactiles) when paused and not recording.")
+    print(f"  [Controls] Press 'c' to cycle condition (visual_only -> lra -> tactiles -> tactiles2) when paused and not recording.")
     print(f"  [Controls] Press 'q' to quit.\n")
 
     if args.model_path:

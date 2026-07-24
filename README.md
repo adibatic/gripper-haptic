@@ -235,7 +235,7 @@ Then set `HAND_CAM_INDEX`, `TACTILE_CAM_L`, and `TACTILE_CAM_R` in `kernel/camer
 
 **1. Start the ESP32 receiver**
 
-The board runs the **receiver** (`firmware/stream.py`); `experiment.py` is the sender. `stream.py` is a stream-only receiver dedicated to the experiment — it parses `experiment.py`'s `"{left:.4f},{right:.4f}\n"` packets and drives the two channels **independently** (left -> thumb, right -> index). Set `METHOD` in `firmware/stream.py` to match your `--condition`: `"vibmotor"` for `lra`, `"tactiles"` for `tactiles`. (For `visual_only` you don't need to run this file at all.) Also set `HAND` in `firmware/stream.py` to match your `--hand` (`"right"`: thumb=M1/index=M2, `"left"`: thumb=M5/index=M4) — a left-hand mount is wired to a different pin pair.
+The board runs the **receiver** (`firmware/stream.py`); `experiment.py` is the sender. `stream.py` is a stream-only receiver dedicated to the experiment — it parses `experiment.py`'s `"{left:.4f},{right:.4f}\n"` packets and drives the two channels **independently** (left -> thumb, right -> index). Set `METHOD` in `firmware/stream.py` to match your `--condition`: `"vibmotor"` for `lra`, `"tactiles"` for `tactiles`, `"tactiles2"` for `tactiles2`. (For `visual_only` you don't need to run this file at all.) Also set `HAND` in `firmware/stream.py` to match your `--hand` (`"right"`: thumb=M1/index=M2, `"left"`: thumb=M5/index=M4) — a left-hand mount is wired to a different pin pair.
 
 > `stream.py` already implements the 2-value protocol above. The older
 > `stream_mode()` / `tactiles_stream_mode()` in `firmware/haptic.py` are the
@@ -271,7 +271,7 @@ g.disconnect()
 
 **3. Run the experiment**
 
-One launch now covers a whole participant — all 3 conditions x 2 objects — instead of relaunching per condition/object. `--condition`/`--object` are just the STARTING values; cycle through the rest at runtime with `c`/`o`:
+One launch now covers a whole participant — all 4 conditions x 2 objects — instead of relaunching per condition/object. `--condition`/`--object` are just the STARTING values; cycle through the rest at runtime with `c`/`o`:
 
 ```bash
 python run/experiment.py --condition visual_only --participant P01 --object fragile --out data/experiment_logs
@@ -279,11 +279,11 @@ python run/experiment.py --condition visual_only --participant P01 --object frag
 
 | Flag | Values | Description |
 | --- | --- | --- |
-| `--condition` | `visual_only`, `lra`, `tactiles` | STARTING condition label for trial filenames. Cycle at runtime with **`c`** (only while paused and not recording — see Controls). Labels the saved data only — actual actuator behavior depends on which firmware is loaded on the ESP32; switching to/from a condition that needs different firmware walks you through reflashing it. |
+| `--condition` | `visual_only`, `lra`, `tactiles`, `tactiles2` | STARTING condition label for trial filenames. Cycle at runtime with **`c`** (only while paused and not recording — see Controls). Labels the saved data only — actual actuator behavior depends on which firmware is loaded on the ESP32; switching to/from a condition that needs different firmware walks you through reflashing it. `tactiles2` drives the binary contact-latch mechanism (see "TacTiles Pin Actuators" below) instead of `tactiles`'s continuous vibration. |
 | `--hand` | `right` (default), `left` | Which hand wears the actuator glove. Printed at startup and passed to the reflash prompt so you set `HAND` in `firmware/stream.py` to match (`right`: thumb=0/index=1, `left`: thumb=4/index=3) — labeling/reflash-instruction only, does not itself move anything. |
 | `--participant` | any string, e.g. `P01` | Participant ID, included in trial filenames. Relaunch per participant so a drifting gel baseline doesn't bias `volume`. |
 | `--object` | `fragile`, `deformable` | Starting object class for trial filenames. Switch mid-session with **`o`** (cannot switch while recording). |
-| `--out` | directory path | Base directory for trial CSVs. Default: `data/experiment_logs`. Each participant's trials are written into a `<out>/<participant>/` subfolder — with 3 conditions x 2 objects x N trials per participant, this keeps each participant's files together instead of one flat directory mixing everyone's trials. |
+| `--out` | directory path | Base directory for trial CSVs. Default: `data/experiment_logs`. Each participant's trials are written into a `<out>/<participant>/` subfolder — with 4 conditions x 2 objects x N trials per participant, this keeps each participant's files together instead of one flat directory mixing everyone's trials. |
 
 **Controls:**
 
@@ -294,7 +294,7 @@ Gripper position is driven entirely by hand-tracking — no manual/keyboard over
 | `SPACE` | Pause / resume hand tracking. Paused freezes the gripper at its last position and sends 0-intensity to the haptics — use it whenever adjusting the rig, swapping objects, or between conditions. Blocked while a trial is recording. |
 | `r` | Start / stop recording a trial. Blocked while paused — resume first. Stopping a trial prompts `[Y]es`/`[N]o` (fragile objects only, survived intact?) then `[S]ave`/`[D]iscard` — pick `D` to throw away a bad take (aborted grasp, setup mistake, etc.) instead of writing it to disk. |
 | `o` | Toggle object class (`fragile` ↔ `deformable`) — only when not recording |
-| `c` | Cycle condition (`visual_only` → `lra` → `tactiles` → ...) — only while paused and not recording. If the new condition needs different ESP32 firmware, walks you through releasing the serial port, reflashing (`mpremote`), and reconnecting before you resume. |
+| `c` | Cycle condition (`visual_only` → `lra` → `tactiles` → `tactiles2` → ...) — only while paused and not recording. If the new condition needs different ESP32 firmware, walks you through releasing the serial port, reflashing (`mpremote`), and reconnecting before you resume. |
 | `q` | Quit |
 
 **Trial output files:**
@@ -409,9 +409,13 @@ Selected via `METHOD = "tactiles"` in `firmware/stream.py`. TacTiles are bistabl
 | `pulse` | 3 ms forward + 3 ms reverse → quick tap, no sustained contact |
 | `burst` | Rapid sequence of pulses, up to ~200 Hz in short windows |
 
-Sustained vibration is approximated by repeated bursts with a gap between them, driven non-blocking (`TactileVibrationDriver`, mirroring the LRA path's `ACDriver`) so both channels buzz continuously and independently. The gap between bursts is set continuously from intensity — short gap (more frequent bursts) at high intensity, long gap at low intensity — keeping the long-term switch rate under the hardware thermal limit of ~120 switches/minute. This gives the same "buzzes the whole time intensity > 0" feel as the vibmotor path, rather than a single tap fired only when a threshold is crossed.
+Sustained vibration is approximated by repeated bursts with a gap between them, driven non-blocking (`TactileVibrationDriver`, mirroring the LRA path's `ACDriver`) so both channels buzz continuously and independently. The gap between bursts is set continuously from intensity — short gap (more frequent bursts) at high intensity, long gap at low intensity — keeping the long-term switch rate under the hardware thermal limit of ~120 switches/minute. This gives the same "buzzes the whole time intensity > 0" feel as the vibmotor path, rather than a single tap fired only when a threshold is crossed. This is the mechanism the study's `tactiles` condition data was collected under.
 
 > **Vibration intensity tuning.** `TACTILE_PULSE_MS` (each tap's pin-throw duration) and `TACTILE_VIBRATE_GAP_MIN_MS` (the burst gap floor at intensity 1.0) in `firmware/haptic.py` control how strong the buzz feels — longer pulses and a lower gap floor both read as more intense. Current defaults are `TACTILE_PULSE_MS = 4` and `TACTILE_VIBRATE_GAP_MIN_MS = 35` (up from `3`/`50`). If the actuator runs hot at these settings, raise `TACTILE_VIBRATE_GAP_MIN_MS` back up first — it directly trades off against the ~120 switches/minute thermal limit noted above; `TACTILE_BURST_US` must stay `> 2 * TACTILE_PULSE_MS * 1000` if you change `TACTILE_PULSE_MS` again.
+
+> **`METHOD = "tactiles2"` (binary contact latch, `--condition tactiles2`).** `stream.py` also supports a second TacTiles path — `run_tactiles2_stream()` driving `TactileLatchDriver` (`firmware/haptic.py`), the same binary contact/no-contact mechanism as `tests/test_tactiles2.py`, selected via `experiment.py --condition tactiles2` (cycle to it at runtime with `c`, after `tactiles`). Once a channel's streamed intensity reaches `TACTILE_LATCH_THRESHOLD` (default `0.1`), it fires `engage()` plus a restrike `engage()` `TACTILE_RESTRIKE_MS` (default `25`ms) later — the first pulse doesn't always fully seat the pin against skin contact resistance — then holds the latch (zero power, no further pulsing) until intensity drops back below the threshold, which fires a single `disengage()`. The threshold defaults low rather than to e.g. `0.5` because intensity is `deform_mm / DEPTH_SATURATION_MM[object_class]` and `MAX_SAFE_DEPTH_MM` (`run/experiment.py`, `1.0`mm) blocks further closing once either sensor reaches that depth — for `fragile` objects (`2.0`mm saturation) that caps intensity at `~0.5` right at the closing-block boundary, so a `0.5` threshold would only ever latch at that edge (if at all).
+>
+> **Note:** `tactiles2` was added after the study's first 19 participants, who only ran `visual_only`/`lra`/`tactiles`. Their `tactiles` trials remain valid vibration-condition data; `tactiles2` trials only exist for participants run after this change — keep that in mind for any analysis that assumes every participant covers all conditions.
 
 | Channel | Finger | IN1 Pin | IN2 Pin |
 | --- | --- | --- | --- |
