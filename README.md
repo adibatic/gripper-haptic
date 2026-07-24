@@ -59,8 +59,8 @@ gripper-haptic/
 * 1 USB-C **data** cable (for the ESP32-C6)
 * 2 USB-Micro-B cables (for 9DTact LED board power supply)
 * 3 USB-Micro-B **data** cables (for 9DTact cameras and hand tracking camera)
-* 2 LRA vibration motors (connected to thumb and index fingertips)
-* 2 TacTiles pin actuators (connected to thumb and index fingertips)
+* 2 LRA vibration motors (mounted near the thumb/index proximal joints)
+* 2 TacTiles pin actuators (mounted at the thumb/index fingertips)
 
 ## Setup & Installation (One-Time)
 
@@ -361,9 +361,9 @@ See `run/analysis.py` for the full Chapter 5 analysis pipeline (Friedman test, W
 
 MediaPipe HandLandmarker maps the thumb-tip/index-tip landmark distance (per frame) to the gripper's target position; `PINCH_DIST_PX` is the pixel distance treated as "fully closed" and `SPREAD_DIST_PX` as "fully open".
 
-> **Actuator occlusion — MediaPipe dropping out during `tactiles`.** The LRA/TacTiles actuator body is mounted directly on the thumb and index fingertips, i.e. right over the landmarks (`4`, `8`) this module tracks. With MediaPipe's default confidence thresholds (`0.6`/`0.75`/`0.75`), that partial occlusion was enough to lose hand presence entirely ("No Hand" on the overlay) once the actuator hardware was in frame — this is the "mediapipe is off" symptom during the tactiles condition. `create_hand_detector()` now uses lower thresholds (`min_hand_detection_confidence=0.4`, `min_hand_presence_confidence=0.5`, `min_tracking_confidence=0.5`) so tracking survives the occlusion. If detection still drops out on your rig, lower these further — but each notch down trades some jitter/false-positive resistance for detection robustness.
+> **Actuator occlusion — MediaPipe dropping out during `tactiles`.** The TacTiles actuator body is mounted directly on the thumb and index fingertips, i.e. right over the landmarks (`4`, `8`) this module tracks — unlike the LRA motors, which sit nearer the proximal joints and don't sit on top of those landmarks. With MediaPipe's default confidence thresholds (`0.6`/`0.75`/`0.75`), that partial occlusion was enough to lose hand presence entirely ("No Hand" on the overlay) once the TacTiles hardware was in frame — this is the "mediapipe is off" symptom specific to the tactiles condition (and now tactiles2, which uses the same fingertip-mounted hardware). `create_hand_detector()` now uses lower thresholds (`min_hand_detection_confidence=0.4`, `min_hand_presence_confidence=0.5`, `min_tracking_confidence=0.5`) so tracking survives the occlusion. If detection still drops out on your rig, lower these further — but each notch down trades some jitter/false-positive resistance for detection robustness.
 
-> **Gripper travel shorter than the operator's real finger motion.** The actuator body also adds physical standoff between the thumb and index contact points, so with the hardware on, fingers can no longer physically reach the bare-finger `PINCH_DIST_PX` (previously `30`px) — the gripper undershot `MAX_POS` and never fully closed, making the whole mapped range feel compressed. `PINCH_DIST_PX` is now `45`px. Retune per rig/actuator thickness: with the actuator mounted, pinch your fingers fully together, read `Finger Dist` off the on-screen overlay, and set `PINCH_DIST_PX` a few px above that floor (comment in `kernel/tracking.py` gives the suggested `10`–`60` tuning range).
+> **Gripper travel shorter than the operator's real finger motion.** The TacTiles actuator body also adds physical standoff between the thumb and index contact points (mounted right at the fingertip, unlike the joint-mounted LRA motors), so with the hardware on, fingers can no longer physically reach the bare-finger `PINCH_DIST_PX` (previously `30`px) — the gripper undershot `MAX_POS` and never fully closed, making the whole mapped range feel compressed. `PINCH_DIST_PX` is now `45`px. Retune per rig/actuator thickness: with the actuator mounted, pinch your fingers fully together, read `Finger Dist` off the on-screen overlay, and set `PINCH_DIST_PX` a few px above that floor (comment in `kernel/tracking.py` gives the suggested `10`–`60` tuning range).
 
 ### Robotiq 2F-85 (`kernel/gripper.py`)
 
@@ -375,6 +375,10 @@ The gripper is controlled from the host PC via Modbus RTU at 115200 baud over a 
 | Baud rate | 115200 |
 | Protocol | Modbus RTU |
 | Slave ID | 0x09 |
+
+### Actuator Placement
+
+The two haptic actuator types are mounted at different positions on the glove, not just driven by different hardware: LRA vibration motors sit near the thumb/index proximal joints, while TacTiles pin actuators sit at the thumb/index fingertips. Both deliver intensity-modulated, continuous-style feedback (`ACDriver`'s envelope-scaled bipolar carrier; `TactileVibrationDriver`'s intensity-scaled burst/gap rate) — the `lra` vs `tactiles` comparison is therefore a comparison of actuator technology *and* placement (proximal joint vs. fingertip) under the same continuous-feedback strategy, not a comparison of feedback *mechanism* (continuous vs. binary contact). The binary contact-latch mechanism (`tactiles2`/`TactileLatchDriver`, mirroring `tests/test_tactiles2.py`) exists in the codebase but is a separate design point, outside this comparison.
 
 ### LRA Vibration Motors
 
