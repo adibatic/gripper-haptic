@@ -1135,11 +1135,11 @@ LIKERT_ITEM_QUESTION_TEXT = [
 # (the same order as CONDITIONS/experiment.py's condition cycle) on
 # 2026-07-22 — re-confirm against the form itself if you re-export.
 LIKERT_BLOCK_CONDITIONS = ["visual_only", "lra", "tactiles"]
-# 0-indexed column offsets of each block. These match data/likert/
-# likert_responses.csv, which has the Google Forms "Name" column stripped
-# (PII, not committed) — the raw export from Forms has one extra column
-# before this point, so block starts there are [11, 17, 23], not this.
-LIKERT_BLOCK_STARTS = [10, 16, 22]
+# 0-indexed column offsets of each block in data/likert/likert_responses.csv.
+# The form added a "Do you have any visual, auditory, or tactile sensory
+# impairments relevant to this study?" question at column 10 after the
+# initial export, shifting the three blocks from [10, 16, 22] to this.
+LIKERT_BLOCK_STARTS = [11, 17, 23]
 
 PREFERENCE_LABEL_TO_CONDITION = {
     "Vibration Motor": "lra", "Pin Actuator": "tactiles", "No Feedback": "visual_only",
@@ -1203,7 +1203,7 @@ def load_likert_long(likert_csv_path):
                 })
     long_df = pd.DataFrame(rows)
 
-    best_col, pref_col = header[28], header[29]
+    best_col, pref_col = header[29], header[30]
     prefs = raw[[pid_col, best_col, pref_col]].copy()
     prefs.columns = ["participant", "best_contact_label", "preferred_label"]
     prefs = prefs[prefs["participant"].astype(str).str.strip().ne("")]
