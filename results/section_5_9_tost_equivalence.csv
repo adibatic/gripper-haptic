@@ -1,0 +1,15 @@
+metric,object,n,margin_sd,alpha,margin_raw,mean_diff_lra_minus_tactiles,p_lower,p_upper,p_tost,equivalent
+peak_force_proxy,fragile,20,0.5,0.05,3629.3232,-314.4310,0.0570,0.0317,0.0570,False
+peak_force_proxy,deformable,20,0.5,0.05,1021.0808,754.0609,0.0015,0.3073,0.3073,False
+peak_depth_mm,fragile,20,0.5,0.05,0.0524,-0.0051,0.0665,0.0359,0.0665,False
+peak_depth_mm,deformable,20,0.5,0.05,0.1367,0.0313,0.0000,0.0000,0.0000,True
+time_to_first_contact_s,fragile,20,0.5,0.05,0.6504,-0.1028,0.0644,0.0208,0.0644,False
+time_to_first_contact_s,deformable,20,0.5,0.05,0.5824,-0.2826,0.1351,0.0020,0.1351,False
+force_overshoot_proxy,fragile,20,0.5,0.05,1539.2961,-67.2023,0.0610,0.0467,0.0610,False
+force_overshoot_proxy,deformable,20,0.5,0.05,127.2396,118.3667,0.0007,0.4469,0.4469,False
+approach_rate_mm_s,fragile,20,0.5,0.05,0.5866,-0.0258,0.0436,0.0319,0.0436,True
+approach_rate_mm_s,deformable,20,0.5,0.05,0.4754,-0.2574,0.1981,0.0044,0.1981,False
+n_force_reversals_post_plateau,fragile,20,0.5,0.05,4.4681,2.6000,0.0107,0.2576,0.2576,False
+n_force_reversals_post_plateau,deformable,20,0.5,0.05,3.7044,-1.5500,0.1447,0.0078,0.1447,False
+time_above_90pct_peak_s,fragile,20,0.5,0.05,0.1835,0.0791,0.0089,0.1578,0.1578,False
+time_above_90pct_peak_s,deformable,20,0.5,0.05,0.1230,0.0250,0.0363,0.1115,0.1115,False

@@ -244,12 +244,3 @@ ESP32_GENERIC_C6-*.bin
 
 # MediaPipe hand tracking model (downloaded separately, see README)
 run/hand_landmarker.task
-
-# Force proxy data
-data/proxy/
-
-# # Raw experiment data (collect locally, commit only processed output if desired)
-# data/experiment_logs/
-
-# Analysis results
-results/
