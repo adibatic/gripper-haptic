@@ -1,0 +1,220 @@
+\documentclass[a4paper, 12pt]{article}
+\usepackage[margin=20mm]{geometry}
+\usepackage{CJKutf8}
+\usepackage{multicol}
+\usepackage{titlesec}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\graphicspath{{figures/}{../results/}}
+
+\newcommand\textline[4][t]{%
+  \par\smallskip\noindent\parbox[#1]{.333\textwidth}{\raggedright #2}%
+  \parbox[#1]{.333\textwidth}{\centering #3}%
+  \parbox[#1]{.333\textwidth}{\raggedleft #4}\par\smallskip%
+}
+
+\titleformat{\section}{\bfseries}{\thesection.}{1em}{}
+\titleformat{\subsection}{\bfseries}{\thesubsection.}{1em}{}
+\titlespacing{\section}{0pt}{5pt}{1pt}
+\setlength{\abovedisplayskip}{3pt}
+\setlength{\columnsep}{6mm}
+\captionsetup{font=footnotesize, skip=3pt}
+\linespread{0.95}\selectfont
+\renewcommand{\arraystretch}{0.95}
+
+\begin{document}
+
+\textline[t]{\,\,}{Preprint of graduation study}{Aug. $\bigcirc$, 2026}
+
+\begin{flushright}
+  \begin{tabular}{@{}ll@{}}
+    Name:             & Adriel Imaran Santoso                           \\
+    Supervisor Prof.: & \begin{CJK}{UTF8}{min} 橋本 浩一　教授\end{CJK} \\
+  \end{tabular}
+\end{flushright}
+\vspace{-6pt}
+
+\begin{center}
+  {\bfseries Title: Tactile-Feedback Teleoperation: Grip Force and Grasping Performance \\
+    Across Haptic Actuator Types for Fragile and Deformable Objects}\\[4pt]
+\end{center}
+
+\vspace{-4pt}
+\begin{multicols}{2}
+
+  \section{Introduction}
+
+  Teleoperated grasping is normally performed with vision alone. Without contact
+  information at the fingertips, the feedforward grip-force control humans rely
+  on is severed [1], and the operator must infer from images whether a grasp is
+  too light to hold or hard enough to crush. Wearable haptic interfaces address
+  this, but nearly all fix the actuator hardware in advance and drive it from a
+  single-point force sensor or motor-current proxy, leaving the actuator itself
+  untested as a variable [2].
+
+  This study builds a teleoperation loop in which a vision-based tactile sensor
+  on the gripper drives two mechanically distinct wearable actuator arrays
+  through an identical sensing and control pipeline, and evaluates both against a
+  visual-only baseline ($N=20$, within-subjects) on fragile and deformable
+  objects: does sensor-driven feedback improve grip-force regulation and grasp
+  outcome relative to vision alone, and do the two actuator technologies differ?
+
+  \section{System}
+
+  The loop connects a host PC, a Robotiq 2F-85 adaptive gripper, and an ESP32-C6
+  microcontroller worn on the operator's hand. Each control tick
+  ($\approx$30~Hz), the host reads gripper state over Modbus RTU, tracks the
+  operator's thumb--index pinch distance with MediaPipe to command aperture, and
+  reads two 9DTact vision-based tactile sensors [3] on the gripper's fingertips.
+  From each height map it computes a deformation volume (the grip-force proxy)
+  and a maximum indentation depth; depth is normalised against a per-object-class
+  saturation point (2.0~mm fragile, 0.6~mm deformable), clipped to $[0,1]$, and
+  streamed per finger to the ESP32-C6 over USB serial. A 200~ms watchdog zeroes
+  the actuators if the stream stalls, and a runtime cutoff blocks further closing
+  once either sensor reaches 1.0~mm of indentation, protecting the fixture.
+
+  Two arrays are driven from that same stream. The LRA array uses linear resonant
+  actuators at the thumb and index proximal joints, driven by a bipolar
+  $\approx$200~Hz carrier whose active envelope fraction within a 50~ms window
+  scales with intensity. The TacTiles array uses bistable electromagnetic pin
+  actuators [4] at the thumb and index fingertips, driven by latching H-bridge
+  pulses in bursts whose inter-burst gap shortens with intensity, holding the
+  switching rate under the thermal limit ($\approx$120~switches/min). Both render
+  a continuous, intensity-scaled sensation; the conditions differ in actuator
+  technology \emph{and} mounting site, a consequence of each actuator's form
+  factor rather than an independent variable.
+
+  \section{Method}
+
+  Twenty participants each completed a within-subjects session with the three
+  feedback conditions (visual-only, LRA, TacTiles) in counterbalanced order, on
+  two object classes: fragile objects, which fail abruptly under excess force,
+  and deformable objects, which yield progressively. Five trials per condition per class gives 600 logged
+  trials; participants saw the workspace only through a fixed camera. Trials were logged at $\approx$30~Hz, and each yielded peak
+  force proxy, peak depth, time to first contact, force overshoot (force rise
+  after depth has plateaued), approach rate, post-plateau force reversals, dwell
+  time above 90\% of peak force, and, for fragile objects, survival. Per-trial
+  values were reduced to a per-participant median.
+  Conditions were compared with a Friedman test and pairwise Wilcoxon signed-rank
+  tests with Holm correction; LRA versus TacTiles was also tested for equivalence
+  by TOST (0.5~SD margin). Seventeen participants completed a 5-point Likert
+  questionnaire after each condition.
+
+  \section{Results}
+
+  \begin{center}
+    \includegraphics[width=\columnwidth]{preprint_results.png}
+    \captionof{figure}{Fragile objects: (a) pooled survival rate, 100 trials per
+      condition; (b) per-participant post-plateau force overshoot (log, $+1$).}
+    \label{fig:results}
+  \end{center}
+
+  On fragile objects, haptic feedback measurably changed how participants closed
+  the gripper (Table~\ref{tab:quant}). Peak force proxy differed across
+  conditions ($p=.022$), LRA reducing the median by roughly 40\% against
+  visual-only. The clearest effect was force overshoot: squeezing that continued
+  after the tactile signal had stopped changing fell from a median of 1770 (a.u.)
+  under visual-only to 170 under LRA ($p=.025$ corrected). Post-plateau force
+  reversals, a proxy for hunting for the right force, also dropped ($p=.0039$
+  omnibus; visual-only vs.\ TacTiles $p=.030$). Fragile objects survived 63\% of
+  visual-only trials against 80\% (LRA) and 77\% (TacTiles), significant on
+  per-participant rates ($p=.015$; visual-only vs.\ LRA $p=.050$) though not
+  under a stricter binary test (Cochran's $Q$, $p=.135$). No deformable-object
+  comparison survived correction.
+
+  \begin{center}
+    \begin{minipage}{\columnwidth}
+      \captionof{table}{Fragile-object medians ($N=20$), Friedman $p$. Holm pairs:
+        V--LRA .080/.025/.050 (force/overshoot/survival), V--Tac .030 (reversals).}
+      \label{tab:quant}
+      \footnotesize
+      \centering
+      \begin{tabular}{@{}lrrrr@{}}
+        \toprule
+        Metric            & V     & LRA   & Tac   & Fried. \\
+        \midrule
+        Peak force (a.u.) & 20100 & 12300 & 15200 & .022   \\
+        Overshoot (a.u.)  & 1770  & 170   & 359   & .092   \\
+        Reversals (\#)    & 7.5   & 4.5   & 2.5   & .0039  \\
+        Survival rate     & 0.60  & 0.80  & 0.90  & .015   \\
+        Peak depth (mm)   & 0.98  & 0.95  & 0.98  & .167   \\
+        \bottomrule
+      \end{tabular}
+    \end{minipage}
+  \end{center}
+
+  Peak depth did not differ, but its medians sit at the 1.0~mm safety cutoff, so
+  that metric is censored by hardware.
+
+  Subjectively, both haptic conditions were rated well above baseline
+  (Table~\ref{tab:likert}), force awareness shifting most ($1\rightarrow3$, $p<.001$). Twelve of seventeen participants preferred LRA
+  overall ($\chi^2=11.4$, $p=.0033$); eleven rated it best for sensing contact
+  ($p=.0047$).
+
+  \begin{center}
+    \begin{minipage}{\columnwidth}
+      \captionof{table}{Likert medians ($n=17$, 1--5), Friedman $p$. No item
+        separated LRA from TacTiles (all $p>.4$).}
+      \label{tab:likert}
+      \footnotesize
+      \centering
+      \begin{tabular}{@{}lrrrl@{}}
+        \toprule
+        Item                 & V & LRA & Tac & Fried.  \\
+        \midrule
+        Force perception     & 1 & 3   & 3   & $<.001$ \\
+        Grasp confidence     & 2 & 4   & 4   & .0004   \\
+        Contact detection    & 2 & 4   & 4   & .0011   \\
+        Ease of manipulation & 3 & 4   & 4   & .020    \\
+        \bottomrule
+      \end{tabular}
+    \end{minipage}
+  \end{center}
+
+  No metric separated LRA from TacTiles after correction, and TOST established
+  equivalence for only two of fourteen metric--object pairs: the actuators are not
+  distinguished at this sample size, not shown to be equivalent.
+
+  \section{Discussion and Conclusion}
+
+  Sensor-driven feedback improved fragile-object handling on both behavioural and
+  subjective measures, through a specific mechanism: participants stopped
+  squeezing once the tactile signal plateaued, and stopped hunting for the right
+  force afterwards. The effect is confined to the fragile class, consistent with
+  deformable objects indenting the gel too little to drive a strong signal, and
+  having no abrupt failure to avoid.
+
+  The two actuator types were not distinguishable, and that comparison is
+  confounded: they differ in mounting site as well as technology, both render
+  intensity by gating a drive waveform rather than by amplitude modulation, and
+  the LRA carrier was set empirically rather than tuned to resonance. The
+  preference for LRA (12/17) is thus a preference for technology and placement
+  together. Other limitations: the force proxy is an uncalibrated deformation
+  volume rather than newtons, peak depth was censored by the safety cutoff,
+  end-to-end latency still needs a bench measurement, and the questionnaire's
+  scale endpoints were unlabelled.
+
+  Future work will calibrate the force proxy against a load cell, drive the LRA
+  through a dedicated resonant-actuator IC for true amplitude modulation, mount
+  both actuators at the same site to separate placement from technology, and
+  extend the per-finger scalar to a spatial mapping.
+
+  \section{References}
+
+  \begin{footnotesize}
+    [1] Johansson, R. S., \& Flanagan, J. R. (2009). Coding
+    and use of tactile signals from the fingertips in object
+    manipulation tasks. \textit{Nat. Rev. Neurosci.}, 10(5),
+    345--359. \ [2] Pacchierotti, C., et al. (2017). Wearable
+    haptic systems for the fingertip and hand. \textit{IEEE
+      Trans. Haptics}, 10(4), 580--600. \ [3] Lin,
+    C., et al. (2023). 9DTact. arXiv:2308.14277. \ [4] Vechev,
+    V., et al. (2019). TacTiles. \textit{IEEE VR}, 312--320.
+
+  \end{footnotesize}
+
+\end{multicols}
+
+\end{document}
