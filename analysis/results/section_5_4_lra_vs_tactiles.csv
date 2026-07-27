@@ -1,0 +1,15 @@
+metric,object,n,wilcoxon_stat,wilcoxon_p,median_lra,median_tactiles
+peak_force_proxy,fragile,,,,,
+peak_force_proxy,deformable,,,,,
+peak_depth_mm,fragile,22,43.0000,0.5509,0.9465,0.9842
+peak_depth_mm,deformable,22,89.0000,0.2348,0.4264,0.3770
+time_to_first_contact_s,fragile,22,124.0000,0.9493,3.6912,3.7885
+time_to_first_contact_s,deformable,22,111.0000,0.6327,2.6589,2.9851
+force_overshoot_proxy,fragile,,,,,
+force_overshoot_proxy,deformable,,,,,
+approach_rate_mm_s,fragile,22,117.0000,0.7745,1.8974,1.8666
+approach_rate_mm_s,deformable,22,74.0000,0.0917,0.5039,0.6695
+n_force_reversals_post_plateau,fragile,,,,,
+n_force_reversals_post_plateau,deformable,,,,,
+time_above_90pct_peak_s,fragile,,,,,
+time_above_90pct_peak_s,deformable,,,,,

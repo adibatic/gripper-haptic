@@ -14,10 +14,18 @@ runs on the ESP32-C6, not the PC).
 
 ```text
 gripper-haptic/
+├── analysis/                       # Chapter 5 analysis pipeline (python -m analysis)
+│   ├── trials.py                   # 5.1 loading, per-trial metrics, participant reduction
+│   ├── tests.py                    # Statistical primitives (Holm, TOST, Cochran's Q, McNemar)
+│   ├── comparisons.py              # 5.3/5.4/5.9 cross-condition, LRA vs TacTiles, equivalence
+│   ├── survival.py                 # 5.4/5.7 fragile-object survival
+│   ├── likert.py                   # 5.6 qualitative survey
+│   ├── figures.py                  # 5.5 time series + the two preprint figures
+│   └── results/                    # Generated tables and figures
 ├── data/                           # Experimental data (logs + calibration)
 │   ├── calibration/                # Per-sensor calibration data (sensor_L / sensor_R)
 │   ├── experiment_logs/            # Logs from experiment.py, one subfolder per participant (P01/, P02/, ...)
-│   └── results/                    # Results from analysis.py
+│   └── likert/                     # Likert survey data
 ├── designs/                        # CAD models and 3D print assets
 ├── firmware/                       # Runs on the ESP32-C6 (MicroPython)
 │   ├── haptic.py                   # LRA + TacTiles driver library
@@ -29,7 +37,6 @@ gripper-haptic/
 │   ├── tactile.py                  # 9DTact sensing: TactileSensor + force-proxy helpers
 │   └── tracking.py                 # Hand tracking + MediaPipe + tracking loop
 ├── run/                            # Host scripts you execute
-│   ├── analysis.py                 # Analysis pipeline (Friedman, Wilcoxon, figures)
 │   ├── experiment.py               # Main experiment: params, threads, main loop
 │   ├── setup.py                    # 9DTact calibration / reconstruction / collection CLI
 │   └── shape_config.yaml           # Shared 9DTact sensor config (sensor_id injected per side)
@@ -325,21 +332,24 @@ The per-side force proxy is `volume` from `compute_metrics()` (`kernel/tactile.p
 | `max_deform_mm` | 99th-percentile deformation depth |
 | `mean_deform_mm` | Mean deformation over the contact region |
 
-> **Schema note:** this uses left/right column pairs, replacing the older single-sensor columns (`force_proxy`, `force_N`, `max_depth_mm`, `haptic_intensity`). `analysis.py` reads this schema and collapses the two sides per metric via `--collapse` (see below).
+> **Schema note:** this uses left/right column pairs, replacing the older single-sensor columns (`force_proxy`, `force_N`, `max_depth_mm`, `haptic_intensity`). `analysis/trials.py` reads this schema and collapses the two sides per metric via `--collapse` (see below).
 
 **Analyzing results:**
 
 ```bash
-python run/analysis.py \
+python -m analysis \
   --trials-dir data/experiment_logs \
   --likert-csv data/likert/likert_responses.csv \
-  --out results \
-  --collapse max
+  --out analysis/results \
+  --collapse max \
+  --preprint-figures thesis/figures
 ```
 
-`--trials-dir` is scanned recursively, so pointing it at `data/experiment_logs` picks up every participant's trial CSVs from their `P01/`, `P02/`, ... subfolders in one pass — no need to run analysis.py per participant.
+`--preprint-figures DIR` is optional and additionally draws the two figures `thesis/preprint.tex` includes — `preprint_results.png` (fragile survival + force overshoot) and `preprint_likert.png` (subjective ratings + forced choice). They are drawn from the same in-memory frames the CSVs are written from, so re-running the pipeline is the only step needed to refresh the preprint. Omit the flag to write tables only; `preprint_likert.png` additionally needs `--likert-csv`.
 
-See `run/analysis.py` for the full Chapter 5 analysis pipeline (Friedman test, Wilcoxon, time-series figures).
+`--trials-dir` is scanned recursively, so pointing it at `data/experiment_logs` picks up every participant's trial CSVs from their `P01/`, `P02/`, ... subfolders in one pass — no need to run the pipeline per participant.
+
+The pipeline lives in `analysis/`, one module per concern — see `analysis/__init__.py` for the module map. Outputs land in `analysis/results/`.
 
 > **`--collapse` (combining the two sensors):** each metric needs one force + one depth series per trial, so the left/right sensors are collapsed. `sum_n` (default) sums the calibrated `force_N` columns (Newtons) and takes `max` depth — the headline once both sensors are load-cell calibrated ([Step 7](#7-collect-grip-force-proxy-via-gel-deformation)). `max` uses the max of the raw force proxies (uncalibrated) and works before calibration. Contact time is "first of either finger" under both. Since the Friedman/Wilcoxon tests are rank-based, `sum` and `mean` give identical results; only `sum_n` vs `max` can reorder trials — run both into separate `--out` dirs and confirm the significant findings agree. On uncalibrated data `sum_n` leaves the two force metrics blank (empty `force_N`) and tells you to switch to `--collapse max`.
 
@@ -400,7 +410,7 @@ Selected via `METHOD = "vibmotor"` in `firmware/stream.py`. The firmware applies
 
 NSLEEP is held HIGH (no sleep) via GPIO 19.
 
-### TacTiles Pin Actuators
+### Electromagnetic Actuators
 
 Selected via `METHOD = "tactiles"` in `firmware/stream.py`. TacTiles are bistable pin actuators driven by H-bridges. Each actuator is controlled by an IN1/IN2 pair — a short pulse in one direction engages the pin toward the skin; the opposite direction retracts it. Because the actuator latches mechanically, zero power is drawn while held.
 
