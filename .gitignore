@@ -230,11 +230,6 @@ thesis/*-eps-converted-to.pdf
 thesis/*.xml
 thesis/*.pdf
 
-# Project Backups
-backups/
-*.bak
-*~
-
 # Ignored src files and folders
 src/9DTact-main/
 src/pyRobotiqGripper-master/
