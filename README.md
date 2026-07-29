@@ -4,7 +4,7 @@
 
 This repository is the source code for a bachelor's thesis investigating grip force and grasping performance across haptic feedback actuator types in robotic gripper teleoperation. A Robotiq 2F-85 Adaptive Gripper is fitted with stress-deformation-based tactile sensors; tactile data is translated and sent to a custom multi-channel actuator platform (ESP32-C6) for real-time stimuli. The study collects quantitative latency metrics and qualitative survey data comparing user experience during delicate object manipulation.
 
-The stack supports two haptic feedback methods — LRA vibration motors (PWM) and TacTiles pin actuators (H-bridge) — selectable from a single script, plus direct Modbus RTU communication with the Robotiq gripper from a host PC.
+The stack supports two haptic feedback methods — LRA vibration motors (PWM) and EM pin actuators (H-bridge) — selectable from a single script, plus direct Modbus RTU communication with the Robotiq gripper from a host PC.
 
 ## Repository Structure
 
@@ -14,48 +14,42 @@ runs on the ESP32-C6, not the PC).
 
 ```text
 gripper-haptic/
-├── analysis/                       # Chapter 5 analysis pipeline (python -m analysis)
-│   ├── trials.py                   # 5.1 loading, per-trial metrics, participant reduction
-│   ├── tests.py                    # Statistical primitives (Holm, TOST, Cochran's Q, McNemar)
-│   ├── comparisons.py              # 5.3/5.4/5.9 cross-condition, LRA vs TacTiles, equivalence
-│   ├── survival.py                 # 5.4/5.7 fragile-object survival
-│   ├── likert.py                   # 5.6 qualitative survey
-│   ├── figures.py                  # 5.5 time series + the two preprint figures
-│   └── results/                    # Generated tables and figures
-├── data/                           # Experimental data (logs + calibration)
-│   ├── calibration/                # Per-sensor calibration data (sensor_L / sensor_R)
-│   ├── experiment_logs/            # Logs from experiment.py, one subfolder per participant (P01/, P02/, ...)
-│   └── likert/                     # Likert survey data
-├── designs/                        # CAD models and 3D print assets
-├── firmware/                       # Runs on the ESP32-C6 (MicroPython)
-│   ├── haptic.py                   # LRA + TacTiles driver library
-│   └── stream.py                   # Live stream receiver for experiment.py
-├── kernel/                         # Host-side modules imported by run/ scripts
-│   ├── camera.py                   # Camera indices + per-sensor VideoCapture routing
-│   ├── gripper.py                  # GripperController + gripper limits/defaults
-│   ├── haptic_link.py              # HapticLink — host side of the ESP32 serial link
-│   ├── tactile.py                  # 9DTact sensing: TactileSensor + force-proxy helpers
-│   └── tracking.py                 # Hand tracking + MediaPipe + tracking loop
-├── run/                            # Host scripts you execute
-│   ├── experiment.py               # Main experiment: params, threads, main loop
-│   ├── setup.py                    # 9DTact calibration / reconstruction / collection CLI
-│   └── shape_config.yaml           # Shared 9DTact sensor config (sensor_id injected per side)
-├── src/                            # Source submodules and core libraries
-│   ├── 9DTact-main/                # 9DTact tactile sensor source code
-│   └── pyRobotiqGripper-master/    # Robotiq gripper driver
-├── tests/                          # Board-only bench self-tests (MicroPython)
-│   ├── test_tactiles.py            # TacTiles continuous burst/gap vibration, ON/OFF loop
-│   ├── test_tactiles2.py           # TacTiles binary engage/disengage latch, ON/OFF loop
-│   └── test_vibmotor.py            # LRA vibmotor (ACDriver) buzz, ON/rest loop
-├── thesis/                         # Thesis manuscript (LaTeX source)
-│   ├── figures/                    # Thesis figures
-│   ├── main.tex                    # Main LaTeX file
-│   └── references.bib              # References
-├── .gitignore                      # Git ignore rules
-├── ESP32_GENERIC_C6-<...>.bin      # MicroPython firmware for ESP32-C6
-├── pyrightconfig.json              # Python type checking config
-├── README.md                       # This file
-└── requirements.txt                # Required dependencies
+├── run/                    # Host scripts you execute
+│   ├── experiment.py           # The experiment itself: params, threads, main loop
+│   ├── setup.py                # 9DTact calibration / reconstruction / collection CLI
+│   └── shape_config.yaml       # Shared 9DTact sensor config (sensor_id injected per side)
+├── kernel/                 # Host-side modules that run/ imports
+│   ├── camera.py               # Camera indices + per-sensor VideoCapture routing
+│   ├── gripper.py              # GripperController + gripper limits/defaults
+│   ├── haptic_link.py          # Host side of the ESP32 serial link
+│   ├── tactile.py              # 9DTact sensing + force-proxy helpers
+│   └── tracking.py             # Hand tracking (MediaPipe) + tracking loop
+├── firmware/               # Runs on the ESP32-C6 (MicroPython), not the PC
+│   ├── haptic.py               # LRA + EM driver library
+│   └── stream.py               # Live receiver for experiment.py
+├── tests/                  # Board-only bench self-tests (MicroPython)
+│   ├── test_em.py              # EM continuous burst/gap vibration
+│   ├── test_em2.py             # EM binary engage/disengage latch
+│   └── test_vibmotor.py        # LRA vibmotor (ACDriver) buzz
+├── analysis/               # Chapter 5 pipeline — `python -m analysis`
+│   └── results/                # Generated tables and figures
+├── data/
+│   ├── calibration/            # Per-sensor calibration (sensor_L / sensor_R)
+│   ├── experiment_logs/        # Trial CSVs, one subfolder per participant (P01/, ...)
+│   └── likert/                 # Likert survey responses
+├── designs/                # CAD models and 3D print assets
+├── thesis/
+│   ├── thesis.tex              # The manuscript
+│   ├── 01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.tex   # Two-page preprint
+│   ├── figures/
+│   └── references.bib
+├── src/                    # Vendored, not in the repo — see Setup
+│   ├── 9DTact-main/            # 9DTact tactile sensor source
+│   └── pyRobotiqGripper-master/
+├── ESP32_GENERIC_C6-<...>.bin  # MicroPython firmware, downloaded during setup
+├── pyrightconfig.json
+├── requirements.txt
+└── README.md
 ```
 
 ## Hardware Requirements
@@ -67,7 +61,7 @@ gripper-haptic/
 * 2 USB-Micro-B cables (for 9DTact LED board power supply)
 * 3 USB-Micro-B **data** cables (for 9DTact cameras and hand tracking camera)
 * 2 LRA vibration motors (mounted near the thumb/index proximal joints)
-* 2 TacTiles pin actuators (mounted at the thumb/index fingertips)
+* 2 EM pin actuators (mounted at the thumb/index fingertips)
 
 ## Setup & Installation (One-Time)
 
@@ -242,10 +236,10 @@ Then set `HAND_CAM_INDEX`, `TACTILE_CAM_L`, and `TACTILE_CAM_R` in `kernel/camer
 
 **1. Start the ESP32 receiver**
 
-The board runs the **receiver** (`firmware/stream.py`); `experiment.py` is the sender. `stream.py` is a stream-only receiver dedicated to the experiment — it parses `experiment.py`'s `"{left:.4f},{right:.4f}\n"` packets and drives the two channels **independently** (left -> thumb, right -> index). Set `METHOD` in `firmware/stream.py` to match your `--condition`: `"vibmotor"` for `lra`, `"tactiles"` for `tactiles`, `"tactiles2"` for `tactiles2`. (For `visual_only` you don't need to run this file at all.) Also set `HAND` in `firmware/stream.py` to match your `--hand` (`"right"`: thumb=M1/index=M2, `"left"`: thumb=M5/index=M4) — a left-hand mount is wired to a different pin pair.
+The board runs the **receiver** (`firmware/stream.py`); `experiment.py` is the sender. `stream.py` is a stream-only receiver dedicated to the experiment — it parses `experiment.py`'s `"{left:.4f},{right:.4f}\n"` packets and drives the two channels **independently** (left -> thumb, right -> index). Set `METHOD` in `firmware/stream.py` to match your `--condition`: `"vibmotor"` for `lra`, `"em"` for `em`, `"em2"` for `em2`. (For `visual_only` you don't need to run this file at all.) Also set `HAND` in `firmware/stream.py` to match your `--hand` (`"right"`: thumb=M1/index=M2, `"left"`: thumb=M5/index=M4) — a left-hand mount is wired to a different pin pair.
 
 > `stream.py` already implements the 2-value protocol above. The older
-> `stream_mode()` / `tactiles_stream_mode()` in `firmware/haptic.py` are the
+> `stream_mode()` / `em_stream_mode()` in `firmware/haptic.py` are the
 > legacy single-value broadcast receivers (one float to all five fingers) and
 > are **not** what `experiment.py` talks to — use `stream.py`.
 
@@ -286,7 +280,7 @@ python run/experiment.py --condition visual_only --participant P01 --object frag
 
 | Flag | Values | Description |
 | --- | --- | --- |
-| `--condition` | `visual_only`, `lra`, `tactiles`, `tactiles2` | STARTING condition label for trial filenames. Cycle at runtime with **`c`** (only while paused and not recording — see Controls). Labels the saved data only — actual actuator behavior depends on which firmware is loaded on the ESP32; switching to/from a condition that needs different firmware walks you through reflashing it. `tactiles2` drives the binary contact-latch mechanism (see "TacTiles Pin Actuators" below) instead of `tactiles`'s continuous vibration. |
+| `--condition` | `visual_only`, `lra`, `em`, `em2` | STARTING condition label for trial filenames. Cycle at runtime with **`c`** (only while paused and not recording — see Controls). Labels the saved data only — actual actuator behavior depends on which firmware is loaded on the ESP32; switching to/from a condition that needs different firmware walks you through reflashing it. `em2` drives the binary contact-latch mechanism (see "EM Pin Actuators" below) instead of `em`'s continuous vibration. |
 | `--hand` | `right` (default), `left` | Which hand wears the actuator glove. Printed at startup and passed to the reflash prompt so you set `HAND` in `firmware/stream.py` to match (`right`: thumb=0/index=1, `left`: thumb=4/index=3) — labeling/reflash-instruction only, does not itself move anything. |
 | `--participant` | any string, e.g. `P01` | Participant ID, included in trial filenames. Relaunch per participant so a drifting gel baseline doesn't bias `volume`. |
 | `--object` | `fragile`, `deformable` | Starting object class for trial filenames. Switch mid-session with **`o`** (cannot switch while recording). |
@@ -301,7 +295,7 @@ Gripper position is driven entirely by hand-tracking — no manual/keyboard over
 | `SPACE` | Pause / resume hand tracking. Paused freezes the gripper at its last position and sends 0-intensity to the haptics — use it whenever adjusting the rig, swapping objects, or between conditions. Blocked while a trial is recording. |
 | `r` | Start / stop recording a trial. Blocked while paused — resume first. Stopping a trial prompts `[Y]es`/`[N]o` (fragile objects only, survived intact?) then `[S]ave`/`[D]iscard` — pick `D` to throw away a bad take (aborted grasp, setup mistake, etc.) instead of writing it to disk. |
 | `o` | Toggle object class (`fragile` ↔ `deformable`) — only when not recording |
-| `c` | Cycle condition (`visual_only` → `lra` → `tactiles` → `tactiles2` → ...) — only while paused and not recording. If the new condition needs different ESP32 firmware, walks you through releasing the serial port, reflashing (`mpremote`), and reconnecting before you resume. |
+| `c` | Cycle condition (`visual_only` → `lra` → `em` → `em2` → ...) — only while paused and not recording. If the new condition needs different ESP32 firmware, walks you through releasing the serial port, reflashing (`mpremote`), and reconnecting before you resume. |
 | `q` | Quit |
 
 **Trial output files:**
@@ -345,15 +339,15 @@ python -m analysis \
   --preprint-figures thesis/figures
 ```
 
-`--preprint-figures DIR` is optional and additionally draws the two figures `thesis/preprint.tex` includes — `preprint_results.png` (fragile survival + force overshoot) and `preprint_likert.png` (subjective ratings + forced choice). They are drawn from the same in-memory frames the CSVs are written from, so re-running the pipeline is the only step needed to refresh the preprint. Omit the flag to write tables only; `preprint_likert.png` additionally needs `--likert-csv`.
+`--preprint-figures DIR` is optional and additionally draws the two figures `thesis/01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.tex` includes — `preprint_results.png` (fragile survival + force overshoot) and `preprint_likert.png` (subjective ratings + forced choice). They are drawn from the same in-memory frames the CSVs are written from, so re-running the pipeline is the only step needed to refresh the preprint. Omit the flag to write tables only; `preprint_likert.png` additionally needs `--likert-csv`.
 
 `--trials-dir` is scanned recursively, so pointing it at `data/experiment_logs` picks up every participant's trial CSVs from their `P01/`, `P02/`, ... subfolders in one pass — no need to run the pipeline per participant.
 
 The pipeline lives in `analysis/`, one module per concern — see `analysis/__init__.py` for the module map. Outputs land in `analysis/results/`.
 
-> **`--collapse` (combining the two sensors):** each metric needs one force + one depth series per trial, so the left/right sensors are collapsed. `sum_n` (default) sums the calibrated `force_N` columns (Newtons) and takes `max` depth — the headline once both sensors are load-cell calibrated ([Step 7](#7-collect-grip-force-proxy-via-gel-deformation)). `max` uses the max of the raw force proxies (uncalibrated) and works before calibration. Contact time is "first of either finger" under both. Since the Friedman/Wilcoxon tests are rank-based, `sum` and `mean` give identical results; only `sum_n` vs `max` can reorder trials — run both into separate `--out` dirs and confirm the significant findings agree. On uncalibrated data `sum_n` leaves the two force metrics blank (empty `force_N`) and tells you to switch to `--collapse max`.
+> **`--collapse` (combining the two sensors):** each metric needs one force + one depth series per trial, so the left/right sensors are collapsed. `sum_n` (default) sums the calibrated `force_N` columns (Newtons) and takes `max` depth — the headline once both sensors are load-cell calibrated (Setup step 8). `max` uses the max of the raw force proxies (uncalibrated) and works before calibration. Contact time is "first of either finger" under both. Since the Friedman/Wilcoxon tests are rank-based, `sum` and `mean` give identical results; only `sum_n` vs `max` can reorder trials — run both into separate `--out` dirs and confirm the significant findings agree. On uncalibrated data `sum_n` leaves the two force metrics blank (empty `force_N`) and tells you to switch to `--collapse max`.
 
-> **Camera note:** the three device paths in `kernel/camera.py` must be distinct — `experiment.py` checks at startup and exits if two collide. They are `/dev/v4l/by-path/` paths (see [Step 5](#5-confirm-the-sensor-cameras-are-detected)), which survive re-enumeration, so they only need changing if a camera is moved to a different USB port.
+> **Camera note:** the three device paths in `kernel/camera.py` must be distinct — `experiment.py` checks at startup and exits if two collide. They are `/dev/v4l/by-path/` paths (see Setup step 6), which survive re-enumeration, so they only need changing if a camera is moved to a different USB port.
 
 ---
 
@@ -365,15 +359,15 @@ The pipeline lives in `analysis/`, one module per concern — see `analysis/__in
 > - **`MAX_POS`** (`kernel/gripper.py`) is capped at `195`, below the Robotiq's true mechanical closed position (`225`), leaving margin before jaw hard-stop.
 > - **`MAX_SAFE_DEPTH_MM`** (`run/experiment.py`, default `0.7`mm) is a runtime cutoff in `motion_loop`: once either sensor's `max_depth_mm` reaches this depth, the object has stopped compressing, and `motion_loop` blocks any *further* closing (opening is never blocked) until depth drops back down. It's set below `DEPTH_SATURATION_MM` (`kernel/tactile.py` — where haptic intensity saturates to 1.0) so it engages before the gel is fully bottomed out. A `[Safety] Max sensor depth reached ...` message prints to the console when it first engages.
 >
->   `DEPTH_SATURATION_MM` is now **per object class**: `2.0`mm for `fragile`, `0.6`mm for `deformable`. Deformable objects barely indent the gel and were hitting the `0.7`mm safety cutoff well before reaching the old single `2.0`mm saturation point — capping deformable-trial haptic intensity at ~0.35 and making the LRA/TacTiles feedback feel weak regardless of grip force. The `0.6`mm deformable saturation point reaches full intensity with margin to spare below the safety cutoff. `TactileSensor.read(object_class=...)` (`kernel/tactile.py`) picks the saturation point; `SharedState.object_class` (`run/experiment.py`) mirrors `RecordingState.current_object` into shared memory so the sensor processes — which run separately from the keyboard thread — pick it up on the next tick after pressing `o`.
+>   `DEPTH_SATURATION_MM` is now **per object class**: `2.0`mm for `fragile`, `0.6`mm for `deformable`. Deformable objects barely indent the gel and were hitting the `0.7`mm safety cutoff well before reaching the old single `2.0`mm saturation point — capping deformable-trial haptic intensity at ~0.35 and making the LRA/EM feedback feel weak regardless of grip force. The `0.6`mm deformable saturation point reaches full intensity with margin to spare below the safety cutoff. `TactileSensor.read(object_class=...)` (`kernel/tactile.py`) picks the saturation point; `SharedState.object_class` (`run/experiment.py`) mirrors `RecordingState.current_object` into shared memory so the sensor processes — which run separately from the keyboard thread — pick it up on the next tick after pressing `o`.
 
 ### Hand Tracking (`kernel/tracking.py`)
 
 MediaPipe HandLandmarker maps the thumb-tip/index-tip landmark distance (per frame) to the gripper's target position; `PINCH_DIST_PX` is the pixel distance treated as "fully closed" and `SPREAD_DIST_PX` as "fully open".
 
-> **Actuator occlusion — MediaPipe dropping out during `tactiles`.** The TacTiles actuator body is mounted directly on the thumb and index fingertips, i.e. right over the landmarks (`4`, `8`) this module tracks — unlike the LRA motors, which sit nearer the proximal joints and don't sit on top of those landmarks. With MediaPipe's default confidence thresholds (`0.6`/`0.75`/`0.75`), that partial occlusion was enough to lose hand presence entirely ("No Hand" on the overlay) once the TacTiles hardware was in frame — this is the "mediapipe is off" symptom specific to the tactiles condition (and now tactiles2, which uses the same fingertip-mounted hardware). `create_hand_detector()` now uses lower thresholds (`min_hand_detection_confidence=0.4`, `min_hand_presence_confidence=0.5`, `min_tracking_confidence=0.5`) so tracking survives the occlusion. If detection still drops out on your rig, lower these further — but each notch down trades some jitter/false-positive resistance for detection robustness.
+> **Actuator occlusion — MediaPipe dropping out during `em`.** The EM actuator body is mounted directly on the thumb and index fingertips, i.e. right over the landmarks (`4`, `8`) this module tracks — unlike the LRA motors, which sit nearer the proximal joints and don't sit on top of those landmarks. With MediaPipe's default confidence thresholds (`0.6`/`0.75`/`0.75`), that partial occlusion was enough to lose hand presence entirely ("No Hand" on the overlay) once the EM hardware was in frame — this is the "mediapipe is off" symptom specific to the em condition (and now em2, which uses the same fingertip-mounted hardware). `create_hand_detector()` now uses lower thresholds (`min_hand_detection_confidence=0.4`, `min_hand_presence_confidence=0.5`, `min_tracking_confidence=0.5`) so tracking survives the occlusion. If detection still drops out on your rig, lower these further — but each notch down trades some jitter/false-positive resistance for detection robustness.
 
-> **Gripper travel shorter than the operator's real finger motion.** The TacTiles actuator body also adds physical standoff between the thumb and index contact points (mounted right at the fingertip, unlike the joint-mounted LRA motors), so with the hardware on, fingers can no longer physically reach the bare-finger `PINCH_DIST_PX` (previously `30`px) — the gripper undershot `MAX_POS` and never fully closed, making the whole mapped range feel compressed. `PINCH_DIST_PX` is now `45`px. Retune per rig/actuator thickness: with the actuator mounted, pinch your fingers fully together, read `Finger Dist` off the on-screen overlay, and set `PINCH_DIST_PX` a few px above that floor (comment in `kernel/tracking.py` gives the suggested `10`–`60` tuning range).
+> **Gripper travel shorter than the operator's real finger motion.** The EM actuator body also adds physical standoff between the thumb and index contact points (mounted right at the fingertip, unlike the joint-mounted LRA motors), so with the hardware on, fingers can no longer physically reach the bare-finger `PINCH_DIST_PX` (previously `30`px) — the gripper undershot `MAX_POS` and never fully closed, making the whole mapped range feel compressed. `PINCH_DIST_PX` is now `45`px. Retune per rig/actuator thickness: with the actuator mounted, pinch your fingers fully together, read `Finger Dist` off the on-screen overlay, and set `PINCH_DIST_PX` a few px above that floor (comment in `kernel/tracking.py` gives the suggested `10`–`60` tuning range).
 
 ### Robotiq 2F-85 (`kernel/gripper.py`)
 
@@ -388,7 +382,7 @@ The gripper is controlled from the host PC via Modbus RTU at 115200 baud over a 
 
 ### Actuator Placement
 
-The two haptic actuator types are mounted at different positions on the glove, not just driven by different hardware: LRA vibration motors sit near the thumb/index proximal joints, while TacTiles pin actuators sit at the thumb/index fingertips. Both deliver intensity-modulated, continuous-style feedback (`ACDriver`'s envelope-scaled bipolar carrier; `TactileVibrationDriver`'s intensity-scaled burst/gap rate) — the `lra` vs `tactiles` comparison is therefore a comparison of actuator technology *and* placement (proximal joint vs. fingertip) under the same continuous-feedback strategy, not a comparison of feedback *mechanism* (continuous vs. binary contact). The binary contact-latch mechanism (`tactiles2`/`TactileLatchDriver`, mirroring `tests/test_tactiles2.py`) exists in the codebase but is a separate design point, outside this comparison.
+The two haptic actuator types are mounted at different positions on the glove, not just driven by different hardware: LRA vibration motors sit near the thumb/index proximal joints, while EM pin actuators sit at the thumb/index fingertips. Both deliver intensity-modulated, continuous-style feedback (`ACDriver`'s envelope-scaled bipolar carrier; `EMVibrationDriver`'s intensity-scaled burst/gap rate) — the `lra` vs `em` comparison is therefore a comparison of actuator technology *and* placement (proximal joint vs. fingertip) under the same continuous-feedback strategy, not a comparison of feedback *mechanism* (continuous vs. binary contact). The binary contact-latch mechanism (`em2`/`EMLatchDriver`, mirroring `tests/test_em2.py`) exists in the codebase but is a separate design point, outside this comparison.
 
 ### LRA Vibration Motors
 
@@ -412,9 +406,9 @@ NSLEEP is held HIGH (no sleep) via GPIO 19.
 
 ### Electromagnetic Actuators
 
-Selected via `METHOD = "tactiles"` in `firmware/stream.py`. TacTiles are bistable pin actuators driven by H-bridges. Each actuator is controlled by an IN1/IN2 pair — a short pulse in one direction engages the pin toward the skin; the opposite direction retracts it. Because the actuator latches mechanically, zero power is drawn while held.
+Selected via `METHOD = "em"` in `firmware/stream.py`. EMs are bistable pin actuators driven by H-bridges. Each actuator is controlled by an IN1/IN2 pair — a short pulse in one direction engages the pin toward the skin; the opposite direction retracts it. Because the actuator latches mechanically, zero power is drawn while held.
 
-> Bench-confirmed the pin only contacts skin on the IN2 pulse, not IN1 — backwards from the H-bridge's nominal "forward" convention. `TacTiles.engage()`/`disengage()` (`firmware/haptic.py`) pulse IN2/IN1 accordingly, so `engage` always means contact and `disengage` always means retract regardless of the underlying pin direction.
+> Bench-confirmed the pin only contacts skin on the IN2 pulse, not IN1 — backwards from the H-bridge's nominal "forward" convention. `EM.engage()`/`disengage()` (`firmware/haptic.py`) pulse IN2/IN1 accordingly, so `engage` always means contact and `disengage` always means retract regardless of the underlying pin direction.
 
 | Mode | Behaviour |
 | --- | --- |
@@ -423,13 +417,13 @@ Selected via `METHOD = "tactiles"` in `firmware/stream.py`. TacTiles are bistabl
 | `pulse` | 3 ms forward + 3 ms reverse → quick tap, no sustained contact |
 | `burst` | Rapid sequence of pulses, up to ~200 Hz in short windows |
 
-Sustained vibration is approximated by repeated bursts with a gap between them, driven non-blocking (`TactileVibrationDriver`, mirroring the LRA path's `ACDriver`) so both channels buzz continuously and independently. The gap between bursts is set continuously from intensity — short gap (more frequent bursts) at high intensity, long gap at low intensity — keeping the long-term switch rate under the hardware thermal limit of ~120 switches/minute. This gives the same "buzzes the whole time intensity > 0" feel as the vibmotor path, rather than a single tap fired only when a threshold is crossed. This is the mechanism the study's `tactiles` condition data was collected under.
+Sustained vibration is approximated by repeated bursts with a gap between them, driven non-blocking (`EMVibrationDriver`, mirroring the LRA path's `ACDriver`) so both channels buzz continuously and independently. The gap between bursts is set continuously from intensity — short gap (more frequent bursts) at high intensity, long gap at low intensity — keeping the long-term switch rate under the hardware thermal limit of ~120 switches/minute. This gives the same "buzzes the whole time intensity > 0" feel as the vibmotor path, rather than a single tap fired only when a threshold is crossed. This is the mechanism the study's `em` condition data was collected under.
 
-> **Vibration intensity tuning.** `TACTILE_PULSE_MS` (each tap's pin-throw duration) and `TACTILE_VIBRATE_GAP_MIN_MS` (the burst gap floor at intensity 1.0) in `firmware/haptic.py` control how strong the buzz feels — longer pulses and a lower gap floor both read as more intense. Current defaults are `TACTILE_PULSE_MS = 4` and `TACTILE_VIBRATE_GAP_MIN_MS = 35` (up from `3`/`50`). If the actuator runs hot at these settings, raise `TACTILE_VIBRATE_GAP_MIN_MS` back up first — it directly trades off against the ~120 switches/minute thermal limit noted above; `TACTILE_BURST_US` must stay `> 2 * TACTILE_PULSE_MS * 1000` if you change `TACTILE_PULSE_MS` again.
+> **Vibration intensity tuning.** `EM_PULSE_MS` (each tap's pin-throw duration) and `EM_VIBRATE_GAP_MIN_MS` (the burst gap floor at intensity 1.0) in `firmware/haptic.py` control how strong the buzz feels — longer pulses and a lower gap floor both read as more intense. Current defaults are `EM_PULSE_MS = 4` and `EM_VIBRATE_GAP_MIN_MS = 35` (up from `3`/`50`). If the actuator runs hot at these settings, raise `EM_VIBRATE_GAP_MIN_MS` back up first — it directly trades off against the ~120 switches/minute thermal limit noted above; `EM_BURST_US` must stay `> 2 * EM_PULSE_MS * 1000` if you change `EM_PULSE_MS` again.
 
-> **`METHOD = "tactiles2"` (binary contact latch, `--condition tactiles2`).** `stream.py` also supports a second TacTiles path — `run_tactiles2_stream()` driving `TactileLatchDriver` (`firmware/haptic.py`), the same binary contact/no-contact mechanism as `tests/test_tactiles2.py`, selected via `experiment.py --condition tactiles2` (cycle to it at runtime with `c`, after `tactiles`). Once a channel's streamed intensity reaches `TACTILE_LATCH_THRESHOLD` (default `0.1`), it fires `engage()` plus a restrike `engage()` `TACTILE_RESTRIKE_MS` (default `25`ms) later — the first pulse doesn't always fully seat the pin against skin contact resistance — then holds the latch (zero power, no further pulsing) until intensity drops back below the threshold, which fires a single `disengage()`. The threshold defaults low rather than to e.g. `0.5` because intensity is `deform_mm / DEPTH_SATURATION_MM[object_class]` and `MAX_SAFE_DEPTH_MM` (`run/experiment.py`, `1.0`mm) blocks further closing once either sensor reaches that depth — for `fragile` objects (`2.0`mm saturation) that caps intensity at `~0.5` right at the closing-block boundary, so a `0.5` threshold would only ever latch at that edge (if at all).
+> **`METHOD = "em2"` (binary contact latch, `--condition em2`).** `stream.py` also supports a second EM path — `run_em2_stream()` driving `EMLatchDriver` (`firmware/haptic.py`), the same binary contact/no-contact mechanism as `tests/test_em2.py`, selected via `experiment.py --condition em2` (cycle to it at runtime with `c`, after `em`). Once a channel's streamed intensity reaches `EM_LATCH_THRESHOLD` (default `0.1`), it fires `engage()` plus a restrike `engage()` `EM_RESTRIKE_MS` (default `25`ms) later — the first pulse doesn't always fully seat the pin against skin contact resistance — then holds the latch (zero power, no further pulsing) until intensity drops back below the threshold, which fires a single `disengage()`. The threshold defaults low rather than to e.g. `0.5` because intensity is `deform_mm / DEPTH_SATURATION_MM[object_class]` and `MAX_SAFE_DEPTH_MM` (`run/experiment.py`, `1.0`mm) blocks further closing once either sensor reaches that depth — for `fragile` objects (`2.0`mm saturation) that caps intensity at `~0.5` right at the closing-block boundary, so a `0.5` threshold would only ever latch at that edge (if at all).
 >
-> **Note:** `tactiles2` was added after the study's first 19 participants, who only ran `visual_only`/`lra`/`tactiles`. Their `tactiles` trials remain valid vibration-condition data; `tactiles2` trials only exist for participants run after this change — keep that in mind for any analysis that assumes every participant covers all conditions.
+> **Note:** `em2` was added after the study's first 19 participants, who only ran `visual_only`/`lra`/`em`. Their `em` trials remain valid vibration-condition data; `em2` trials only exist for participants run after this change — keep that in mind for any analysis that assumes every participant covers all conditions.
 
 | Channel | Finger | IN1 Pin | IN2 Pin |
 | --- | --- | --- | --- |
@@ -449,8 +443,8 @@ every actuator off.
 
 | File | Actuator | Behaviour |
 | --- | --- | --- |
-| `test_tactiles.py` | TacTiles | Continuous burst/gap vibration, `ON_S` seconds ON / `OFF_S` seconds OFF |
-| `test_tactiles2.py` | TacTiles | Binary latch — `engage()` held for `ON_S`, `disengage()` held for `OFF_S`, no buzzing |
+| `test_em.py` | EM | Continuous burst/gap vibration, `ON_S` seconds ON / `OFF_S` seconds OFF |
+| `test_em2.py` | EM | Binary latch — `engage()` held for `ON_S`, `disengage()` held for `OFF_S`, no buzzing |
 | `test_vibmotor.py` | LRA vibmotor | `ACDriver` bipolar AC buzz, `ON_S` seconds ON / `OFF_S` seconds rest |
 
 All three default to `THUMB, INDEX` at full intensity on a 6s ON / 3s OFF loop — edit `FINGERS`/`INTENSITY`/`ON_S`/`OFF_S` at the top of each file to change it.
@@ -459,11 +453,41 @@ All three default to `THUMB, INDEX` at full intensity on a 6s ON / 3s OFF loop �
 
 ## Writing & Manuscript
 
-The thesis manuscript is in the `paper/` directory.
+Both documents live in `thesis/` and need a LaTeX distribution (TeX Live or MiKTeX):
 
-* Requires a LaTeX distribution (TeX Live or MiKTeX).
-* Compile with `latexmk -pdf paper/main.tex` or using the LaTeX Workshop VS Code extension.
-* Figures are pulled from the `figures/` directory.
+| File | What it is |
+| --- | --- |
+| `thesis.tex` | The full manuscript |
+| `01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.tex` | The two-page preprint, under the submission filename |
+
+Compile **from inside `thesis/`**, not from the repo root:
+
+```bash
+cd thesis
+latexmk -pdf 01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.tex
+```
+
+The preprint's `\graphicspath` is `{figures/}{../analysis/results/}`, and LaTeX
+resolves those against your working directory rather than the `.tex` file's
+location. Compiling from the repo root does not error out — it silently drops
+both figures and still reports two pages.
+
+> **The preprint is strictly two pages at 20mm margins, and it fits with no room
+> to spare.** Leading is at `\linespread{0.91}`; 0.92 overflows the text block
+> and 0.93 spills to a third page. `includefoot` is what keeps the page number
+> inside the 20mm bottom margin instead of ~10mm from the paper edge. If you add
+> a sentence, recompile and check the page count before submitting.
+>
+> Its geometry is also load-bearing for the figures: `COLUMN_WIDTH_IN` in
+> `analysis/figures.py` is derived from a4paper at 20mm margins with 6mm
+> `columnsep`, so the two preprint figures are drawn to sit 1:1 at
+> `\includegraphics[width=\columnwidth]`. Change the margins or `columnsep` and
+> you have to re-derive that constant, or the figure text starts scaling.
+
+Regenerate `preprint_results` and `preprint_likert` from the analysis pipeline
+(`--preprint-figures thesis/figures`, see [Experiment](#experiment))
+rather than editing them by hand — they are drawn from the same frames as the
+result tables, so a figure can never disagree with the numbers beside it.
 
 ---
 
