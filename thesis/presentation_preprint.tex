@@ -1,0 +1,198 @@
+\documentclass[a4paper, 11pt]{article}
+\usepackage[margin=20mm]{geometry}
+\usepackage{lmodern}
+\usepackage{multicol}
+\usepackage{titlesec}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{microtype}
+\graphicspath{{figures/}{../analysis/results/}}
+
+\newcommand\textline[4][t]{%
+  \par\smallskip\noindent\parbox[#1]{.333\textwidth}{\raggedright #2}%
+  \parbox[#1]{.333\textwidth}{\centering #3}%
+  \parbox[#1]{.333\textwidth}{\raggedleft #4}\par\smallskip%
+}
+
+% Headings are set at body size (bold) rather than \large: at two pages with
+% 20mm margins the saved vertical space is worth more than heading prominence.
+\titleformat{\section}{\normalfont\bfseries}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\normalfont\bfseries\small}{\thesubsection.}{0.6em}{}
+\titlespacing{\section}{0pt}{4pt}{2pt}
+\setlength{\abovedisplayskip}{3pt}
+% 6mm columnsep + 20mm margins is what analysis/figures.py derives its
+% COLUMN_WIDTH_IN (3.228in) from — keep the three in sync or the figures stop
+% being 1:1 and their text starts scaling.
+\setlength{\columnsep}{6mm}
+\captionsetup{font=scriptsize, skip=2pt}
+\linespread{0.95}\selectfont
+% `center` adds \topsep above and below; the preprint has three such blocks
+% holding the figures and the table, so use a zero-skip equivalent.
+\newenvironment{tightcenter}{\par\nobreak\vskip 2pt\centering}{\par\vskip 2pt}
+\renewcommand{\arraystretch}{0.95}
+
+\begin{document}
+\pagestyle{empty}
+
+\textline[t]{\,\,}{Preprint of graduation study}{Jul. 28, 2026}
+\vspace{0.1\baselineskip}
+\begin{flushright}
+  \begin{tabular}{@{}ll@{}}
+    Name:       & Adriel Imaran Santoso  \\
+    Supervisor: & Prof. Koichi Hashimoto \\
+  \end{tabular}
+\end{flushright}
+\begin{center}
+  Title: Tactile-Feedback Teleoperation: Grip Force and Grasping Performance \\
+  Across Haptic Actuator Types for Fragile and Deformable Objects
+\end{center}
+\vspace{0.2\baselineskip}
+\begin{multicols}{2}
+
+  \section{Introduction}
+
+  When we pick up an egg, our fingers let us know how hard we are squeezing, and we stop
+  before it cracks. In \emph{teleoperation}, where a user controls a robot remotely, that sense
+  is missing, so the user can only guess whether the grip is too loose to hold the object or
+  firm enough to break it. The common approach to reproducing that sense is to use a wearable
+  \emph{haptic actuator}, which provides touch feedback through vibration or force.
+
+  Most research chooses one actuator and asks only whether feedback beats no feedback
+  (Johansson \& Flanagan, 2009; Pacchierotti et al., 2017). We ask both questions at once: does touch feedback help users grasp \emph{fragile}
+  objects, which break suddenly once squeezed too hard, and \emph{deformable} objects, which
+  instead change shape gradually, and does it matter which actuator delivers that feedback?
+  Twenty-two participants each completed a vision-only condition and two conditions using different
+  wearable actuators.
+
+  \section{System}
+
+  A PC sits at the center of the loop, watching the user's hand through a camera and the
+  object through touch sensors on the gripper's fingertips, then driving both the gripper and
+  a wearable actuator on the user's hand in response (Fig.~\ref{fig:sysflow}). That wearable
+  device is one of two actuators we compare, an LRA or an EM, and Fig.~\ref{fig:mapping} shows
+  how the same sensed signal turns into a felt sensation on each.
+
+  \begin{tightcenter}
+    \includegraphics[width=\columnwidth]{system_dataflow}
+    \captionof{figure}{How the system connects. A camera reads the user's hand, and touch
+      sensors on the gripper's fingertips (Lin et al., 2023) read the object; the PC turns
+      that into gripper motion and a haptic intensity for the wearable actuator.}
+    \label{fig:sysflow}
+  \end{tightcenter}
+
+  \begin{tightcenter}
+    \includegraphics[width=\columnwidth]{feedback_mapping}
+    \captionof{figure}{How that intensity becomes a sensation. The two actuators, an LRA
+      (vibration motor) and an EM (Vechev et al., 2019, a tapping electromagnet), receive the
+      same value and turn it into a stronger buzz or faster tapping respectively.}
+    \label{fig:mapping}
+  \end{tightcenter}
+
+  \section{Method}
+
+  Fig.~\ref{fig:methodflow} walks through the experiment: what each participant did, how many
+  trials that produced, what we measured from each one, and how we compared conditions
+  afterward. ``Excess force'' means squeezing that continued after the dent had already
+  stopped getting deeper, wasted effort since intensity depends only on depth, not force.
+
+  \begin{tightcenter}
+    \includegraphics[width=\columnwidth]{method_flow}
+    \captionof{figure}{The experiment, start to finish.}
+    \label{fig:methodflow}
+  \end{tightcenter}
+
+  \section{Results}
+
+  \begin{tightcenter}
+    \includegraphics[width=\columnwidth]{preprint_results}
+    \captionof{figure}{Fragile objects. (a) How often the object survived, 110 trials per
+      condition. (b) Excess force per participant (log scale, $+1$).}
+    \label{fig:results}
+  \end{tightcenter}
+
+  Touch feedback clearly helped with fragile objects (Fig.~\ref{fig:results},
+  Table~\ref{tab:quant}). With feedback, people stopped over-squeezing almost immediately:
+  excess force dropped roughly ninefold with the LRA and sixfold with the EM, and they needed
+  much less trial-and-error to find the right grip, from a median of 7 reversals down to 5 and
+  2. That translated into fewer breakages, too, with survival rising from 62\% under vision
+  alone to 81\% and 78\% with the two actuators. Deformable objects told a different story:
+  since they barely dent the gel and never break outright, feedback made no reliable
+  difference there. Participants felt the benefit as well, rating both haptic conditions far
+  above vision only, especially for feeling how hard they were gripping and for confidence in
+  the grasp (Fig.~\ref{fig:likert}a); asked to pick a favorite, 17 of 22 chose the LRA, though
+  no single measure could tell the two actuators apart (Fig.~\ref{fig:likert}b).
+
+  \begin{tightcenter}
+    \begin{minipage}{\columnwidth}
+      \captionof{table}{Typical (median) values on fragile objects, $N=22$. V = vision only.
+        Survival rate and force reversals were the most reliable improvements; peak dent depth
+        is capped by the 1.0~mm safety cutoff.}
+      \label{tab:quant}
+      \scriptsize
+      \centering
+      \begin{tabular}{@{}lrrr@{}}
+        \toprule
+        Metric                 & V     & LRA   & EM    \\
+        \midrule
+        Peak grip force (a.u.) & 20100 & 12300 & 16000 \\
+        Excess force (a.u.)    & 1530  & 170   & 260   \\
+        Force reversals (\#)   & 7.0   & 5.0   & 2.0   \\
+        Survival rate          & 0.60  & 0.80  & 0.90  \\
+        Peak dent depth (mm)   & 0.98  & 0.95  & 0.98  \\
+        \bottomrule
+      \end{tabular}
+    \end{minipage}
+  \end{tightcenter}
+
+  \begin{tightcenter}
+    \includegraphics[width=\columnwidth]{preprint_likert}
+    \captionof{figure}{Participant ratings ($n=22$). (a) Ratings per item (spread, individual
+      points, median) compared against vision only; stars mark differences judged
+      statistically reliable. (b) Which condition was preferred.}
+    \label{fig:likert}
+  \end{tightcenter}
+
+  \section{Discussion}
+
+  The main limitations are the fixed trial order, which may have introduced practice or
+  fatigue effects; the confound between the two actuators, which differ in technology,
+  mounting position, and how well hand tracking worked, so any preference between them may
+  reflect smoother control rather than a better sensation; 2D and uncalibrated hand tracking;
+  grip force measured as a proxy rather than in newtons; and an end-to-end delay that still
+  needs a bench measurement. Future work will balance the order, mount both actuators in the
+  same place, calibrate against a load cell, and send a spatial feedback pattern rather than
+  one number per finger.
+
+  \section{Conclusion}
+
+  Tactile feedback made grasping fragile objects safer, while a larger, better-controlled
+  study is needed to tell the two actuators apart.
+
+  \section{References}
+
+  \begin{scriptsize}
+    \noindent\hangindent=1em Johansson, R. S., \& Flanagan, J. R. (2009). Coding and use of
+    tactile signals from the fingertips in object manipulation tasks. \textit{Nature Reviews
+      Neuroscience, 10}(5), 345--359.
+
+    \noindent\hangindent=1em Lin, C., Zhang, H., Xu, J., Wu, L., \& Xu, H. (2023). 9DTact: A
+    compact vision-based tactile sensor for accurate 3D shape reconstruction and generalizable
+    6D force estimation. \textit{arXiv preprint arXiv:2308.14277}.
+
+    \noindent\hangindent=1em Pacchierotti, C., Sinclair, S., Solazzi, M., Frisoli, A.,
+    Hayward, V., \& Prattichizzo, D. (2017). Wearable haptic systems for the fingertip and the
+    hand: Taxonomy, review, and perspectives. \textit{IEEE Transactions on Haptics, 10}(4),
+    580--600.
+
+    \noindent\hangindent=1em Vechev, V., Zarate, J. J., Lindlbauer, D., Hinchet, R., Shea, H.,
+    \& Hilliges, O. (2019). TacTiles: Dual-mode low-power electromagnetic actuators for
+    rendering continuous contact and spatial haptic patterns in VR. \textit{2019 IEEE
+      Conference on Virtual Reality and 3D User Interfaces (VR)}, 312--320.
+
+  \end{scriptsize}
+
+\end{multicols}
+
+\end{document}
