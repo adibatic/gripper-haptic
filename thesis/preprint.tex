@@ -1,6 +1,6 @@
 \documentclass[a4paper, 12pt]{article}
-\usepackage[margin=18mm]{geometry}
-\usepackage{CJKutf8}
+\usepackage[margin=13mm]{geometry}
+\usepackage{lmodern}
 \usepackage{multicol}
 \usepackage{titlesec}
 \usepackage{graphicx}
@@ -16,13 +16,13 @@
   \parbox[#1]{.333\textwidth}{\raggedleft #4}\par\smallskip%
 }
 
-\titleformat{\section}{\bfseries}{\thesection.}{1em}{}
-\titleformat{\subsection}{\bfseries}{\thesubsection.}{1em}{}
-\titlespacing{\section}{0pt}{5pt}{1pt}
+\titleformat{\section}{\normalfont\large}{\thesection.}{1em}{}
+\titleformat{\subsection}{}{\thesubsection.}{1em}{}
+\titlespacing{\section}{0pt}{5pt}{3pt}
 \setlength{\abovedisplayskip}{3pt}
-\setlength{\columnsep}{6mm}
+\setlength{\columnsep}{5mm}
 \captionsetup{font=footnotesize, skip=3pt}
-\linespread{0.95}\selectfont
+\linespread{0.93}\selectfont
 \renewcommand{\arraystretch}{0.95}
 
 \begin{document}
@@ -36,166 +36,172 @@
   \end{tabular}
 \end{flushright}
 \begin{center}
-  {\bfseries Title: Tactile-Feedback Teleoperation: Grip Force and Grasping Performance \\
-    Across Haptic Actuator Types for Fragile and Deformable Objects}\\[2pt]
+  Title: Tactile-Feedback Teleoperation: Grip Force and Grasping Performance \\
+  Across Haptic Actuator Types for Fragile and Deformable Objects
 \end{center}
 \vspace{0.2\baselineskip}
 \begin{multicols}{2}
 
   \section{Introduction}
 
-  Teleoperated grasping is normally vision-only. Without fingertip contact
-  information, feedforward grip-force control is disrupted [1], leaving
-  operators to infer from visual cues alone whether a grasp is too weak to
-  secure an object or too forceful for a fragile one. Wearable haptic
-  interfaces provide tactile feedback, but most studies fix the actuator design
-  and rely on a single-point force sensor or motor-current proxy [2].
+  When we pick up an egg, our fingertips tell us how hard we are squeezing, and we stop
+  before it cracks. In \emph{teleoperation}, where an operator drives a robot from a
+  distance and watches it on a screen, that sense is missing, so the operator can only guess
+  whether the grip is too loose to hold the object or hard enough to break it. People plan
+  grip force from what they feel rather than from what they see, so removing touch removes
+  the signal that plan is built on [1].
 
-  This study compares two mechanically distinct wearable actuators driven by
-  the same gripper-mounted vision-based tactile sensor, evaluated against a
-  visual-only baseline ($N=22$, within-subjects) on fragile and deformable
-  objects. We ask whether sensor-driven tactile feedback improves grip-force
-  regulation and grasp outcome, and whether actuator technology influences
-  performance.
+  The usual fix is a \emph{haptic device}, something worn on the hand that reproduces a
+  sensation on the skin, such as a vibration. The part making that sensation is the
+  \emph{actuator}. Most work picks one actuator and asks only whether feedback beats no
+  feedback [2], leaving the choice of actuator unexamined. We ask both questions at once.
+  Does touch feedback help an operator grasp fragile and squishy objects, and does it matter
+  which actuator delivers it? Twenty-two people each tried three conditions, vision only and
+  two actuator types.
 
   \section{System}
 
-  The teleoperation system connects a host PC, a Robotiq 2F-85 adaptive gripper,
-  and a hand-worn ESP32-C6 microcontroller. Each control tick ($\approx$30~Hz),
-  the host reads gripper state over Modbus RTU, tracks the operator's
-  thumb--index pinch distance with MediaPipe to command aperture, and reads
-  two 9DTact tactile sensors [3] on the gripper's fingertips. From each
-  height map it computes a deformation volume (the grip-force proxy) and a
-  maximum indentation depth, normalised against a per-object-class
-  saturation point (2.0~mm fragile, 0.6~mm deformable), clipped to $[0,1]$,
-  and streamed per finger over USB serial. A runtime cutoff blocks closing past
-  1.0 mm of indentation.
+  The setup has three parts, a PC, a two-fingered robot gripper, and a small microcontroller
+  worn on the operator's hand. About 30 Hz, the PC measures the gap between the operator's
+  thumb and index finger using a hand-tracking library. That gap tells the gripper how far to
+  open, so pinching in the air closes the robot hand. The system also measures the robot's grip
+  and sends that back to the operator.
 
-  Two actuator configurations are driven from that same stream. The LRA configuration uses
-  linear resonant actuators at the thumb and index proximal joints, driven by a bipolar
-  $\approx$200~Hz carrier whose active envelope fraction within a 50~ms window
-  scales with intensity. The electromagnet (EM) configuration adapts bistable electromagnetic
-  actuators [4] at the thumb and index fingertips, removing the original design's contact pin
-  for a single neodymium magnet to support continuous vibration, driven by latching H-bridge
-  pulses in bursts whose inter-burst gap shortens with intensity, holding the switching rate
-  under the thermal limit ($\approx$120~switches/min). Both render continuous, intensity-scaled
-  sensation; the two differ in actuator technology and mounting site as a consequence of form
-  factor, not by design.
+  It also reads two \emph{vision-based touch sensors} [3] on the gripper's fingertips, each a
+  soft gel pad with a camera looking at it from inside. When an object presses into
+  the gel, the camera sees the dent and software turns the image into a map of how deeply
+  each point is pressed in. We reduce that map to two numbers, the total dented volume (a
+  stand-in for grip force, so forces below are in arbitrary units, a.u., not newtons) and the
+  deepest point of the dent in millimetres. That depth becomes a 0-to-1 ``intensity'', where
+  1 means as hard as the object should ever be squeezed, and goes over USB to the wearable
+  device. For safety the gripper stops closing once the dent passes 1.0~mm.
+
+  Both actuator types are driven by that same number, so any difference comes from the
+  hardware, not the software. LRA stands for \emph{linear resonant actuators}, tiny motors
+  that buzz along one axis, like a phone vibration but cleaner, worn at the base joints of
+  the thumb and index finger. EM stands for \emph{electromagnetic latching actuators} [4],
+  where a short pulse flips a small magnet between two positions and it stays there with no
+  further power, moving only when pulsed rather than vibrating continuously. Ours sit on the
+  thumb and index fingertips, with the original design's skin-poking pin replaced by a single
+  magnet so it could tap continuously. Higher intensity means a stronger buzz for the LRA and
+  faster taps for the EM. Both grow smoothly with pressure. They differ in technology and,
+  because of their size, in where on the finger they fit.
 
   \section{Method}
 
-  Twenty-two participants each completed a within-subjects session with three
-  conditions (visual-only, LRA, EM) on two object classes, fragile (fails
-  abruptly under excess force) and deformable (yields progressively).
-  Visual-only ran first for nearly all participants, with LRA/EM order varied
-  after it; order was not fully counterbalanced. Five trials per condition
-  per class gives 660 trials, logged at $\approx$30~Hz, each yielding
-  peak force proxy, peak depth, time to first contact, force overshoot (force
-  rise after depth has plateaued), approach rate, post-plateau force
-  reversals, dwell time above 90\% of peak force, and, for fragile objects,
-  survival, reduced to a per-participant median. Conditions were compared
-  with a Friedman test and pairwise Wilcoxon signed-rank tests with Holm
-  correction; LRA versus EM was also tested for equivalence by TOST (0.5~SD
-  margin). All participants completed a 5-point Likert questionnaire after
-  each condition, plus two forced-choice preference items.
+  The experiment compared how the three conditions affected grasping performance. Each of the
+  22 participants tried all three (vision only, LRA, EM) in a \emph{within-subjects} design, in
+  which every person is their own comparison, so differences in natural dexterity drop out.
+  Two object classes were used, fragile ones, which break suddenly if squeezed too hard, and
+  deformable ones, which squash gradually. Each participant performed five grasps per condition
+  and class, giving 660 trials. Vision only ran first for nearly everyone, with LRA and EM
+  varied after it. That order was not fully balanced, which matters later (Section~5).
+
+  From each recording we computed peak grip force (largest dented volume), peak dent depth,
+  wasted squeezing (force added \emph{after} the dent stopped deepening, which gains
+  nothing), force reversals after that point (tightening and loosening again, or hunting for
+  the right force), and, for fragile objects, survival. Each participant's five trials were
+  reduced to their median (middle value).
+
+  A \emph{p-value} is the chance of seeing a difference this large if the conditions were
+  really identical, and below .05 is conventionally called significant. We tested whether the
+  three conditions differ at all (Friedman test), then compared them two at a time (Wilcoxon
+  signed-rank test), raising the p-values to account for how many pairs were tested (Holm
+  correction). LRA and EM also got an \emph{equivalence test}, which asks the reverse
+  question, not whether they differ but whether they are close enough to call the same. After
+  each condition participants rated their experience on 5-point scales (\emph{Likert} items,
+  1 = worst, 5 = best), and finally chose the condition they preferred.
 
   \section{Results}
 
   \begin{center}
-    \includegraphics[width=\columnwidth]{preprint_results}
-    \captionof{figure}{Fragile objects: (a) pooled survival, 110 trials/condition;
-      (b) per-participant force overshoot (log, $+1$).}
+    \includegraphics[width=0.8\columnwidth]{preprint_results}
+    \captionof{figure}{Fragile objects. (a) How often the object survived, 110 trials per
+      condition. (b) Wasted extra squeezing per participant (log scale, $+1$).}
     \label{fig:results}
   \end{center}
 
-  On fragile objects, haptic feedback changed how participants closed
-  the gripper (Table~\ref{tab:quant}). Force overshoot fell from a median of
-  1530 (a.u.) under visual-only to 170 (LRA) and 260 (EM), corrected
-  $p=.019$ and $p=.061$, though the omnibus test, underpowered at three
-  conditions, fell short of significance ($p=.079$). Post-plateau force
-  reversals (hunting for the right force) fell from 7 to 5 (LRA) and 2 (EM),
-  the one metric significant at both levels ($p=.0048$ omnibus; vs.\ EM
-  $p=.021$). Peak force proxy fell $\approx$40\% under LRA, short of
-  significance ($p=.083$ corrected). Fragile objects survived 62\% of
-  visual-only trials (pooled) against 81\% (LRA) and 78\% (EM);
-  per-participant medians (Table~\ref{tab:quant}) differ likewise
-  ($p=.0036$ omnibus; $p=.018$ and $p=.037$ against LRA and EM), though not
-  under a stricter binary test (Cochran's $Q$, $p=.097$). No deformable-object
-  comparison survived correction (smallest corrected $p=.11$).
+  On fragile objects, touch feedback changed how people closed the gripper and how often it
+  survived (Fig.~\ref{fig:results}, Table~\ref{tab:quant}). Wasted squeezing dropped about
+  ninefold under LRA and sixfold
+  under EM ($p=.019$ and $p=.061$; the overall three-way test fell just short, $p=.079$).
+  Hunting for the right force fell from 7 reversals to 5 (LRA) and 2 (EM), the one measure
+  significant both overall ($p=.0048$) and pairwise (vision vs.\ EM, $p=.021$). Peak grip
+  force fell about 40\% under LRA ($p=.083$).
+
+  Fragile objects survived 62\% of vision-only grasps, against 81\% (LRA) and 78\% (EM). Per
+  participant that is significant ($p=.0036$ overall, $p=.018$ and $p=.037$ pairwise). A
+  stricter test that scores every single grasp on its own, rather than summarising each
+  participant first (Cochran's $Q$), does not confirm it ($p=.097$). For deformable objects,
+  nothing survived correction (smallest $p=.11$).
 
   \begin{center}
     \begin{minipage}{\columnwidth}
-      \captionof{table}{Fragile-object medians ($N=22$), Friedman $p$. Holm pairs:
-        V--LRA .083/.019/.018 (force/overshoot/survival), V--EM .021/.037
-        (reversals/survival). Peak depth is censored by the 1.0~mm cutoff.}
+      \captionof{table}{Typical (median) values on fragile objects, $N=22$, with the
+        three-way (Friedman) $p$. Corrected pairwise $p$-values are given in the text.
+        V = vision only. Peak depth is capped by the 1.0~mm safety cutoff.}
       \label{tab:quant}
-      \footnotesize
+      \scriptsize
       \centering
       \begin{tabular}{@{}lrrrr@{}}
         \toprule
-        Metric            & V     & LRA   & EM    & Fried. \\
+        Metric                  & V     & LRA   & EM    & Fried. \\
         \midrule
-        Peak force (a.u.) & 20100 & 12300 & 16000 & .057   \\
-        Overshoot (a.u.)  & 1530  & 170   & 260   & .079   \\
-        Reversals (\#)    & 7.0   & 5.0   & 2.0   & .0048  \\
-        Survival rate     & 0.60  & 0.80  & 0.90  & .0036  \\
-        Peak depth (mm)   & 0.98  & 0.95  & 0.98  & .093   \\
+        Peak force (a.u.)       & 20100 & 12300 & 16000 & .057   \\
+        Wasted squeezing (a.u.) & 1530  & 170   & 260   & .079   \\
+        Force reversals (\#)    & 7.0   & 5.0   & 2.0   & .0048  \\
+        Survival rate           & 0.60  & 0.80  & 0.90  & .0036  \\
+        Peak depth (mm)         & 0.98  & 0.95  & 0.98  & .093   \\
         \bottomrule
       \end{tabular}
     \end{minipage}
   \end{center}
 
-  Subjectively, both haptic conditions were rated well above baseline
-  ($n=22$; Fig.~\ref{fig:likert}a): force perception shifted most (median
-  $1\rightarrow3.5$ LRA, $1\rightarrow3$ EM, both $p=.0003$), grasp
-  confidence $2\rightarrow4$ and contact detection $2.5\rightarrow4$ (all
-  $p\le.0015$), ease of manipulation $3\rightarrow4$ ($p\le.043$); the two
-  effort items moved similarly but were not significant. No item
-  separated LRA from EM (all $p\ge.13$). In the forced choice
-  (Fig.~\ref{fig:likert}b), 17 of 22 participants preferred LRA overall
-  ($\chi^2=19.7$, $p=.0001$) and 16 rated it best for sensing contact and grasp
-  state ($\chi^2=17.8$, $p=.0001$).
+  Participants rated both haptic conditions far above vision only
+  (Fig.~\ref{fig:likert}a). The biggest shift was feeling how hard they were gripping
+  (median $1\rightarrow3.5$ LRA, $1\rightarrow3$ EM, both $p=.0003$), then confidence in the
+  grasp ($2\rightarrow4$) and noticing contact ($2.5\rightarrow4$, both $p\le.0015$), and
+  ease of handling ($3\rightarrow4$, $p\le.043$). The two effort items moved the same way
+  but not significantly, and no rating separated LRA from EM (all $p\ge.13$). Asked to
+  choose, however, 17 of 22 preferred LRA overall and 16 called it best for sensing contact
+  and grasp state (both $p=.0001$; Fig.~\ref{fig:likert}b).
 
   \begin{center}
-    \includegraphics[width=\columnwidth]{preprint_likert}
-    \captionof{figure}{Subjective results ($n=22$). (a) Ratings (violin, points,
-      median), Holm-corrected Wilcoxon vs.\ visual-only
-      ($^{*}p<.05$, $^{**}p<.01$, $^{***}p<.001$). (b) Forced choice, $\chi^2$.}
+    \includegraphics[width=0.8\columnwidth]{preprint_likert}
+    \captionof{figure}{Participant ratings ($n=22$). (a) Ratings per item (spread, individual
+      points, median), compared against vision only
+      ($^{*}p<.05$, $^{**}p<.01$, $^{***}p<.001$). (b) Which condition was preferred.}
     \label{fig:likert}
   \end{center}
 
   \section{Discussion and Conclusion}
 
-  Sensor-driven feedback improved fragile-object handling on behavioural and
-  subjective measures alike, through a specific mechanism. Participants
-  stopped squeezing once the tactile signal plateaued, and stopped hunting
-  for the right force afterwards. The effect is confined to the fragile
-  class, consistent with deformable objects indenting the gel too little to
-  drive a strong signal and having no abrupt failure to avoid.
+  Touch feedback improved fragile-object handling both in what participants did and in what
+  they reported, and the recordings show why. Once the felt signal stopped growing, people
+  stopped squeezing and stopped hunting for the right force. The benefit did not appear for
+  deformable objects, which fits the setup, since soft objects dent the gel too little to
+  give a strong signal and have no sudden breakage to avoid.
 
-  No behavioural metric separated LRA from EM after correction, and TOST
-  established equivalence for only three of fourteen metric--object pairs,
-  so the actuators are undistinguished at this sample size, not shown
-  equivalent. That comparison is confounded by mounting site, technology,
-  and tracking quality together. EM's fingertip placement covers the
-  MediaPipe landmarks used for aperture control more than LRA's proximal
-  mounting, degrading detection confidence (thresholds were lowered to
-  compensate), so the subjective LRA preference (17/22) may partly reflect
-  this rather than sensation alone.
+  The two actuators could not be told apart. No recorded measure separated them after
+  correction, and the equivalence test reached ``close enough to be the same'' for only 3 of
+  14 measure-object pairs. With 22 participants, this study could not distinguish them, not
+  that they are the same. The comparison is also confounded, since they differ in technology,
+  mounting position, and how well hand tracking worked. EM sits on the fingertips, partly
+  covering the points the hand tracker follows, so tracking confidence dropped and thresholds
+  had to be lowered. The preference for LRA may therefore reflect smoother control, not a
+  better sensation.
 
-  The largest limitation is order. Visual-only ran first for nearly all
-  participants rather than in counterbalanced sequence, confounding condition
-  with practice on the pinch-tracking control and gripper response, so
-  visual-only-vs-haptic comparisons may partly reflect familiarisation.
-  LRA-vs-EM comparisons, whose order was varied, are less exposed. Other
-  limitations include uncalibrated 2D pixel-space pinch tracking (no depth
-  or orientation compensation), an uncalibrated force proxy (deformation
-  volume, not newtons), peak depth censored by the safety cutoff,
-  end-to-end latency still needing a bench measurement, and unlabelled
-  questionnaire scale endpoints. Future work will re-run with counterbalanced
-  order, calibrate the proxy against a load cell, drive the LRA via a
-  dedicated resonant-actuator IC, co-locate both actuators, and extend the
-  per-finger scalar to a spatial mapping.
+  The largest limitation is trial order. Vision only ran first for nearly everyone, so it is
+  mixed up with lack of practice, and part of the vision-versus-touch gap may just be people
+  getting used to the pinch control. LRA versus EM, whose order was varied, is less exposed.
+  Hand tracking is also 2D and uncalibrated, grip force is a stand-in rather than newtons,
+  peak depth is capped by the safety cutoff, and the end-to-end delay still needs a bench
+  measurement. Future work will mount both
+  actuators in the same place, use a balanced order, calibrate against a load cell, drive the
+  LRA with a dedicated chip, and send a spatial pattern rather than one number per finger.
+
+  Overall, tactile feedback made grasping fragile objects safer, while a larger study is
+  needed to tell the two actuators apart.
 
   \section{References}
 
