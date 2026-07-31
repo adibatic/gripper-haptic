@@ -41,7 +41,7 @@ gripper-haptic/
 ├── thesis/
 │   ├── thesis.tex              # The manuscript
 │   ├── 01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.tex   # Two-page preprint
-│   ├── figures/
+│   ├── figures/                # Preprint/thesis figures (photos/ holds the fig2 crops)
 │   └── references.bib
 ├── src/                    # Vendored, not in the repo — see Setup
 │   ├── 9DTact-main/            # 9DTact tactile sensor source
@@ -339,7 +339,7 @@ python -m analysis \
   --preprint-figures thesis/figures
 ```
 
-`--preprint-figures DIR` is optional and additionally draws the two figures `thesis/01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.tex` includes — `preprint_results.png` (fragile survival + force overshoot) and `preprint_likert.png` (subjective ratings + forced choice). They are drawn from the same in-memory frames the CSVs are written from, so re-running the pipeline is the only step needed to refresh the preprint. Omit the flag to write tables only; `preprint_likert.png` additionally needs `--likert-csv`.
+`--preprint-figures DIR` is optional and additionally draws the two figures `thesis/01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.tex` includes — `preprint_fig4.png` (fragile survival + force overshoot) and `preprint_fig5.png` (subjective ratings + forced choice). They are drawn from the same in-memory frames the CSVs are written from, so re-running the pipeline is the only step needed to refresh the preprint. Omit the flag to write tables only; `preprint_fig5.png` additionally needs `--likert-csv`.
 
 `--trials-dir` is scanned recursively, so pointing it at `data/experiment_logs` picks up every participant's trial CSVs from their `P01/`, `P02/`, ... subfolders in one pass — no need to run the pipeline per participant.
 
@@ -464,8 +464,13 @@ Compile **from inside `thesis/`**, not from the repo root:
 
 ```bash
 cd thesis
-latexmk -pdf 01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.tex
+latexmk -pdfdvi 01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.tex
 ```
+
+`-pdfdvi` builds via latex → dvips → ps2pdf rather than pdflatex, because all
+five preprint figures are named as `.eps` in `\includegraphics` (below) —
+pdflatex cannot rasterise EPS on its own. `thesis.tex`, whose one figure is a
+PNG, still takes plain `latexmk -pdf`.
 
 The preprint's `\graphicspath` is `{figures/}{../analysis/results/}`, and LaTeX
 resolves those against your working directory rather than the `.tex` file's
@@ -479,15 +484,32 @@ both figures and still reports two pages.
 > a sentence, recompile and check the page count before submitting.
 >
 > Its geometry is also load-bearing for the figures: `COLUMN_WIDTH_IN` in
-> `analysis/figures.py` is derived from a4paper at 20mm margins with 6mm
-> `columnsep`, so the two preprint figures are drawn to sit 1:1 at
+> `analysis/preprint_figs.py` is derived from a4paper at 20mm margins with 6mm
+> `columnsep`, so all five preprint figures are drawn to sit 1:1 at
 > `\includegraphics[width=\columnwidth]`. Change the margins or `columnsep` and
 > you have to re-derive that constant, or the figure text starts scaling.
 
-Regenerate `preprint_results` and `preprint_likert` from the analysis pipeline
-(`--preprint-figures thesis/figures`, see [Experiment](#experiment))
-rather than editing them by hand — they are drawn from the same frames as the
-result tables, so a figure can never disagree with the numbers beside it.
+All five figures the preprint includes come from `analysis/preprint_figs.py`,
+each written as both `.eps` and `.png` (the `.tex` names the `.eps`):
+
+- `preprint_fig1` (system data flow), `preprint_fig2` (hardware plate), and
+  `preprint_fig3` (method flow) are hand-authored, not generated from trial
+  data. `preprint_fig2`'s callouts are drawn over the label-free photo crops in
+  `thesis/figures/photos/` — edit the script rather than the photos, and keep
+  labels out of the photos themselves, which is what keeps the plate's type
+  and rules matching the other two diagrams. Regenerate all three with:
+  ```bash
+  python -m analysis.preprint_figs
+  ```
+- `preprint_fig4` and `preprint_fig5` are drawn from the same in-memory frames
+  the CSVs are written from, so a figure can never disagree with the table
+  beside it. Regenerate them from the analysis pipeline
+  (`--preprint-figures thesis/figures`, see [Experiment](#experiment)) rather
+  than editing them by hand.
+
+The rest of `analysis/visualization.py` (Section 5.5's time-series figures) is
+unrelated to the preprint and was split out when this file was still called
+`figures.py`, to keep the preprint's five figures in one place.
 
 ---
 

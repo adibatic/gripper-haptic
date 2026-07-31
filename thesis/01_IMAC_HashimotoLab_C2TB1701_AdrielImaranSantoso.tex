@@ -8,6 +8,7 @@
 \usepackage{booktabs}
 \usepackage{amsmath}
 \usepackage{microtype}
+\usepackage{url}
 \graphicspath{{figures/}{../analysis/results/}}
 
 \newcommand\textline[4][t]{%
@@ -16,20 +17,13 @@
   \parbox[#1]{.333\textwidth}{\raggedleft #4}\par\smallskip%
 }
 
-% Headings are set at body size (bold) rather than \large: at two pages with
-% 20mm margins the saved vertical space is worth more than heading prominence.
 \titleformat{\section}{\normalfont\bfseries}{\thesection.}{0.6em}{}
 \titleformat{\subsection}{\normalfont\bfseries\small}{\thesubsection.}{0.6em}{}
 \titlespacing{\section}{0pt}{4pt}{2pt}
 \setlength{\abovedisplayskip}{3pt}
-% 6mm columnsep + 20mm margins is what analysis/figures.py derives its
-% COLUMN_WIDTH_IN (3.228in) from — keep the three in sync or the figures stop
-% being 1:1 and their text starts scaling.
 \setlength{\columnsep}{6mm}
 \captionsetup{font=scriptsize, skip=2pt}
 \linespread{0.95}\selectfont
-% `center` adds \topsep above and below; the preprint has three such blocks
-% holding the figures and the table, so use a zero-skip equivalent.
 \newenvironment{tightcenter}{\par\nobreak\vskip 2pt\centering}{\par\vskip 2pt}
 \renewcommand{\arraystretch}{0.95}
 
@@ -53,60 +47,60 @@
 
   \section{Introduction}
 
-  When we pick up an egg, our fingers let us know how hard we are squeezing, and we stop
+  When we pick up an egg, our fingers let us know how hard we are squeezing, so we stop
   before it cracks. In \emph{teleoperation}, where a user controls a robot remotely, that sense
-  is missing, so the user can only guess whether the grip is too loose to hold the object or
-  firm enough to break it. The common approach to reproducing that sense is to use a wearable
-  \emph{haptic actuator}, which provides touch feedback through vibration or force.
+  is missing, and the user can only guess whether the grip is too loose to hold the object or
+  firm enough to break it.
 
-  Most research chooses one actuator and asks only whether feedback beats no feedback
-  (Johansson \& Flanagan, 2009; Pacchierotti et al., 2017). We ask both questions at once: does touch feedback help users grasp \emph{fragile}
-  objects, which break suddenly once squeezed too hard, and \emph{deformable} objects, which
-  instead change shape gradually, and does it matter which actuator delivers that feedback?
-  Twenty-two participants each completed a vision-only condition and two conditions using different
-  wearable actuators.
+  The common solution is a wearable \emph{haptic actuator}, a device that reproduces that sense via
+  vibrations or forces applied to the skin (Patel et al., 2025), but research comparing different
+  actuators is limited, with most studies instead asking whether feedback improves performance over
+  no feedback at all (Thomas et al., 2019). We tackle both questions at once: does touch feedback help users grasp specific types of
+  objects, and does it matter which actuator delivers that feedback?
 
   \section{System}
 
-  A PC sits at the center of the loop, watching the user's hand through a camera and the
-  object through touch sensors on the gripper's fingertips, then driving both the gripper and
-  a wearable actuator on the user's hand in response (Fig.~\ref{fig:sysflow}). That wearable
-  device is one of two actuators we compare, an LRA or an EM, and Fig.~\ref{fig:mapping} shows
-  how the same sensed signal turns into a felt sensation on each.
-
   \begin{tightcenter}
-    \includegraphics[width=\columnwidth]{system_dataflow}
-    \captionof{figure}{How the system connects. A camera reads the user's hand, and touch
-      sensors on the gripper's fingertips (Lin et al., 2023) read the object; the PC turns
-      that into gripper motion and a haptic intensity for the wearable actuator.}
-    \label{fig:sysflow}
+    \includegraphics[width=0.95\columnwidth]{preprint_fig1.eps}
+    \captionof{figure}{Signal flow of the experimental setup. The PC translates pixel distance
+      between the thumb and index finger into gripper position command, and touch sensor data into
+      a normalized intensity value between $0$ and $1$.}
+    \label{fig:signalflow}
   \end{tightcenter}
 
+  The system setup is detailed in Figs.~\ref{fig:signalflow} and \ref{fig:hardware}. Two actuator types
+  are compared in this study: a \emph{linear resonant actuator (LRA)}, a small motor that vibrates
+  along one axis, like the kind used in smartphones (Pacchierotti et al., 2017), and an
+  \emph{electromagnetic actuator (EM)} adapted from (Vechev et al., 2019). Where each actuator
+  sits was simply carried over from earlier work.
+
   \begin{tightcenter}
-    \includegraphics[width=\columnwidth]{feedback_mapping}
-    \captionof{figure}{How that intensity becomes a sensation. The two actuators, an LRA
-      (vibration motor) and an EM (Vechev et al., 2019, a tapping electromagnet), receive the
-      same value and turn it into a stronger buzz or faster tapping respectively.}
-    \label{fig:mapping}
+    \includegraphics[width=0.95\columnwidth]{preprint_fig2.eps}
+    \captionof{figure}{Hardware components of the experimental setup. (a) User and gripper
+      apparatus as grouped in Fig.~\ref{fig:signalflow}. (b) LRA and EM actuator type connected
+      to the wearable device.}
+    \label{fig:hardware}
   \end{tightcenter}
 
   \section{Method}
 
+  \begin{tightcenter}
+    \includegraphics[width=0.95\columnwidth]{preprint_fig3.eps}
+    \captionof{figure}{The experiment, start to finish.}
+    \label{fig:methodflow}
+  \end{tightcenter}
+
+  Participants grasped two classes of object: \emph{fragile} ones, which break suddenly when
+  squeezed too hard, and \emph{deformable} ones, which instead change shape gradually.
   Fig.~\ref{fig:methodflow} walks through the experiment: what each participant did, how many
   trials that produced, what we measured from each one, and how we compared conditions
   afterward. ``Excess force'' means squeezing that continued after the dent had already
   stopped getting deeper, wasted effort since intensity depends only on depth, not force.
 
-  \begin{tightcenter}
-    \includegraphics[width=\columnwidth]{method_flow}
-    \captionof{figure}{The experiment, start to finish.}
-    \label{fig:methodflow}
-  \end{tightcenter}
-
   \section{Results}
 
   \begin{tightcenter}
-    \includegraphics[width=\columnwidth]{preprint_results}
+    \includegraphics[width=0.95\columnwidth]{preprint_fig4.eps}
     \captionof{figure}{Fragile objects. (a) How often the object survived, 110 trials per
       condition. (b) Excess force per participant (log scale, $+1$).}
     \label{fig:results}
@@ -147,7 +141,7 @@
   \end{tightcenter}
 
   \begin{tightcenter}
-    \includegraphics[width=\columnwidth]{preprint_likert}
+    \includegraphics[width=0.95\columnwidth]{preprint_fig5.eps}
     \captionof{figure}{Participant ratings ($n=22$). (a) Ratings per item (spread, individual
       points, median) compared against vision only; stars mark differences judged
       statistically reliable. (b) Which condition was preferred.}
@@ -173,6 +167,15 @@
   \section{References}
 
   \begin{scriptsize}
+    \noindent\hangindent=1em Patel, S., Rao, Z., Yang, M., \& Yu, C. (2025). Wearable haptic
+    feedback interfaces for augmenting human touch. \textit{Advanced Functional Materials},
+    \textit{35}(4), 2417906. \url{https://doi.org/10.1002/adfm.202417906}
+
+    \noindent\hangindent=1em Thomas, N., Ung, G., McGarvey, C., \& Brown, J. D. (2019).
+    Comparison of vibrotactile and joint-torque feedback in a myoelectric upper-limb
+    prosthesis. \textit{Journal of NeuroEngineering and Rehabilitation},
+    \textit{16}(1), 73. \url{https://doi.org/10.1186/s12984-019-0545-5}
+
     \noindent\hangindent=1em Johansson, R. S., \& Flanagan, J. R. (2009). Coding and use of
     tactile signals from the fingertips in object manipulation tasks. \textit{Nature Reviews
       Neuroscience, 10}(5), 345--359.
