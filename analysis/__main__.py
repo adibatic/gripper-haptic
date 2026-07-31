@@ -18,8 +18,8 @@ from .survival import (write_fragile_breakage_summary, mcnemar_fragile_survival,
                        fragile_survival_across_conditions,
                        write_fragile_survival_tests_report)
 from .likert import analyze_likert
-from .figures import (plot_representative_trials, plot_preprint_results,
-                      plot_preprint_likert)
+from .visualization import plot_representative_trials
+from .preprint_figs import plot_preprint_results, plot_preprint_likert
 
 
 # ---------------------------------------------------------------------------
@@ -38,8 +38,8 @@ def main():
                          "column layout). Optional.")
     parser.add_argument("--out", required=True, help="Output directory for tables and figures.")
     parser.add_argument("--preprint-figures", default=None, metavar="DIR",
-                         help="Also write the two preprint figures (preprint_results.png, "
-                              "preprint_likert.png) into DIR — pass thesis/figures to "
+                         help="Also write the two preprint figures (preprint_fig4.png, "
+                              "preprint_fig5.png) into DIR — pass thesis/figures to "
                               "refresh what thesis/preprint.tex includes. The Likert figure "
                               "needs --likert-csv.")
     parser.add_argument("--contact-threshold-mm", type=float, default=0.05,
@@ -126,7 +126,7 @@ def main():
         os.makedirs(args.preprint_figures, exist_ok=True)
         plot_preprint_results(breakage, reduced_df, args.preprint_figures)
         if likert is None:
-            print("NOTE: no Likert data — skipping preprint_likert.png.")
+            print("NOTE: no Likert data — skipping preprint_fig5.png.")
         else:
             plot_preprint_likert(*likert, args.preprint_figures)
 

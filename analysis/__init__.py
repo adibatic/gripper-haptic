@@ -32,7 +32,9 @@ Module map:
     comparisons.py  5.3/5.4/5.9  cross-condition, LRA vs TacTiles, equivalence
     survival.py     5.4/5.7  fragile-object survival (paired binary outcome)
     likert.py       5.6  qualitative survey
-    figures.py      5.5  time series, plus the preprint figures
+    visualization.py     5.5  time-series figures
+    preprint_figs.py     every figure the preprint includes (fig1-3 hand-
+                          authored, fig4-5 drawn from trial data here)
     __main__.py          CLI entry point
 """
 
