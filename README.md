@@ -187,6 +187,8 @@ Each side's calibration lands in `data/calibration/sensor_L` / `sensor_R` (the p
 
 > **Press firmly and squarely.** `calibrate-camera` must find every dot on the board; dots that only graze the gel come out too faint to detect. If it fails, it reports how many it found, saves a debug overlay showing which ones were missed, and names the likely cause.
 
+> **What the millimetre scale rests on.** `calibrate-sensor` anchors depth to one number — the `BallRad` you declare in `shape_config.yaml` — so every `*_depth_mm` value inherits any error in that ball's true radius, plus whatever the press angle and gel state contributed on the day. `reconstruct` only confirms the table is *usable*, not that it is *accurate*; nothing here cross-checks depth against an independent gauge. Treat the mm as calibrated-but-unverified: fine for the rank-based analysis (a monotonic scale error cannot reorder trials, so no p-value moves) and fine against `MAX_SAFE_DEPTH_MM`, which is applied in the same units the sensor reports. Do not quote absolute depths as metrology without measuring a known step first.
+
 **8. Optional — Force Calibration (convert deformation to Newtons)**
 
 The Robotiq exposes no F/T reading and its `gCU` current register reads 0 mA regardless of contact, so grip force is derived from gel deformation instead (`deformation = height_map − baseline`). `experiment.py` computes this live per trial and logs it as `left_force_proxy`/`right_force_proxy` (see the trial-output column table under "Experiment" for what `volume`/`area_px`/`max_deform_mm`/`mean_deform_mm` mean).
@@ -339,7 +341,7 @@ python -m analysis \
   --preprint-figures thesis/figures
 ```
 
-`--preprint-figures DIR` is optional and additionally draws the two figures `thesis/01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.tex` includes — `preprint_fig4.png` (fragile survival + force overshoot) and `preprint_fig5.png` (subjective ratings + forced choice). They are drawn from the same in-memory frames the CSVs are written from, so re-running the pipeline is the only step needed to refresh the preprint. Omit the flag to write tables only; `preprint_fig5.png` additionally needs `--likert-csv`.
+`--preprint-figures DIR` is optional and additionally draws the two figures `thesis/01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.tex` includes — `preprint_fig5.png` (fragile survival + excess deformation) and `preprint_fig6.png` (subjective ratings + favorite picks). They are drawn from the same in-memory frames the CSVs are written from, so re-running the pipeline is the only step needed to refresh the preprint. Omit the flag to write tables only; `preprint_fig6.png` additionally needs `--likert-csv`.
 
 `--trials-dir` is scanned recursively, so pointing it at `data/experiment_logs` picks up every participant's trial CSVs from their `P01/`, `P02/`, ... subfolders in one pass — no need to run the pipeline per participant.
 
@@ -357,9 +359,9 @@ The pipeline lives in `analysis/`, one module per concern — see `analysis/__in
 
 > **Sensor fixture protection.** Commanding a full close against a rigid object that doesn't compress drives the jaws into it past the point of pure closing force — the excess torque has nowhere to go but into tilting the 9DTact sensor fixture, which has broken the mount a few times. Two mitigations, both retunable if it keeps happening on harder objects:
 > - **`MAX_POS`** (`kernel/gripper.py`) is capped at `195`, below the Robotiq's true mechanical closed position (`225`), leaving margin before jaw hard-stop.
-> - **`MAX_SAFE_DEPTH_MM`** (`run/experiment.py`, default `0.7`mm) is a runtime cutoff in `motion_loop`: once either sensor's `max_depth_mm` reaches this depth, the object has stopped compressing, and `motion_loop` blocks any *further* closing (opening is never blocked) until depth drops back down. It's set below `DEPTH_SATURATION_MM` (`kernel/tactile.py` — where haptic intensity saturates to 1.0) so it engages before the gel is fully bottomed out. A `[Safety] Max sensor depth reached ...` message prints to the console when it first engages.
+> - **`MAX_SAFE_DEPTH_MM`** (`run/experiment.py`, default `1.0`mm) is a runtime cutoff in `motion_loop`: once either sensor's `max_depth_mm` reaches this depth, the object has stopped compressing, and `motion_loop` blocks any *further* closing (opening is never blocked) until depth drops back down. It's set below `DEPTH_SATURATION_MM` (`kernel/tactile.py` — where haptic intensity saturates to 1.0) so it engages before the gel is fully bottomed out. A `[Safety] Max sensor depth reached ...` message prints to the console when it first engages.
 >
->   `DEPTH_SATURATION_MM` is now **per object class**: `2.0`mm for `fragile`, `0.6`mm for `deformable`. Deformable objects barely indent the gel and were hitting the `0.7`mm safety cutoff well before reaching the old single `2.0`mm saturation point — capping deformable-trial haptic intensity at ~0.35 and making the LRA/EM feedback feel weak regardless of grip force. The `0.6`mm deformable saturation point reaches full intensity with margin to spare below the safety cutoff. `TactileSensor.read(object_class=...)` (`kernel/tactile.py`) picks the saturation point; `SharedState.object_class` (`run/experiment.py`) mirrors `RecordingState.current_object` into shared memory so the sensor processes — which run separately from the keyboard thread — pick it up on the next tick after pressing `o`.
+>   `DEPTH_SATURATION_MM` is now **per object class**: `2.0`mm for `fragile`, `0.6`mm for `deformable`. Deformable objects barely indent the gel and were hitting the safety cutoff (`0.7`mm at the time, `1.0`mm now) well before reaching the old single `2.0`mm saturation point — capping deformable-trial haptic intensity at ~0.35 and making the LRA/EM feedback feel weak regardless of grip force. The `0.6`mm deformable saturation point reaches full intensity with margin to spare below the safety cutoff. `TactileSensor.read(object_class=...)` (`kernel/tactile.py`) picks the saturation point; `SharedState.object_class` (`run/experiment.py`) mirrors `RecordingState.current_object` into shared memory so the sensor processes — which run separately from the keyboard thread — pick it up on the next tick after pressing `o`.
 
 ### Hand Tracking (`kernel/tracking.py`)
 
@@ -468,7 +470,7 @@ latexmk -pdfdvi 01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.tex
 ```
 
 `-pdfdvi` builds via latex → dvips → ps2pdf rather than pdflatex, because all
-five preprint figures are named as `.eps` in `\includegraphics` (below) —
+six preprint figures are named as `.eps` in `\includegraphics` (below) —
 pdflatex cannot rasterise EPS on its own. `thesis.tex`, whose one figure is a
 PNG, still takes plain `latexmk -pdf`.
 
@@ -477,31 +479,33 @@ resolves those against your working directory rather than the `.tex` file's
 location. Compiling from the repo root does not error out — it silently drops
 both figures and still reports two pages.
 
-> **The preprint is strictly two pages at 20mm margins, and it fits with no room
-> to spare.** Leading is at `\linespread{0.91}`; 0.92 overflows the text block
-> and 0.93 spills to a third page. `includefoot` is what keeps the page number
-> inside the 20mm bottom margin instead of ~10mm from the paper edge. If you add
-> a sentence, recompile and check the page count before submitting.
+> **The preprint is strictly two pages at 20mm margins.** Leading is at
+> `\linespread{0.95}`; 0.97 still fits, 0.98 spills to a third page — so there is
+> roughly one notch of headroom, not none. Adding a figure eats far more of that
+> than adding a sentence does: the plates are the expensive part. Recompile and
+> check the page count before submitting.
 >
 > Its geometry is also load-bearing for the figures: `COLUMN_WIDTH_IN` in
 > `analysis/preprint_figs.py` is derived from a4paper at 20mm margins with 6mm
-> `columnsep`, so all five preprint figures are drawn to sit 1:1 at
+> `columnsep`, so all six preprint figures are drawn to sit 1:1 at
 > `\includegraphics[width=\columnwidth]`. Change the margins or `columnsep` and
 > you have to re-derive that constant, or the figure text starts scaling.
 
-All five figures the preprint includes come from `analysis/preprint_figs.py`,
+All six figures the preprint includes come from `analysis/preprint_figs.py`,
 each written as both `.eps` and `.png` (the `.tex` names the `.eps`):
 
-- `preprint_fig1` (system data flow), `preprint_fig2` (hardware plate), and
-  `preprint_fig3` (method flow) are hand-authored, not generated from trial
-  data. `preprint_fig2`'s callouts are drawn over the label-free photo crops in
+- `preprint_fig1` (system data flow), `preprint_fig2` (hardware plate),
+  `preprint_fig3` (method flow) and `preprint_fig4` (the two object classes)
+  are hand-authored, not generated from trial
+  data. `preprint_fig2`'s and `preprint_fig4`'s callouts are drawn over the
+  label-free photo crops in
   `thesis/figures/photos/` — edit the script rather than the photos, and keep
-  labels out of the photos themselves, which is what keeps the plate's type
-  and rules matching the other two diagrams. Regenerate all three with:
+  labels out of the photos themselves, which is what keeps the plates' type
+  and rules matching the other two diagrams. Regenerate all four with:
   ```bash
   python -m analysis.preprint_figs
   ```
-- `preprint_fig4` and `preprint_fig5` are drawn from the same in-memory frames
+- `preprint_fig5` and `preprint_fig6` are drawn from the same in-memory frames
   the CSVs are written from, so a figure can never disagree with the table
   beside it. Regenerate them from the analysis pipeline
   (`--preprint-figures thesis/figures`, see [Experiment](#experiment)) rather
@@ -509,7 +513,7 @@ each written as both `.eps` and `.png` (the `.tex` names the `.eps`):
 
 The rest of `analysis/visualization.py` (Section 5.5's time-series figures) is
 unrelated to the preprint and was split out when this file was still called
-`figures.py`, to keep the preprint's five figures in one place.
+`figures.py`, to keep the preprint's six figures in one place.
 
 ---
 

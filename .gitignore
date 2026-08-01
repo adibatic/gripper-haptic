@@ -227,6 +227,7 @@ thesis/*.nav
 thesis/*.snm
 thesis/*.vrb
 thesis/*-eps-converted-to.pdf
+thesis/figures/*-eps-converted-to.pdf
 thesis/*.xml
 thesis/*.pdf
 

@@ -30,7 +30,7 @@
 \begin{document}
 \pagestyle{empty}
 
-\textline[t]{\,\,}{Preprint of graduation study}{Jul. 28, 2026}
+\textline[t]{\,\,}{Preprint of graduation study}{Aug. 3, 2026}
 \vspace{0.1\baselineskip}
 \begin{flushright}
   \begin{tabular}{@{}ll@{}}
@@ -52,116 +52,128 @@
   is missing, and the user can only guess whether the grip is too loose to hold the object or
   firm enough to break it.
 
-  The common solution is a wearable \emph{haptic actuator}, a device that reproduces that sense via
-  vibrations or forces applied to the skin (Patel et al., 2025), but research comparing different
-  actuators is limited, with most studies instead asking whether feedback improves performance over
-  no feedback at all (Thomas et al., 2019). We tackle both questions at once: does touch feedback help users grasp specific types of
-  objects, and does it matter which actuator delivers that feedback?
+  The common solution is to have the user wear a \emph{haptic actuator}, a device that reproduces that
+  sense via vibrations or forces applied to the skin (Patel et al., 2025), but most research focuses on
+  the effect of a single type of actuator on performance (Thomas et al., 2019). We ask both: does touch
+  feedback help grasp specific objects, and does the actuator type matter?
 
   \section{System}
 
-  \begin{tightcenter}
-    \includegraphics[width=0.95\columnwidth]{preprint_fig1.eps}
-    \captionof{figure}{Signal flow of the experimental setup. The PC translates pixel distance
-      between the thumb and index finger into gripper position command, and touch sensor data into
-      a normalized intensity value between $0$ and $1$.}
-    \label{fig:signalflow}
-  \end{tightcenter}
-
-  The system setup is detailed in Figs.~\ref{fig:signalflow} and \ref{fig:hardware}. Two actuator types
-  are compared in this study: a \emph{linear resonant actuator (LRA)}, a small motor that vibrates
-  along one axis, like the kind used in smartphones (Pacchierotti et al., 2017), and an
-  \emph{electromagnetic actuator (EM)} adapted from (Vechev et al., 2019). Where each actuator
-  sits was simply carried over from earlier work.
+  Figs.~\ref{fig:hardware} and \ref{fig:signalflow} depict the system setup. A two-finger gripper,
+  equipped with gel-based touch sensors (Lin et al., 2023), is controlled in real time by the
+  user's pinching motion, using their thumb and index finger.
 
   \begin{tightcenter}
-    \includegraphics[width=0.95\columnwidth]{preprint_fig2.eps}
-    \captionof{figure}{Hardware components of the experimental setup. (a) User and gripper
-      apparatus as grouped in Fig.~\ref{fig:signalflow}. (b) LRA and EM actuator type connected
-      to the wearable device.}
+    \includegraphics[width=\columnwidth]{preprint_fig2.eps}
+    \captionof{figure}{Hardware components. (a) User and gripper
+      apparatus as grouped in Fig.~\ref{fig:signalflow}. (b) LRA and EM actuator types.}
     \label{fig:hardware}
   \end{tightcenter}
 
+  \begin{tightcenter}
+    \includegraphics[width=\columnwidth]{preprint_fig1.eps}
+    \captionof{figure}{Signal flow.}
+    \label{fig:signalflow}
+  \end{tightcenter}
+
+  Two actuator types are compared in this study. The first is a \emph{linear resonant actuator (LRA)},
+  a small motor that vibrates along one axis, like the kind used in smartwatches (Pacchierotti et al., 2017);
+  the second is an \emph{electromagnetic actuator (EM)} adapted from Vechev et al. (2019).
+
   \section{Method}
 
+  Fig.~\ref{fig:methodflow} lays out the experiment workflow for all $N=22$ participants.
+
   \begin{tightcenter}
-    \includegraphics[width=0.95\columnwidth]{preprint_fig3.eps}
-    \captionof{figure}{The experiment, start to finish.}
+    \includegraphics[width=\columnwidth]{preprint_fig3.eps}
+    \captionof{figure}{Flowchart of the experiment.}
     \label{fig:methodflow}
   \end{tightcenter}
 
-  Participants grasped two classes of object: \emph{fragile} ones, which break suddenly when
-  squeezed too hard, and \emph{deformable} ones, which instead change shape gradually.
-  Fig.~\ref{fig:methodflow} walks through the experiment: what each participant did, how many
-  trials that produced, what we measured from each one, and how we compared conditions
-  afterward. ``Excess force'' means squeezing that continued after the dent had already
-  stopped getting deeper, wasted effort since intensity depends only on depth, not force.
+  Each touch sensor reports two quantities: \emph{deformation volume}, an uncalibrated proxy for
+  grip force in arbitrary units (a.u.), and \emph{dent depth} in millimetres, which is mapped to a
+  0-to-1 haptic intensity scale. Once depth plateaus, further squeezing changes nothing the user feels; we
+  call that wasted effort \emph{excess deformation}. \emph{Grip adjustments} count how often a
+  participant alternated between squeezing and easing off after the plateau, a sign of searching
+  for the right grip rather than holding steady.
+
+  \begin{tightcenter}
+    \includegraphics[width=\columnwidth]{preprint_fig4.eps}
+    \captionof{figure}{Object classes. (a) A hollow plastic egg. (b) The same egg with
+      separated halves. (c) A foam cube.}
+    \label{fig:objects}
+  \end{tightcenter}
+
+  Participants grasped two classes of object, as shown in Fig.~\ref{fig:objects}. \emph{Fragile} objects
+  break suddenly when squeezed too hard, whereas \emph{deformable} ones change shape gradually and
+  never break at all.
 
   \section{Results}
 
   \begin{tightcenter}
-    \includegraphics[width=0.95\columnwidth]{preprint_fig4.eps}
-    \captionof{figure}{Fragile objects. (a) How often the object survived, 110 trials per
-      condition. (b) Excess force per participant (log scale, $+1$).}
-    \label{fig:results}
-  \end{tightcenter}
-
-  Touch feedback clearly helped with fragile objects (Fig.~\ref{fig:results},
-  Table~\ref{tab:quant}). With feedback, people stopped over-squeezing almost immediately:
-  excess force dropped roughly ninefold with the LRA and sixfold with the EM, and they needed
-  much less trial-and-error to find the right grip, from a median of 7 reversals down to 5 and
-  2. That translated into fewer breakages, too, with survival rising from 62\% under vision
-  alone to 81\% and 78\% with the two actuators. Deformable objects told a different story:
-  since they barely dent the gel and never break outright, feedback made no reliable
-  difference there. Participants felt the benefit as well, rating both haptic conditions far
-  above vision only, especially for feeling how hard they were gripping and for confidence in
-  the grasp (Fig.~\ref{fig:likert}a); asked to pick a favorite, 17 of 22 chose the LRA, though
-  no single measure could tell the two actuators apart (Fig.~\ref{fig:likert}b).
-
-  \begin{tightcenter}
     \begin{minipage}{\columnwidth}
-      \captionof{table}{Typical (median) values on fragile objects, $N=22$. V = vision only.
-        Survival rate and force reversals were the most reliable improvements; peak dent depth
-        is capped by the 1.0~mm safety cutoff.}
+      \captionof{table}{Results for fragile objects, by condition (V = vision only). The first four rows
+        show each metric's typical (median) value for a participant (lower is better). The last row is the
+        percentage of all 110 trials that survived. Peak dent depth barely differs across conditions because
+        the 1.0~mm safety cutoff caps it before any real difference could show.}
       \label{tab:quant}
       \scriptsize
       \centering
       \begin{tabular}{@{}lrrr@{}}
         \toprule
-        Metric                 & V     & LRA   & EM    \\
+                                       & V     & LRA   & EM    \\
         \midrule
-        Peak grip force (a.u.) & 20100 & 12300 & 16000 \\
-        Excess force (a.u.)    & 1530  & 170   & 260   \\
-        Force reversals (\#)   & 7.0   & 5.0   & 2.0   \\
-        Survival rate          & 0.60  & 0.80  & 0.90  \\
-        Peak dent depth (mm)   & 0.98  & 0.95  & 0.98  \\
+        Peak deformation volume (a.u.) & 20100 & 12300 & 16000 \\
+        Excess deformation (a.u.)      & 1530  & 170   & 260   \\
+        Grip adjustments (\#)          & 7     & 5     & 2     \\
+        Peak dent depth (mm)           & 0.98  & 0.95  & 0.98  \\
+        \midrule
+        Objects surviving (\%)         & 62    & 81    & 78    \\
         \bottomrule
       \end{tabular}
     \end{minipage}
   \end{tightcenter}
 
   \begin{tightcenter}
-    \includegraphics[width=0.95\columnwidth]{preprint_fig5.eps}
-    \captionof{figure}{Participant ratings ($n=22$). (a) Ratings per item (spread, individual
-      points, median) compared against vision only; stars mark differences judged
-      statistically reliable. (b) Which condition was preferred.}
+    \includegraphics[width=\columnwidth]{preprint_fig5.eps}
+    \captionof{figure}{Objective results. (a) How often the object survived, with 110 trials per condition.
+      (b) Excess deformation per participant (a.u., log scale, $+1$).}
+    \label{fig:results}
+  \end{tightcenter}
+
+  \textbf{Objective results} (Tab.~\ref{tab:quant}, Fig.~\ref{fig:results}): For fragile objects, touch feedback reliably
+  cut excess deformation with the LRA (roughly ninefold) and grip adjustments with the EM, while survival rose from
+  62\% with vision only to 81\% with the LRA and 78\% with the EM. Deformable objects showed no reliable change in
+  dents or breakage.
+
+  \textbf{Subjective results} (Fig.~\ref{fig:likert}): Participants significantly preferred touch feedback over vision
+  only, especially for feeling grip force and grasp confidence. The LRA was the clear favorite, but no single survey
+  question reliably told the two actuators apart.
+
+  \begin{tightcenter}
+    \includegraphics[width=\columnwidth]{preprint_fig6.eps}
+    \captionof{figure}{Subjective results. (a) Item-by-item ratings vs.
+      vision only, $N=22$; more star marks indicate higher statistical reliability. (b)
+      Each condition's share of favorite picks.}
     \label{fig:likert}
   \end{tightcenter}
 
   \section{Discussion}
 
   The main limitations are the fixed trial order, which may have introduced practice or
-  fatigue effects; the confound between the two actuators, which differ in technology,
-  mounting position, and how well hand tracking worked, so any preference between them may
-  reflect smoother control rather than a better sensation; 2D and uncalibrated hand tracking;
-  grip force measured as a proxy rather than in newtons; and an end-to-end delay that still
-  needs a bench measurement. Future work will balance the order, mount both actuators in the
-  same place, calibrate against a load cell, and send a spatial feedback pattern rather than
-  one number per finger.
+  fatigue effects; the two actuators differing in several ways at once, including how they physically
+  work, where they are placed on the hand, and how well hand tracking worked, so any preference may
+  reflect smoother control rather than a better sensation; 2D and uncalibrated hand tracking; grip
+  force inferred from deformation volume rather than measured in newtons; dent depth resting on a
+  single-ball sensor calibration that was never checked against an independent gauge, so its
+  millimetre scale carries unquantified error; and an end-to-end delay still needing a bench
+  measurement.
+  Future work can explore using spatial feedback information instead of a single intensity value per
+  finger.
 
   \section{Conclusion}
 
-  Tactile feedback made grasping fragile objects safer, while a larger, better-controlled
+  Touch feedback made grasping fragile objects safer, while a larger, better-controlled
   study is needed to tell the two actuators apart.
 
   \section{References}
@@ -176,13 +188,12 @@
     prosthesis. \textit{Journal of NeuroEngineering and Rehabilitation},
     \textit{16}(1), 73. \url{https://doi.org/10.1186/s12984-019-0545-5}
 
-    \noindent\hangindent=1em Johansson, R. S., \& Flanagan, J. R. (2009). Coding and use of
-    tactile signals from the fingertips in object manipulation tasks. \textit{Nature Reviews
-      Neuroscience, 10}(5), 345--359.
+    \noindent\hangindent=1em Lin, C., Zhang, H., Xu, J., Wu, L., \& Xu, H. (2023).
+    9DTact: A compact vision-based tactile sensor for accurate 3D shape
+    reconstruction and generalizable 6D force estimation.
+    \textit{IEEE Robotics and Automation Letters, 9}, 923--930.
+    \url{https://doi.org/10.1109/LRA.2023.3339397}
 
-    \noindent\hangindent=1em Lin, C., Zhang, H., Xu, J., Wu, L., \& Xu, H. (2023). 9DTact: A
-    compact vision-based tactile sensor for accurate 3D shape reconstruction and generalizable
-    6D force estimation. \textit{arXiv preprint arXiv:2308.14277}.
 
     \noindent\hangindent=1em Pacchierotti, C., Sinclair, S., Solazzi, M., Frisoli, A.,
     Hayward, V., \& Prattichizzo, D. (2017). Wearable haptic systems for the fingertip and the
