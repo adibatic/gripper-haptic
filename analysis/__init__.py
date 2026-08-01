@@ -33,8 +33,8 @@ Module map:
     survival.py     5.4/5.7  fragile-object survival (paired binary outcome)
     likert.py       5.6  qualitative survey
     visualization.py     5.5  time-series figures
-    preprint_figs.py     every figure the preprint includes (fig1-3 hand-
-                          authored, fig4-5 drawn from trial data here)
+    preprint_figs.py     every figure the preprint includes (fig1-4 hand-
+                          authored, fig5-6 drawn from trial data here)
     __main__.py          CLI entry point
 """
 
