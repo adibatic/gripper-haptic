@@ -7,6 +7,7 @@ modes.
 """
 
 import os
+import sys
 import argparse
 
 from .trials import load_all_trials, reduce_to_participant_condition_object
@@ -19,7 +20,15 @@ from .survival import (write_fragile_breakage_summary, mcnemar_fragile_survival,
                        write_fragile_survival_tests_report)
 from .likert import analyze_likert
 from .visualization import plot_representative_trials
-from .preprint_figs import plot_preprint_results, plot_preprint_likert
+
+# preprint_fig5/6 live in thesis/build_preprint_figs.py (moved there since
+# they are preprint, not analysis, deliverables) alongside the four
+# hand-authored preprint figures — not a package, so import by path.
+_THESIS_DIR = os.path.join(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))), "thesis")
+if _THESIS_DIR not in sys.path:
+    sys.path.insert(0, _THESIS_DIR)
+from build_preprint_figs import plot_preprint_results, plot_preprint_likert
 
 
 # ---------------------------------------------------------------------------

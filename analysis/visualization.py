@@ -2,7 +2,7 @@
 Section 5.5 time-series visualisation.
 
 The two preprint figures that also come out of the analysis pipeline
-(survival + overshoot, Likert ratings) live in analysis/preprint_figs.py
+(survival + overshoot, Likert ratings) live in thesis/build_preprint_figs.py
 alongside the other three, hand-authored preprint figures — see that
 module's docstring.
 """

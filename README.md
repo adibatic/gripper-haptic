@@ -41,6 +41,7 @@ gripper-haptic/
 ├── thesis/
 │   ├── thesis.tex              # The manuscript
 │   ├── 01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.tex   # Two-page preprint
+│   ├── build_preprint_figs.py  # Draws all six preprint figures (see Writing & Manuscript)
 │   ├── figures/                # Preprint/thesis figures (photos/ holds the fig2 crops)
 │   └── references.bib
 ├── src/                    # Vendored, not in the repo — see Setup
@@ -486,12 +487,12 @@ both figures and still reports two pages.
 > check the page count before submitting.
 >
 > Its geometry is also load-bearing for the figures: `COLUMN_WIDTH_IN` in
-> `analysis/preprint_figs.py` is derived from a4paper at 20mm margins with 6mm
-> `columnsep`, so all six preprint figures are drawn to sit 1:1 at
+> `thesis/build_preprint_figs.py` is derived from a4paper at 20mm margins with
+> 6mm `columnsep`, so all six preprint figures are drawn to sit 1:1 at
 > `\includegraphics[width=\columnwidth]`. Change the margins or `columnsep` and
 > you have to re-derive that constant, or the figure text starts scaling.
 
-All six figures the preprint includes come from `analysis/preprint_figs.py`,
+All six figures the preprint includes come from `thesis/build_preprint_figs.py`,
 each written as both `.eps` and `.png` (the `.tex` names the `.eps`):
 
 - `preprint_fig1` (system data flow), `preprint_fig2` (hardware plate),
@@ -503,7 +504,7 @@ each written as both `.eps` and `.png` (the `.tex` names the `.eps`):
   labels out of the photos themselves, which is what keeps the plates' type
   and rules matching the other two diagrams. Regenerate all four with:
   ```bash
-  python -m analysis.preprint_figs
+  python thesis/build_preprint_figs.py
   ```
 - `preprint_fig5` and `preprint_fig6` are drawn from the same in-memory frames
   the CSVs are written from, so a figure can never disagree with the table
@@ -513,7 +514,12 @@ each written as both `.eps` and `.png` (the `.tex` names the `.eps`):
 
 The rest of `analysis/visualization.py` (Section 5.5's time-series figures) is
 unrelated to the preprint and was split out when this file was still called
-`figures.py`, to keep the preprint's six figures in one place.
+`figures.py`, to keep the preprint's six figures in one place. That split now
+also runs along the analysis/thesis package boundary: `visualization.py`
+stays in `analysis/` because Section 5.5 is analysis output, while
+`build_preprint_figs.py` moved to `thesis/` because all six of its figures
+are preprint deliverables — `analysis/__main__.py` imports the two
+data-driven ones from there for `--preprint-figures`.
 
 ---
 
