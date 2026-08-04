@@ -6,17 +6,18 @@ preprint_fig1 (system data flow), preprint_fig2 (hardware plate),
 preprint_fig3 (method flow) and preprint_fig4 (object plate) are
 hand-authored, not generated from trial data — fig2's and fig4's callouts are
 drawn over the label-free photo crops in thesis/figures/photos/. Run this
-module directly to (re)draw them — it needs -m since it imports CONDITIONS
-from the package:
+module directly to (re)draw them, from anywhere (it locates the repo root
+itself to reach both thesis/figures/ and the analysis package):
 
-    python -m analysis.preprint_figs
+    python thesis/build_preprint_figs.py
 
 preprint_fig5 (fragile survival + excess deformation) and preprint_fig6
 (subjective ratings + favorite picks) ARE generated from trial data — they are
 drawn from the same in-memory frames the analysis pipeline writes its CSVs
 from, so a figure can never drift from the table beside it. They are plotted
-by the pipeline itself (python -m analysis --preprint-figures DIR), not by
-running this file.
+by the pipeline itself (python -m analysis --preprint-figures DIR), which
+imports plot_preprint_results/plot_preprint_likert from this file rather than
+running it.
 
 All six are drawn at exactly COLUMN_WIDTH_IN so \\includegraphics[width=
 \\columnwidth] scales them 1:1. Drawing wider and letting LaTeX shrink to fit
@@ -32,6 +33,7 @@ EPS without epstopdf).
 """
 
 import os
+import sys
 
 import numpy as np
 import matplotlib
@@ -39,9 +41,14 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 
-from . import CONDITIONS
-
+# This file lives in thesis/, a sibling of the analysis package, not inside
+# it — so CONDITIONS needs an absolute import with the repo root on the path,
+# not the package-relative one this module used before it moved.
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+from analysis import CONDITIONS
+
 OUT = os.path.join(REPO_ROOT, "thesis", "figures")
 
 GRAY = "#9e9e9e"

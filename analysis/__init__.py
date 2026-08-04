@@ -21,7 +21,8 @@ The tests are rank-based, so sum and mean give identical p-values — only sum_n
 vs max can reorder trials. Run both and confirm the findings agree.
 
 --preprint-figures additionally draws the two figures thesis/preprint.tex
-includes, from the same frames the CSVs are written from.
+includes, from the same frames the CSVs are written from — plotted by
+thesis/build_preprint_figs.py, imported here rather than run directly.
 
 Section 5.2 (latency) is NOT computed here — it needs a separate bench
 measurement; the ~30 Hz trial CSV cannot capture true sensor-to-actuator latency.
@@ -33,9 +34,11 @@ Module map:
     survival.py     5.4/5.7  fragile-object survival (paired binary outcome)
     likert.py       5.6  qualitative survey
     visualization.py     5.5  time-series figures
-    preprint_figs.py     every figure the preprint includes (fig1-4 hand-
-                          authored, fig5-6 drawn from trial data here)
     __main__.py          CLI entry point
+
+thesis/build_preprint_figs.py (not in this package) draws every figure the
+preprint includes — fig1-4 hand-authored, fig5-6 from trial data, imported
+by __main__.py for --preprint-figures.
 """
 
 CONDITIONS = ["visual_only", "lra", "tactiles"]
