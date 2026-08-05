@@ -1,4 +1,4 @@
 condition,n_trials,n_success,n_break,success_rate
 visual_only,110,68,42,0.6182
 lra,110,89,21,0.8091
-tactiles,110,86,24,0.7818
+em,110,86,24,0.7818

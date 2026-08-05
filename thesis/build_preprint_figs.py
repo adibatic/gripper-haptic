@@ -537,10 +537,10 @@ def draw_object_plate():
 # pipeline (python -m analysis --preprint-figures DIR), not by __main__ below.
 # ---------------------------------------------------------------------------
 
-LABELS = {"visual_only": "Visual\nonly", "lra": "LRA", "tactiles": "EM"}
+LABELS = {"visual_only": "Visual\nonly", "lra": "LRA", "em": "EM"}
 
 
-COLORS = {"visual_only": GRAY, "lra": BLUE, "tactiles": RED}
+COLORS = {"visual_only": GRAY, "lra": BLUE, "em": RED}
 
 
 def _blend(color, alpha, background="white"):
@@ -570,7 +570,7 @@ PREPRINT_PREFERENCES = [("preferred_overall", "Preferred\noverall"),
 
 
 # Condition offsets within one item group in the ratings panel.
-_OFFSETS = {"visual_only": -0.26, "lra": 0.0, "tactiles": 0.26}
+_OFFSETS = {"visual_only": -0.26, "lra": 0.0, "em": 0.26}
 
 
 def _stars(p):
@@ -697,7 +697,7 @@ def plot_preprint_likert(long_df, holm_by_pair, preference, out_dir):
             ax_a.plot([centre - 0.09, centre + 0.09], [np.median(values)] * 2,
                       "-", color="black", lw=0.9, zorder=4)
 
-        for level, condition in enumerate(["lra", "tactiles"]):
+        for level, condition in enumerate(["lra", "em"]):
             p = holm_by_pair.get((item, f"visual_only_vs_{condition}"))
             if p is None:
                 continue

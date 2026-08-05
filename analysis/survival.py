@@ -49,8 +49,8 @@ def write_fragile_breakage_summary(trial_df, out_dir):
 def mcnemar_fragile_survival(reduced_df):
     """Section 5.4 (fragile only): exact McNemar test on fragile_survived —
     the statistically correct test for paired binary outcomes across two
-    conditions (Wilcoxon, used for the other four Section 5.1 metrics, is
-    not appropriate for a 0/1 outcome).
+    conditions (Wilcoxon, used for the continuous metrics, is not
+    appropriate for a 0/1 outcome).
 
     Requires each participant to have an UNAMBIGUOUS binary outcome per
     condition (both fragile reps agreeing on success or break). Participants
@@ -66,17 +66,17 @@ def mcnemar_fragile_survival(reduced_df):
     """
     sub = reduced_df[reduced_df["object"] == "fragile"]
     pivot = sub.pivot(index="participant", columns="condition", values="fragile_survived")
-    complete = pivot.dropna(subset=["lra", "tactiles"], how="any")
+    complete = pivot.dropna(subset=["lra", "em"], how="any")
 
     n_dropped = len(pivot) - len(complete)
     if n_dropped > 0:
         print(f"NOTE: fragile_survived McNemar: dropping {n_dropped} participant(s) "
-              f"missing lra or tactiles.")
+              f"missing lra or em.")
 
-    ambiguous = complete[(complete["lra"] == 0.5) | (complete["tactiles"] == 0.5)]
+    ambiguous = complete[(complete["lra"] == 0.5) | (complete["em"] == 0.5)]
     if len(ambiguous) > 0:
         print(f"NOTE: fragile_survived McNemar: dropping {len(ambiguous)} participant(s) "
-              f"whose two fragile reps disagreed (median 0.5) under lra or tactiles — "
+              f"whose two fragile reps disagreed (median 0.5) under lra or em — "
               f"McNemar needs one binary classification per participant per condition.")
     complete = complete.drop(ambiguous.index)
 
@@ -86,14 +86,14 @@ def mcnemar_fragile_survival(reduced_df):
         return None
 
     lra = complete["lra"].to_numpy()
-    tactiles = complete["tactiles"].to_numpy()
+    em = complete["em"].to_numpy()
 
-    # Discordant pairs: b = survived under lra but not tactiles, c = reverse.
-    b = int(np.sum((lra == 1.0) & (tactiles == 0.0)))
-    c = int(np.sum((lra == 0.0) & (tactiles == 1.0)))
+    # Discordant pairs: b = survived under lra but not em, c = reverse.
+    b = int(np.sum((lra == 1.0) & (em == 0.0)))
+    c = int(np.sum((lra == 0.0) & (em == 1.0)))
 
     if b + c == 0:
-        print("NOTE: fragile_survived McNemar: no discordant pairs (lra and tactiles "
+        print("NOTE: fragile_survived McNemar: no discordant pairs (lra and em "
               "always agree) — p is undefined, reporting p=1.0.")
         return {"n": len(complete), "b": b, "c": c, "p": 1.0}
 
@@ -102,13 +102,13 @@ def mcnemar_fragile_survival(reduced_df):
 
 
 def write_fragile_mcnemar_report(result, out_dir):
-    """Writes the McNemar result for fragile_survived (lra vs tactiles) to
+    """Writes the McNemar result for fragile_survived (lra vs em) to
     section_5_4_fragile_mcnemar.csv — a separate file from
-    section_5_4_lra_vs_tactiles.csv since the test/statistic differ."""
+    section_5_4_lra_vs_em.csv since the test/statistic differ."""
     path = os.path.join(out_dir, "section_5_4_fragile_mcnemar.csv")
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["n", "b_lra_survived_only", "c_tactiles_survived_only", "mcnemar_p"])
+        writer.writerow(["n", "b_lra_survived_only", "c_em_survived_only", "mcnemar_p"])
         if result is None:
             writer.writerow(["", "", "", ""])
         else:
@@ -120,7 +120,7 @@ def write_fragile_mcnemar_report(result, out_dir):
 # Section 5.7 (inferential) — Fragile survival across ALL THREE conditions
 #
 # section_5_7_fragile_breakage.csv (above) reports raw counts only, and the
-# Section 5.4 McNemar tests lra vs tactiles alone. The headline contrast of
+# Section 5.4 McNemar tests lra vs em alone. The headline contrast of
 # the study — vision-only vs haptic breakage — had no significance test, so
 # this block adds one, at two levels:
 #
@@ -183,7 +183,7 @@ def _fragile_survival_binary(reduced_df, conditions):
     return complete, n_incomplete, n_ambiguous
 
 
-PAIRS = [("visual_only", "lra"), ("visual_only", "tactiles"), ("lra", "tactiles")]
+PAIRS = [("visual_only", "lra"), ("visual_only", "em"), ("lra", "em")]
 
 
 def _rate_level_survival(trial_df):
@@ -203,20 +203,20 @@ def _rate_level_survival(trial_df):
     cols = [rates[c].to_numpy() for c in CONDITIONS]
     fr_stat, fr_p = stats.friedmanchisquare(*cols)
 
-    raw, stats_ = [], []
+    raw, w_stats = [], []
     for a_name, b_name in PAIRS:
         a, b = rates[a_name].to_numpy(), rates[b_name].to_numpy()
         if np.all(a - b == 0):
             print(f"WARNING: fragile survival rate: {a_name} vs {b_name} has zero "
                   f"variance in paired differences — Wilcoxon undefined, skipping pair.")
-            stats_.append(None)
+            w_stats.append(None)
             raw.append(1.0)
             continue
         w_stat, w_p = stats.wilcoxon(a, b)
-        stats_.append(w_stat)
+        w_stats.append(w_stat)
         raw.append(w_p)
     holm = holm_bonferroni(raw)
-    pairwise = [(a, b, stats_[i], raw[i], holm[i]) for i, (a, b) in enumerate(PAIRS)]
+    pairwise = [(a, b, w_stats[i], raw[i], holm[i]) for i, (a, b) in enumerate(PAIRS)]
 
     return {
         "n": len(rates),
@@ -259,7 +259,7 @@ def _binary_level_survival(reduced_df):
 def fragile_survival_across_conditions(trial_df, reduced_df):
     """Section 5.7 (inferential): test fragile survival across all three
     conditions — the study's headline contrast, which the count-only
-    breakage table and the lra-vs-tactiles McNemar never tested. Runs the
+    breakage table and the lra-vs-em McNemar never tested. Runs the
     rate-level test (primary) and the binary majority-vote test
     (conservative). Returns {"rate": ..., "binary": ...}."""
     return {"rate": _rate_level_survival(trial_df),
@@ -276,31 +276,34 @@ def write_fragile_survival_tests_report(result, out_dir):
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["level", "n", "omnibus_test", "omnibus_stat", "omnibus_dof",
-                          "omnibus_p", "comparison", "pairwise_test",
+                          "omnibus_p", "comparison", "pairwise_test", "pairwise_stat",
                           "a_survived_only", "b_survived_only", "pairwise_p", "holm_p"])
 
         if rate is not None:
             med = ";".join(f"{c}={rate['medians'][c]:.3f}" for c in CONDITIONS)
             for a_name, b_name, w_stat, raw_p, holm_p in rate["pairwise"]:
                 writer.writerow([
-                    "rate", rate["n"], "friedman", f"{rate['friedman_stat']:.4f}", 2,
+                    "rate", rate["n"], "friedman", f"{rate['friedman_stat']:.4f}",
+                    len(CONDITIONS) - 1,
                     f"{rate['friedman_p']:.4f}", f"{a_name}_vs_{b_name}", "wilcoxon",
-                    "", "",
+                    f"{w_stat:.4f}" if w_stat is not None else "", "", "",
                     f"{raw_p:.4f}", f"{holm_p:.4f}",
                 ])
             writer.writerow(["rate_medians", rate["n"], "", "", "", "", med,
-                             "", "", "", "", ""])
+                             "", "", "", "", "", ""])
         else:
-            writer.writerow(["rate", "", "friedman", "", "", "", "", "", "", "", "", ""])
+            writer.writerow(["rate", "", "friedman", "", "", "", "", "", "", "", "", "", ""])
 
         if binary is not None:
+            # McNemar's statistic IS the discordant pair counts, already in the
+            # a_survived_only/b_survived_only columns — no separate stat.
             for a_name, b_name, a_only, b_only, raw_p, holm_p in binary["pairwise"]:
                 writer.writerow([
                     "binary", binary["n"], "cochran_q", f"{binary['cochran_q']:.4f}",
                     binary["cochran_dof"], f"{binary['cochran_p']:.4f}",
-                    f"{a_name}_vs_{b_name}", "mcnemar", a_only, b_only,
+                    f"{a_name}_vs_{b_name}", "mcnemar", "", a_only, b_only,
                     f"{raw_p:.4f}", f"{holm_p:.4f}",
                 ])
         else:
-            writer.writerow(["binary", "", "cochran_q", "", "", "", "", "", "", "", "", ""])
+            writer.writerow(["binary", "", "cochran_q", "", "", "", "", "", "", "", "", "", ""])
     print(f"Wrote {path}")

@@ -1,21 +1,8 @@
 """
-setup.py
-
-Per-sensor tooling for one 9DTact sensor. Run from the repo root:
-
     python run/setup.py calibrate-camera --side {left,right}   # 1: grid calibration
     python run/setup.py calibrate-sensor --side {left,right}   # 2: depth calibration
     python run/setup.py reconstruct      --side {left,right}   # 3: live viewer
     python run/setup.py calibrate-force  --side {left,right}   # 4: fit proxy -> Newtons
-
-Steps 1 and 2 delegate to 9DTact's own CameraCalibration / SensorCalibration;
-this file adds the per-side plumbing and verifies the result afterwards, since
-a truncated crop or an all-NaN depth table otherwise passes silently.
-
-The force proxy itself (grab_height_map / capture_baseline / compute_metrics)
-lives in kernel/tactile.py, shared with experiment.py.
-
-`--side both` for reconstruct is broken (OpenCV/Qt threading) — use two terminals.
 """
 
 # =============================================================================

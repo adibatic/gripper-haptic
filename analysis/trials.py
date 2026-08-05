@@ -19,7 +19,7 @@ import pandas as pd
 # Matches experiment.py's filename schema:
 # <participant>_<condition>_<object>_trial<N>.csv
 FNAME_RE = re.compile(
-    r"^(?P<participant>[^_]+)_(?P<condition>visual_only|lra|tactiles)_"
+    r"^(?P<participant>[^_]+)_(?P<condition>visual_only|lra|em)_"
     r"(?P<object>fragile|deformable)_trial(?P<trial>\d+)"
     r"(?:_(?P<outcome>success|break))?\.csv$"
 )
@@ -38,7 +38,7 @@ def find_trial_csvs(trials_dir):
 
 def combined_series(df, collapse):
     """Collapse experiment.py's per-side columns into one force + one depth
-    series for a trial (see the module docstring's SENSOR COMBINATION note).
+    series for a trial.
 
     Args:
         df: One trial's DataFrame (left_/right_ schema from experiment.py).

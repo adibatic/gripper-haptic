@@ -12,8 +12,8 @@ import argparse
 
 from .trials import load_all_trials, reduce_to_participant_condition_object
 from .comparisons import (friedman_and_pairwise, write_cross_condition_report,
-                          lra_vs_tactiles, write_lra_vs_tactiles_report,
-                          lra_vs_tactiles_tost, write_tost_equivalence_report)
+                          lra_vs_em, write_lra_vs_em_report,
+                          lra_vs_em_tost, write_tost_equivalence_report)
 from .survival import (write_fragile_breakage_summary, mcnemar_fragile_survival,
                        write_fragile_mcnemar_report,
                        fragile_survival_across_conditions,
@@ -37,9 +37,10 @@ from build_preprint_figs import plot_preprint_results, plot_preprint_likert
 
 def main():
     """Parses args and runs the full Chapter 5 pipeline: loads and reduces
-    trial data (5.1), cross-condition and LRA-vs-TacTiles comparisons
-    (5.3/5.4), representative time-series figures (5.5), and — if
-    --likert-csv is given — the survey analysis (5.6)."""
+    trial data (5.1), cross-condition and LRA-vs-EM comparisons (5.3/5.4),
+    fragile survival (5.7), TOST equivalence (5.9), representative
+    time-series figures (5.5), and — if --likert-csv is given — the survey
+    analysis (5.6)."""
     parser = argparse.ArgumentParser(description="Run thesis Chapter 5 analysis on real trial data.")
     parser.add_argument("--trials-dir", required=True, help="Directory of trial CSVs from experiment.py.")
     parser.add_argument("--likert-csv", default=None, help="Path to the raw Google Forms Likert "
@@ -87,31 +88,34 @@ def main():
     print(f"Wrote {os.path.join(args.out, 'section_5_1_reduced_metrics.csv')} "
           f"({len(reduced_df)} participant x condition x object rows)")
 
+    # Four Section 5.1 metrics, then the three Section 5.8 trajectory-shape
+    # metrics; every comparison below runs over all seven.
+    all_metrics = ["peak_force_proxy", "peak_depth_mm", "time_to_first_contact_s",
+                   "force_overshoot_proxy",
+                   "approach_rate_mm_s", "n_force_reversals_post_plateau",
+                   "time_above_90pct_peak_s"]
+
     print("\nRunning Section 5.3 (cross-condition Friedman + Wilcoxon)...")
-    metrics = ["peak_force_proxy", "peak_depth_mm", "time_to_first_contact_s", "force_overshoot_proxy"]
-    trajectory_metrics = ["approach_rate_mm_s", "n_force_reversals_post_plateau",
-                           "time_above_90pct_peak_s"]
-    all_metrics = metrics + trajectory_metrics
     cross_condition_results = {}
     for metric in all_metrics:
-        cross_condition_results[metric] = friedman_and_pairwise(reduced_df, metric, args.out)
+        cross_condition_results[metric] = friedman_and_pairwise(reduced_df, metric)
     write_cross_condition_report(cross_condition_results, args.out)
 
-    print("\nRunning Section 5.4 (LRA vs TacTiles direct comparison)...")
-    lra_tactiles_results = {}
+    print("\nRunning Section 5.4 (LRA vs EM direct comparison)...")
+    lra_em_results = {}
     for metric in all_metrics:
-        lra_tactiles_results[metric] = lra_vs_tactiles(reduced_df, metric)
-    write_lra_vs_tactiles_report(lra_tactiles_results, args.out)
+        lra_em_results[metric] = lra_vs_em(reduced_df, metric)
+    write_lra_vs_em_report(lra_em_results, args.out)
 
-    print("\nRunning Section 5.4 (fragile breakage: McNemar lra vs tactiles)...")
+    print("\nRunning Section 5.4 (fragile breakage: McNemar lra vs em)...")
     mcnemar_result = mcnemar_fragile_survival(reduced_df)
     write_fragile_mcnemar_report(mcnemar_result, args.out)
 
-    print(f"\nRunning Section 5.9 (TOST equivalence, lra vs tactiles, "
+    print(f"\nRunning Section 5.9 (TOST equivalence, lra vs em, "
           f"margin={args.equiv_margin_sd} pooled SD, alpha={args.equiv_alpha})...")
     tost_results = {}
     for metric in all_metrics:
-        tost_results[metric] = lra_vs_tactiles_tost(
+        tost_results[metric] = lra_vs_em_tost(
             reduced_df, metric, args.equiv_margin_sd, args.equiv_alpha)
     write_tost_equivalence_report(tost_results, args.equiv_margin_sd, args.equiv_alpha, args.out)
 
@@ -139,10 +143,10 @@ def main():
         else:
             plot_preprint_likert(*likert, args.preprint_figures)
 
-    print(f"\nAll Section 5.1/5.3/5.4/5.5/5.6 outputs written to {args.out}/ (collapse={args.collapse})")
+    print(f"\nAll Section 5.1/5.3/5.4/5.5/5.6/5.7/5.9 outputs written to {args.out}/ "
+          f"(collapse={args.collapse})")
     print("ROBUSTNESS: re-run with the other --collapse mode into a separate --out and")
-    print("confirm the significant findings hold under both (sum_n and max are the only")
-    print("two collapses that can reorder trials) — report that in Section 5.1.")
+    print("confirm the significant findings hold under both — report that in Section 5.1.")
     print("Section 5.2 (sensor-to-actuator latency) requires a separate bench")
     print("measurement and is NOT computed by this script — see thesis Section 5.2.")
 

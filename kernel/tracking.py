@@ -1,19 +1,4 @@
-"""
-tracking.py
-
-Hand tracking: maps thumb-index pinch distance to a gripper target position.
-
-hand_tracking_loop is the experiment's foreground loop — experiment.py's main()
-blocks on it and passes in the shared stop_event. `state` / `recording` are
-experiment.py's SharedState / RecordingState, duck-typed here so this module
-doesn't import experiment.py back.
-
-Keys: 'r' start/stop a trial, 'o' toggle object class, 'c' cycle condition,
-SPACE pause/resume tracking, 'q' quit. 'c' and SPACE are gated by
-`recording` (must be paused and not recording — see RecordingState in
-experiment.py); a condition change that needs different ESP32 firmware walks
-the operator through reflashing it via `haptic_link` (_handle_firmware_swap).
-"""
+"""Hand tracking: maps thumb-index pinch distance to a gripper target position."""
 
 from __future__ import annotations
 
@@ -40,14 +25,10 @@ from gripper import MAX_POS
 
 # Hand tracking
 # PINCH_DIST_PX is raised from the bare-finger value (~30px) because the LRA/
-# TacTiles actuator body mounted on the thumb and index fingertips adds
-# physical standoff between the two contact points — with the hardware on,
-# thumb and index never actually reach 30px apart, so the gripper undershot
-# MAX_POS (never fully closed) and the whole mapped travel looked compressed
-# relative to the operator's real finger motion. Retune per rig/actuator
-# thickness: with the actuator on, pinch fingers fully together and read
-# `Finger Dist` off the on-screen overlay, then set PINCH_DIST_PX a few px
-# above that floor.
+# EM actuator body mounted on the thumb and index fingertips adds physical
+# standoff between the two contact points. Retune per rig/actuator thickness:
+# with the actuator on, pinch fingers fully together and read `Finger Dist`
+# off the on-screen overlay, then set PINCH_DIST_PX a few px above that floor.
 PINCH_DIST_PX      = 40         # Range: 10 to 60
 SPREAD_DIST_PX     = 180        # Range: 120 to 280
 FINGER_DEADBAND_PX = 1.5        # Suppresses raw MediaPipe webcam jitter
@@ -80,13 +61,9 @@ def create_hand_detector(model_path: str):
     """Builds the MediaPipe hand landmarker (single hand, VIDEO mode).
 
     Confidence thresholds are lower than MediaPipe's defaults because the
-    TacTiles/LRA actuator body mounted on the thumb and index fingertips
-    partially covers exactly the landmarks (4, 8) this module tracks —
-    with the stock 0.6/0.75/0.75 thresholds that occlusion was enough to
-    drop hand presence entirely ("No Hand" / MediaPipe going "off") during
-    the tactiles condition. Lowering the thresholds lets MediaPipe keep
-    tracking through the partial occlusion instead of losing the hand.
-    """
+    EM/LRA actuator body mounted on the thumb and index fingertips partially
+    covers landmarks (4, 8) this module tracks, which was dropping hand
+    presence entirely during the em condition at the stock thresholds."""
     base_options = python.BaseOptions(model_asset_path=model_path)
     options = vision.HandLandmarkerOptions(
         base_options=base_options,
@@ -156,9 +133,8 @@ def _draw_overlay(frame, target_pos: float, finger_dist: float, state: SharedSta
 # =============================================================================
 
 def _prompt_fragile_outcome(frame, recording):
-    """Blocks (this thread only — the sensor processes keep running) until
-    'y'/'n' answers whether the fragile object survived the trial just
-    stopped, so log_loop can tag the saved CSV's filename."""
+    """Blocks until 'y'/'n' answers whether the fragile object survived
+    the trial just stopped."""
     prompt = frame.copy()
     cv2.rectangle(prompt, (15, 150), (620, 200), (0, 0, 0), -1)
     cv2.putText(prompt, "This fragile trial ended -- "
@@ -174,9 +150,8 @@ def _prompt_fragile_outcome(frame, recording):
 
 
 def _prompt_save_trial(frame):
-    """Blocks (this thread only) until 's'/'d' answers whether the trial
-    just stopped should be kept, so log_loop can delete a bad take (e.g. an
-    aborted grasp or a setup mistake) instead of writing it to disk."""
+    """Blocks until 's'/'d' answers whether the trial just stopped should
+    be kept."""
     prompt = frame.copy()
     cv2.rectangle(prompt, (15, 150), (620, 200), (0, 0, 0), -1)
     cv2.putText(prompt, "Save this trial? [S]ave / [D]iscard",
@@ -192,11 +167,8 @@ def _prompt_save_trial(frame):
 
 def _handle_firmware_swap(haptic_link, new_condition, new_firmware, hand):
     """Walks the operator through reflashing the ESP32 when the new
-    condition's CONDITION_FIRMWARE entry differs from the previous one.
-    Releases the serial port so mpremote/esptool can use it (this process
-    holds it exclusively otherwise), blocks until the operator confirms,
-    then reopens it. The video window will look frozen for this duration —
-    that's expected, tracking is paused and no frames are being pumped."""
+    condition needs different firmware. Releases the serial port, blocks
+    until the operator confirms, then reopens it."""
     print(f"\n[Firmware] '{new_condition}' needs different ESP32 firmware than the "
           f"previous condition. Releasing {haptic_link.port} so it can be reflashed.")
     haptic_link.close()
@@ -219,10 +191,7 @@ def _handle_firmware_swap(haptic_link, new_condition, new_firmware, hand):
 def hand_tracking_loop(cap, detector, state: SharedState, recording: RecordingState,
                         haptic_link, stop_event, hand: str = "right"):
     """Runs until stop_event is set: maps each frame's pinch distance to
-    state.target_pos (which motion_loop sends to the gripper) and draws the
-    overlay. `hand` ("right"/"left") is only used to tell the operator which
-    firmware/stream.py HAND setting to reflash with on a condition change
-    that needs different ESP32 firmware — see _handle_firmware_swap()."""
+    state.target_pos and draws the overlay."""
     smoothed_target_pos = 0.0
     last_committed_target = 0.0
     stable_dist = -1.0

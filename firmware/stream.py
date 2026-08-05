@@ -1,20 +1,6 @@
 # pyright: reportAttributeAccessIssue=false
 """
-stream.py — runs ON THE ESP32-C6 (MicroPython).
-
-Live haptic receiver for experiment.py. Parses "{left},{right}\n" lines and
-drives the two channels independently: left -> thumb, right -> index.
-If no packet arrives within WATCHDOG_MS both channels drop to 0, but the driver
-chip stays awake so the next packet vibrates immediately.
-
-Set METHOD to match the host's --condition: "vibmotor" for lra, "tactiles" for
-tactiles (continuous burst/gap vibration, TactileVibrationDriver — the
-mechanism the study's first 19 participants' tactiles-condition data was
-collected under), "tactiles2" for tactiles2 (binary engage/disengage contact
-latch from tests/test_tactiles2.py, TactileLatchDriver). visual_only needs no
-receiver at all. Set HAND to match the host's --hand ("right" or "left") — it
-picks which physical pin pair THUMB/INDEX point at, since a left-hand mount is
-wired to different pins than a right-hand one (see CONFIG below).
+Runs ON THE ESP32-C6 (MicroPython). Live haptic receiver for experiment.py.
 
     python -m mpremote connect /dev/ttyACM0 fs cp firmware/haptic.py :
     python -m mpremote connect /dev/ttyACM0 fs cp firmware/stream.py :
@@ -38,19 +24,18 @@ from haptic import *
 # ------------------------------------------------------------------ CONFIG ---
 HAND = "right"        # "right" or "left" — must match experiment.py's --hand.
                        # Sets which physical pin pair THUMB/INDEX point at, since
-                       # a left-hand mount is wired to different TACTILE_PINS legs.
+                       # a left-hand mount is wired to different EM_PINS legs.
 THUMB, INDEX = (0, 1) if HAND == "right" else (4, 3)
 # right: M1 = thumb (driven by left sensor), M2 = index (right sensor)
 # left:  M5 = thumb (driven by left sensor), M4 = index (right sensor)
 
-METHOD = "vibmotor"   # "vibmotor" for --condition lra, "tactiles" for --condition
-                      # tactiles (vibration), "tactiles2" for --condition
-                      # tactiles2 (binary contact latch)
+METHOD = "lra"        # must match the host's --condition: "lra", "em"
+                      # (vibration), or "em2" (binary contact latch)
 
 WATCHDOG_MS = 200     # drop both channels to 0 if no packet arrives within this window
 # -----------------------------------------------------------------------------
 
-assert METHOD in ("vibmotor", "tactiles", "tactiles2")
+assert METHOD in ("lra", "em", "em2")
 assert HAND in ("right", "left")
 
 
@@ -72,11 +57,10 @@ def parse_packet(line):
     return left, right
 
 
-def run_vibmotor_stream():
-    """LRA path. One ACDriver per channel, since ACDriver applies a single
-    envelope to all its fingers — two 1-finger drivers is how thumb and index
-    get independent intensities. Polling is non-blocking so the carriers never
-    starve."""
+def run_lra_stream():
+    """LRA path (--condition lra). One ACDriver per channel, since ACDriver
+    applies a single envelope to all its fingers — two 1-finger drivers is how
+    thumb and index get independent intensities."""
     poll = select.poll()
     poll.register(sys.stdin, select.POLLIN)
 
@@ -86,7 +70,7 @@ def run_vibmotor_stream():
     last_rx = time.ticks_ms()  # type: ignore
 
     try:
-        print("🔧 STREAM vibmotor (AC) | THUMB<-left  INDEX<-right | "
+        print("🔧 STREAM LRA (AC) | THUMB<-left  INDEX<-right | "
               "waiting for packets from experiment.py... Ctrl-C to stop")
         while True:
             # 1) Non-blocking packet check (timeout 0 -> never stalls the carriers)
@@ -115,22 +99,20 @@ def run_vibmotor_stream():
         print("\n✅ Done, motors off.")
 
 
-def run_tactiles_stream():
-    """TacTiles path (--condition tactiles). Mirrors run_vibmotor_stream():
-    one non-blocking TactileVibrationDriver per channel, ticked every loop
-    pass so thumb and index buzz continuously with intensity mapped to pulse
-    rate — not a single threshold-gated tap every 500ms. This is the
-    mechanism the study's tactiles-condition data was collected under."""
+def run_em_stream():
+    """EM path (--condition em). Mirrors run_lra_stream(): one
+    non-blocking EMVibrationDriver per channel, ticked every loop pass so
+    thumb and index buzz continuously with intensity mapped to pulse rate."""
     poll = select.poll()
     poll.register(sys.stdin, select.POLLIN)
 
-    tactiles = init_tactiles()
-    drv_thumb = TactileVibrationDriver(tactiles[THUMB])
-    drv_index = TactileVibrationDriver(tactiles[INDEX])
+    ems = init_em()
+    drv_thumb = EMVibrationDriver(ems[THUMB])
+    drv_index = EMVibrationDriver(ems[INDEX])
     last_rx = time.ticks_ms()  # type: ignore
 
     try:
-        print("🔧 STREAM TacTiles | THUMB<-left  INDEX<-right | "
+        print("🔧 STREAM EM | THUMB<-left  INDEX<-right | "
               "waiting for packets from experiment.py... Ctrl-C to stop")
         while True:
             # 1) Non-blocking packet check (timeout 0 -> never stalls the drivers)
@@ -159,24 +141,21 @@ def run_tactiles_stream():
         print("\n✅ Done, actuators off.")
 
 
-def run_tactiles2_stream():
-    """TacTiles path (--condition tactiles2). One non-blocking
-    TactileLatchDriver per channel, ticked every loop pass. Uses the
-    tests/test_tactiles2.py mechanism — engage() + restrike then hold latched
-    while a channel's intensity is at/above TACTILE_LATCH_THRESHOLD (grasp
-    contact), a single disengage() when it drops back below — instead of
-    TactileVibrationDriver's continuous burst/gap buzz used by --condition
-    tactiles."""
+def run_em2_stream():
+    """EM path (--condition em2). One non-blocking EMLatchDriver per
+    channel: engage() + restrike then hold latched while a channel's
+    intensity is at/above EM_LATCH_THRESHOLD, a single disengage() when it
+    drops back below."""
     poll = select.poll()
     poll.register(sys.stdin, select.POLLIN)
 
-    tactiles = init_tactiles()
-    drv_thumb = TactileLatchDriver(tactiles[THUMB])
-    drv_index = TactileLatchDriver(tactiles[INDEX])
+    ems = init_em()
+    drv_thumb = EMLatchDriver(ems[THUMB])
+    drv_index = EMLatchDriver(ems[INDEX])
     last_rx = time.ticks_ms()  # type: ignore
 
     try:
-        print("🔧 STREAM TacTiles2 (binary latch) | THUMB<-left  INDEX<-right | "
+        print("🔧 STREAM EM2 (binary latch) | THUMB<-left  INDEX<-right | "
               "waiting for packets from experiment.py... Ctrl-C to stop")
         while True:
             # 1) Non-blocking packet check (timeout 0 -> never stalls the drivers)
@@ -206,11 +185,11 @@ def run_tactiles2_stream():
 
 
 try:
-    if METHOD == "vibmotor":
-        run_vibmotor_stream()
-    elif METHOD == "tactiles":
-        run_tactiles_stream()
+    if METHOD == "lra":
+        run_lra_stream()
+    elif METHOD == "em":
+        run_em_stream()
     else:
-        run_tactiles2_stream()
+        run_em2_stream()
 except KeyboardInterrupt:
     print("\n⏹ Stopped")
