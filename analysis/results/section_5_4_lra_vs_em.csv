@@ -1,4 +1,4 @@
-metric,object,n,wilcoxon_stat,wilcoxon_p,median_lra,median_tactiles
+metric,object,n,wilcoxon_stat,wilcoxon_p,median_lra,median_em
 peak_force_proxy,fragile,,,,,
 peak_force_proxy,deformable,,,,,
 peak_depth_mm,fragile,22,43.0000,0.5509,0.9465,0.9842

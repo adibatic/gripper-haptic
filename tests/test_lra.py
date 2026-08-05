@@ -1,30 +1,17 @@
 # pyright: reportAttributeAccessIssue=false
 """
-test_vibmotor.py — LRA vibmotor bench self-test. Runs ON THE ESP32-C6 (MicroPython).
-
-Purpose: confirm the LRA vibration motors physically buzz, mirroring
-test_tactiles.py's ON/OFF cycle for the AC/LRA path (ACDriver, see
-haptic.py). No host PC and no live stream needed — this drives all selected
-fingers together on a fixed ON_S / OFF_S cycle so you can watch/feel every
-motor engage at once.
-
-Copy the library + this test to the board, then exec it in the REPL:
+LRA bench self-test. Runs ON THE ESP32-C6 (MicroPython).
 
     python -m mpremote connect /dev/ttyACM0 fs cp firmware/haptic.py :
-    python -m mpremote connect /dev/ttyACM0 fs cp tests/test_vibmotor.py :
+    python -m mpremote connect /dev/ttyACM0 fs cp tests/test_lra.py :
     python -m mpremote connect /dev/ttyACM0 repl
-    >>> exec(open('test_vibmotor.py').read())
+    >>> exec(open('test_lra.py').read())
 
-Use `mpremote repl` (not `mpremote run`) so Ctrl-C reaches the board and the
-finally block stops the driver. Ctrl-C stops the test; Ctrl-X exits the REPL.
+Use `repl`, not `run` — Ctrl-C must reach the board so the finally block stops
+the driver. Ctrl-X exits the REPL.
 
-ON phase: every finger in FINGERS buzzes together via ACDriver.tick()
-(bipolar AC carrier, envelope-scaled by INTENSITY) for ON_S seconds. OFF
-phase: the driver is stopped (coasted) for OFF_S seconds. Loops ON/OFF
-forever until interrupted.
-
-Note: ACDriver shares pins with TacTiles (init_bridges() vs init_tactiles())
-— never run this alongside a TacTiles test on the same board.
+Note: ACDriver shares pins with EM (init_bridges() vs init_em()) — never run
+this alongside an EM test on the same board.
 """
 import time
 
@@ -46,11 +33,11 @@ assert 0.0 <= INTENSITY <= 1.0
 NAMES = ["THUMB", "INDEX", "MIDDLE", "RING", "PINKY"]
 
 
-def run_vibmotor():
+def run_lra():
     legs = init_bridges()
     driver = ACDriver(legs, FINGERS)
     try:
-        print("🔧 Vibmotor |", " ".join(NAMES[f] for f in FINGERS),
+        print("🔧 LRA |", " ".join(NAMES[f] for f in FINGERS),
               "| intensity", INTENSITY, "|", ON_S, "s ON /", OFF_S, "s rest loop | Ctrl-C to stop")
         while True:
             print("ON")
@@ -68,6 +55,6 @@ def run_vibmotor():
 
 
 try:
-    run_vibmotor()
+    run_lra()
 except KeyboardInterrupt:
     print("\n⏹ Stopped")

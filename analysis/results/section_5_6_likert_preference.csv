@@ -1,7 +1,7 @@
 question,condition,n,proportion,chi2_stat,chi2_p,chi2_reliable
 best_contact_state,visual_only,0,0.0000,17.8182,0.0001,True
 best_contact_state,lra,16,0.7273,17.8182,0.0001,True
-best_contact_state,tactiles,6,0.2727,17.8182,0.0001,True
+best_contact_state,em,6,0.2727,17.8182,0.0001,True
 preferred_overall,visual_only,1,0.0455,19.7273,0.0001,True
 preferred_overall,lra,17,0.7727,19.7273,0.0001,True
-preferred_overall,tactiles,4,0.1818,19.7273,0.0001,True
+preferred_overall,em,4,0.1818,19.7273,0.0001,True

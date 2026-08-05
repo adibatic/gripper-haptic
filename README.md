@@ -30,7 +30,7 @@ gripper-haptic/
 ├── tests/                  # Board-only bench self-tests (MicroPython)
 │   ├── test_em.py              # EM continuous burst/gap vibration
 │   ├── test_em2.py             # EM binary engage/disengage latch
-│   └── test_vibmotor.py        # LRA vibmotor (ACDriver) buzz
+│   └── test_lra.py             # LRA vibration motor (ACDriver) buzz
 ├── analysis/               # Chapter 5 pipeline — `python -m analysis`
 │   └── results/                # Generated tables and figures
 ├── data/
@@ -239,7 +239,7 @@ Then set `HAND_CAM_INDEX`, `TACTILE_CAM_L`, and `TACTILE_CAM_R` in `kernel/camer
 
 **1. Start the ESP32 receiver**
 
-The board runs the **receiver** (`firmware/stream.py`); `experiment.py` is the sender. `stream.py` is a stream-only receiver dedicated to the experiment — it parses `experiment.py`'s `"{left:.4f},{right:.4f}\n"` packets and drives the two channels **independently** (left -> thumb, right -> index). Set `METHOD` in `firmware/stream.py` to match your `--condition`: `"vibmotor"` for `lra`, `"em"` for `em`, `"em2"` for `em2`. (For `visual_only` you don't need to run this file at all.) Also set `HAND` in `firmware/stream.py` to match your `--hand` (`"right"`: thumb=M1/index=M2, `"left"`: thumb=M5/index=M4) — a left-hand mount is wired to a different pin pair.
+The board runs the **receiver** (`firmware/stream.py`); `experiment.py` is the sender. `stream.py` is a stream-only receiver dedicated to the experiment — it parses `experiment.py`'s `"{left:.4f},{right:.4f}\n"` packets and drives the two channels **independently** (left -> thumb, right -> index). Set `METHOD` in `firmware/stream.py` to match your `--condition`: `"lra"` for `lra`, `"em"` for `em`, `"em2"` for `em2`. (For `visual_only` you don't need to run this file at all.) Also set `HAND` in `firmware/stream.py` to match your `--hand` (`"right"`: thumb=M1/index=M2, `"left"`: thumb=M5/index=M4) — a left-hand mount is wired to a different pin pair.
 
 > `stream.py` already implements the 2-value protocol above. The older
 > `stream_mode()` / `em_stream_mode()` in `firmware/haptic.py` are the
@@ -389,7 +389,7 @@ The two haptic actuator types are mounted at different positions on the glove, n
 
 ### LRA Vibration Motors
 
-Selected via `METHOD = "vibmotor"` in `firmware/stream.py`. The firmware applies a continuous PWM signal per channel. Values are clamped to `[0.0, 1.0]` and mapped to a 10-bit duty cycle (0–1023) at 200 Hz. In streaming mode, if no packet is received within 200 ms all motors stop automatically.
+Selected via `METHOD = "lra"` in `firmware/stream.py`. The firmware applies a continuous PWM signal per channel. Values are clamped to `[0.0, 1.0]` and mapped to a 10-bit duty cycle (0–1023) at 200 Hz. In streaming mode, if no packet is received within 200 ms all motors stop automatically.
 
 > **As of the dual-sensor host update**, the stream receiver must parse
 > `"{left:.4f},{right:.4f}\n"` and drive M1 (thumb) from `left` and M2
@@ -420,7 +420,7 @@ Selected via `METHOD = "em"` in `firmware/stream.py`. EMs are bistable pin actua
 | `pulse` | 3 ms forward + 3 ms reverse → quick tap, no sustained contact |
 | `burst` | Rapid sequence of pulses, up to ~200 Hz in short windows |
 
-Sustained vibration is approximated by repeated bursts with a gap between them, driven non-blocking (`EMVibrationDriver`, mirroring the LRA path's `ACDriver`) so both channels buzz continuously and independently. The gap between bursts is set continuously from intensity — short gap (more frequent bursts) at high intensity, long gap at low intensity — keeping the long-term switch rate under the hardware thermal limit of ~120 switches/minute. This gives the same "buzzes the whole time intensity > 0" feel as the vibmotor path, rather than a single tap fired only when a threshold is crossed. This is the mechanism the study's `em` condition data was collected under.
+Sustained vibration is approximated by repeated bursts with a gap between them, driven non-blocking (`EMVibrationDriver`, mirroring the LRA path's `ACDriver`) so both channels buzz continuously and independently. The gap between bursts is set continuously from intensity — short gap (more frequent bursts) at high intensity, long gap at low intensity — keeping the long-term switch rate under the hardware thermal limit of ~120 switches/minute. This gives the same "buzzes the whole time intensity > 0" feel as the LRA path, rather than a single tap fired only when a threshold is crossed. This is the mechanism the study's `em` condition data was collected under.
 
 > **Vibration intensity tuning.** `EM_PULSE_MS` (each tap's pin-throw duration) and `EM_VIBRATE_GAP_MIN_MS` (the burst gap floor at intensity 1.0) in `firmware/haptic.py` control how strong the buzz feels — longer pulses and a lower gap floor both read as more intense. Current defaults are `EM_PULSE_MS = 4` and `EM_VIBRATE_GAP_MIN_MS = 35` (up from `3`/`50`). If the actuator runs hot at these settings, raise `EM_VIBRATE_GAP_MIN_MS` back up first — it directly trades off against the ~120 switches/minute thermal limit noted above; `EM_BURST_US` must stay `> 2 * EM_PULSE_MS * 1000` if you change `EM_PULSE_MS` again.
 
@@ -448,7 +448,7 @@ every actuator off.
 | --- | --- | --- |
 | `test_em.py` | EM | Continuous burst/gap vibration, `ON_S` seconds ON / `OFF_S` seconds OFF |
 | `test_em2.py` | EM | Binary latch — `engage()` held for `ON_S`, `disengage()` held for `OFF_S`, no buzzing |
-| `test_vibmotor.py` | LRA vibmotor | `ACDriver` bipolar AC buzz, `ON_S` seconds ON / `OFF_S` seconds rest |
+| `test_lra.py` | LRA | `ACDriver` bipolar AC buzz, `ON_S` seconds ON / `OFF_S` seconds rest |
 
 All three default to `THUMB, INDEX` at full intensity on a 6s ON / 3s OFF loop — edit `FINGERS`/`INTENSITY`/`ON_S`/`OFF_S` at the top of each file to change it.
 

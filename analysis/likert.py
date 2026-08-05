@@ -1,10 +1,12 @@
 """
 Section 5.6 — qualitative survey results.
 
-Parses the raw Google Forms export (participant + three repeated per-condition
-blocks of six Likert items + two nominal preference questions) and runs the
-same Friedman/Wilcoxon/Holm treatment used for the trial metrics, plus a
-chi-square goodness-of-fit on the two forced-choice questions.
+Parses the raw Google Forms export directly (participant + three repeated
+per-condition blocks of six Likert items + two nominal preference questions +
+free-text comments) — the form's wide layout IS the schema, there is no long
+format to hand this script. Runs the same Friedman/Wilcoxon/Holm treatment used
+for the trial metrics, plus a chi-square goodness-of-fit on the two
+forced-choice questions.
 """
 
 import os
@@ -18,15 +20,6 @@ from scipy import stats
 from . import CONDITIONS
 from .tests import holm_bonferroni
 
-
-# ---------------------------------------------------------------------------
-# Section 5.6 — Qualitative Survey Results
-#
-# Parses the raw Google Forms CSV export directly (participant + 3 repeated
-# per-condition blocks of 6 Likert items + 2 nominal preference questions +
-# free-text comments) — there is no separate participant_id/condition long
-# format to hand this script; the form's wide layout IS the schema.
-# ---------------------------------------------------------------------------
 
 # Column labels for the 6 items in each per-condition block, in form order.
 # Renamed from the survey's literal question text (below) to short slugs for
@@ -58,10 +51,10 @@ LIKERT_ITEM_QUESTION_TEXT = [
 # repeats the section's question text verbatim per section) — condition is
 # encoded ONLY by which block position a column falls in, so this order must
 # match the live form's actual section order or every response is silently
-# mislabeled. Confirmed against the form as visual_only -> lra -> tactiles
+# mislabeled. Confirmed against the form as visual_only -> lra -> em
 # (the same order as CONDITIONS/experiment.py's condition cycle) on
 # 2026-07-22 — re-confirm against the form itself if you re-export.
-LIKERT_BLOCK_CONDITIONS = ["visual_only", "lra", "tactiles"]
+LIKERT_BLOCK_CONDITIONS = ["visual_only", "lra", "em"]
 
 
 # 0-indexed column offsets of each block in data/likert/likert_responses.csv.
@@ -71,8 +64,14 @@ LIKERT_BLOCK_CONDITIONS = ["visual_only", "lra", "tactiles"]
 LIKERT_BLOCK_STARTS = [11, 17, 23]
 
 
+# Keys are the literal option text Google Forms exported, i.e. what
+# participants actually saw on the form — do NOT "modernize" them in
+# data/likert/likert_responses.csv to match the em/lra vocabulary. That CSV is
+# the verbatim survey record; rewriting it would falsify what was administered.
+# The rename lives here instead, which is the only place the two vocabularies
+# need to meet.
 PREFERENCE_LABEL_TO_CONDITION = {
-    "Vibration Motor": "lra", "Pin Actuator": "tactiles", "No Feedback": "visual_only",
+    "Vibration Motor": "lra", "Pin Actuator": "em", "No Feedback": "visual_only",
 }
 
 
@@ -198,12 +197,12 @@ def write_likert_friedman(long_df, out_dir):
                 writer.writerow([item, len(complete), "", "", "", "", "", ""])
                 continue
 
-            visual, lra, tactiles = (complete[c].to_numpy() for c in CONDITIONS)
-            fr_stat, fr_p = stats.friedmanchisquare(visual, lra, tactiles)
+            visual, lra, em = (complete[c].to_numpy() for c in CONDITIONS)
+            fr_stat, fr_p = stats.friedmanchisquare(visual, lra, em)
 
             pairs = [("visual_only", "lra", visual, lra),
-                     ("visual_only", "tactiles", visual, tactiles),
-                     ("lra", "tactiles", lra, tactiles)]
+                     ("visual_only", "em", visual, em),
+                     ("lra", "em", lra, em)]
             raw_p = []
             pairwise = []
             for name_a, name_b, a, b in pairs:

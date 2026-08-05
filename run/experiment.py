@@ -1,18 +1,4 @@
-"""
-experiment.py
-
-Robotiq 2F-85 teleoperation experiment: hand-tracked gripper control with
-9DTact tactile sensing and haptic feedback (left sensor -> thumb motor, right
--> index).
-
-Orchestrator only — run parameters, shared state, background threads, main().
-The hardware classes and the tracking loop live in kernel/.
-
-    python run/experiment.py --condition lra --participant P01 --object fragile
-
-Controls: 'r' start/stop a trial, 'o' switch object class, 'q' quit.
-See README.md for prerequisites and the pre-participant checklist.
-"""
+"""python run/experiment.py --condition lra --participant P01 --object fragile"""
 
 # =============================================================================
 # IMPORTS & SETUP
@@ -87,29 +73,18 @@ HAPTIC_HZ  = 15                 # Sensor read + serial send rate
 # Global runtime state
 stop_event = threading.Event()  # For stopping all threads
 
-CONDITIONS = ["visual_only", "lra", "tactiles", "tactiles2"]
+CONDITIONS = ["visual_only", "lra", "em", "em2"]
 # ESP32 firmware METHOD (firmware/stream.py) each condition needs. None means
 # no firmware should be driving actuators for this condition — physically
 # disconnect the ESP32, or make sure its current firmware isn't wired to move
 # anything. Used by RecordingState.cycle_condition() to decide whether a
 # condition change needs the reflash handoff in kernel/tracking.py.
-# "tactiles2" drives the binary engage/disengage contact latch
-# (TactileLatchDriver, mirroring tests/test_tactiles2.py) instead of
-# "tactiles"'s continuous burst/gap vibration (TactileVibrationDriver) — see
-# firmware/stream.py's run_tactiles2_stream().
-CONDITION_FIRMWARE = {"visual_only": None, "lra": "vibmotor", "tactiles": "tactiles", "tactiles2": "tactiles2"}
+CONDITION_FIRMWARE = {"visual_only": None, "lra": "lra", "em": "em", "em2": "em2"}
 
 @dataclass
 class SharedState:
-    """Written by the main thread (target_pos, object_class) and the two
-    tactile-sensor processes (left/right, via shared memory): read by
-    haptics, logging, GUI.
-
-    object_class mirrors RecordingState.current_object across the process
-    boundary — the sensor processes run separately from the main process
-    and can't see RecordingState's plain attribute directly, so
-    tracking.py's 'o' handler mirrors it in here (0=fragile, 1=deformable)
-    for sensor_process_main to read each tick (see TactileSensor.read())."""
+    """Shared across main thread and the two sensor processes; read by
+    haptics, logging, GUI."""
     target_pos: float = 0.0
     left: SharedTactileReading = field(default_factory=SharedTactileReading)
     right: SharedTactileReading = field(default_factory=SharedTactileReading)
@@ -119,12 +94,7 @@ class SharedState:
 class RecordingState:
     """Recording toggle, pause gate, condition/object, per-combo trial
     counters. Mutated by the keyboard thread; read by log_loop and the
-    overlay.
-
-    `paused` starts True: the gripper only tracks the hand once you
-    explicitly resume ('SPACE' in kernel/tracking.py), and starting a trial
-    or cycling condition is blocked while paused is False or a trial is
-    active — see toggle_recording()/cycle_condition()."""
+    overlay."""
 
     def __init__(self, initial_condition: str, initial_object: str):
         self._lock = threading.Lock()
@@ -151,16 +121,14 @@ class RecordingState:
             return self.active
 
     def consume_trial_result(self):
-        """Returns and clears (outcome, discard) set by the last
-        toggle_recording(outcome=..., discard=...)."""
+        """Returns and clears (outcome, discard)."""
         with self._lock:
             outcome, discard = self.last_outcome, self.last_discard
             self.last_outcome, self.last_discard = None, False
             return outcome, discard
 
     def toggle_object(self):
-        """Flips fragile/deformable. Returns (changed, object); changed is
-        False if a trial is recording."""
+        """Flips fragile/deformable."""
         with self._lock:
             if self.active:
                 return False, self.current_object
@@ -168,8 +136,7 @@ class RecordingState:
             return True, self.current_object
 
     def toggle_pause(self):
-        """Flips paused; returns the new state, or None if blocked (a trial
-        is active — stop it first)."""
+        """Flips paused."""
         with self._lock:
             if self.active:
                 return None
@@ -177,12 +144,8 @@ class RecordingState:
             return self.paused
 
     def cycle_condition(self):
-        """Advances to the next condition (visual_only -> lra -> tactiles ->
-        tactiles2 -> ...). Returns (new_condition, new_firmware, firmware_changed), or
-        None if blocked (must be paused and not recording — a condition
-        change can require swapping ESP32 firmware, so it's gated like a
-        hardware change). firmware_changed tells the caller whether to run
-        the reflash handoff (kernel/tracking.py's _handle_firmware_swap)."""
+        """Advances to the next condition; returns (new_condition,
+        new_firmware, firmware_changed)."""
         with self._lock:
             if self.active or not self.paused:
                 return None
@@ -195,10 +158,8 @@ class RecordingState:
             return new_condition, new_firmware, firmware_changed
 
     def next_trial_number(self):
-        """Returns the next trial number for the CURRENT (condition, object)
-        combo, counted independently per combo — so filenames match the old
-        per-launch numbering (trial1, trial2, ... within each combo) even
-        though one process now covers every combo."""
+        """Next trial number for the current (condition, object) combo,
+        counted independently per combo."""
         with self._lock:
             key = (self.condition, self.current_object)
             self._trial_counts[key] = self._trial_counts.get(key, 0) + 1
@@ -238,13 +199,9 @@ def status_loop(gripper: GripperController, state: SharedState):
 
 # Gripper motion Loop
 def motion_loop(gripper: GripperController, state: SharedState):
-    """Sends state.target_pos to the gripper at MOTION_HZ, filtered by
-    OUTPUT_DEADBAND to stop motor stutter when the hand is still.
-
-    Depth safety cutoff: once either sensor's max_depth_mm reaches
-    MAX_SAFE_DEPTH_MM, the object has stopped compressing, so any further
-    closing is blocked (opening is never blocked) to protect the sensor
-    fixture — see MAX_SAFE_DEPTH_MM above for why."""
+    """Sends state.target_pos to the gripper at MOTION_HZ. Blocks further
+    closing (never opening) once either sensor hits MAX_SAFE_DEPTH_MM, to
+    protect the sensor fixture."""
     interval = 1.0 / MOTION_HZ
     last_sent_pos = -1
     was_overloaded = False
@@ -316,12 +273,8 @@ def sensor_process_main(side: str, camera_index: int, shared_reading: SharedTact
 
 # Haptic send loop
 def haptic_send_loop(link: HapticLink, state: SharedState, recording: RecordingState, test_mode: bool):
-    """Streams both sensors' intensities to the ESP32 at HAPTIC_HZ. In
-    test_mode, streams a 0->1->0 ramp instead, ignoring the sensors. Sends
-    (0, 0) whenever `recording` is paused, so nothing fires while the
-    experimenter is adjusting setup or the ESP32 is mid-reflash for a
-    condition change (the link may also be transiently disconnected during
-    that reflash — link.send() is a no-op while it is)."""
+    """Streams both sensors' intensities to the ESP32 at HAPTIC_HZ. Sends
+    (0, 0) while paused. In test_mode, streams a 0->1->0 ramp instead."""
     interval = 1.0 / HAPTIC_HZ
     if test_mode:
         print(f"[Haptic] *** SELF-TEST MODE *** streaming a 0->1->0 ramp on both "
@@ -353,28 +306,9 @@ def haptic_send_loop(link: HapticLink, state: SharedState, recording: RecordingS
 # Trial logging
 def log_loop(gripper: GripperController, recording: RecordingState, state: SharedState,
              out_dir: str, participant: str):
-    """Writes one CSV row per tick while recording; a new file per trial.
-
-    File: <out_dir>/<participant>/<participant>_<condition>_<object>_trial<N>.csv
-    (N is counted independently per condition/object combo — see
-    RecordingState.next_trial_number()). Trials are grouped into one
-    subfolder per participant since a full run is 2 objects x 4 conditions x
-    N trials each — keeping every participant's files together avoids one
-    flat directory with everyone's trials interleaved. condition/object are
-    read live from `recording` since a single launch now covers every combo
-    for a participant, rather than being fixed for the whole process.
-    Columns: t, gripper_pos_bit, left/right_force_proxy, left/right_force_N,
-    left/right_max_depth_mm. A force_N column is empty unless that side's
-    FORCE_CAL constants are set. Haptic intensity isn't logged — it's a pure
-    clip(max_depth_mm / DEPTH_SATURATION_MM[object_class], 0, 1) rescale (tactile.py)
-    with no analysis.py use, so it added nothing recomputing from max_depth_mm
-    can't reproduce.
-
-    If the operator discards the trial (save/discard prompt in
-    kernel/tracking.py after stopping), the file is deleted instead of kept
-    — e.g. a bad take, an aborted grasp, or a setup mistake that shouldn't
-    pollute the trial count analysis.py reads.
-    """
+    """Writes one CSV row per tick while recording; a new file per trial at
+    <out_dir>/<participant>/<participant>_<condition>_<object>_trial<N>.csv.
+    Discarded trials are deleted instead of kept."""
     interval = 1.0 / HAPTIC_HZ
     participant_dir = os.path.join(out_dir, participant)
     os.makedirs(participant_dir, exist_ok=True)
@@ -646,7 +580,7 @@ def main():
     print(f"  [Controls] Press 'r' to start/stop recording a trial (only while resumed). "
           f"Stopping prompts Save/Discard for the trial just recorded.")
     print(f"  [Controls] Press 'o' to toggle object class (fragile/deformable) when not recording.")
-    print(f"  [Controls] Press 'c' to cycle condition (visual_only -> lra -> tactiles -> tactiles2) when paused and not recording.")
+    print(f"  [Controls] Press 'c' to cycle condition (visual_only -> lra -> em -> em2) when paused and not recording.")
     print(f"  [Controls] Press 'q' to quit.\n")
 
     if args.model_path:
