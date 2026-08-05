@@ -7,7 +7,6 @@ which maps left -> thumb (M1) and right -> index (M2).
 """
 
 import threading
-
 import serial
 
 

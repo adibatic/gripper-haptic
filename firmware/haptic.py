@@ -9,6 +9,7 @@ the stream_mode() / em_stream_mode() receivers parse the OLD broadcast protocol
 supersedes them for the experiment.
 """
 # pyright: reportAttributeAccessIssue=false
+
 from machine import Pin, PWM  # type: ignore
 import sys
 import struct
