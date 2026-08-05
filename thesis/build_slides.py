@@ -6,7 +6,7 @@ Reads thesis/template/deck_template.pptx — the pristine three-slide template
 (title, contents, section divider) — duplicates its divider slide out to the
 full deck, and writes:
 
-    thesis/01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.pptx
+    thesis/presentation_slide.pptx
     thesis/presentation_script.md
 
 Both are generated from the SCRIPT table below, so the spoken script and the
@@ -37,8 +37,7 @@ from pptx.enum.dml import MSO_LINE_DASH_STYLE
 THESIS = os.path.dirname(os.path.abspath(__file__))
 FIG = os.path.join(THESIS, "figures")
 TEMPLATE = os.path.join(THESIS, "template", "deck_template.pptx")
-OUT = os.path.join(THESIS,
-                   "01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.pptx")
+OUT = os.path.join(THESIS, "presentation_slide.pptx")
 SCRIPT_OUT = os.path.join(THESIS, "presentation_script.md")
 
 N_SLIDES = 20               # 3 template slides + 17 duplicated dividers

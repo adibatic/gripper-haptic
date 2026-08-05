@@ -3,10 +3,11 @@
 % --- Packages ---
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
+\usepackage{lmodern} % scalable T1 CM fonts; microtype's expansion needs them
 \usepackage{microtype}
 \usepackage{amsmath, amssymb}
 \usepackage{graphicx}
-\graphicspath{{../figures/}{./figures/}}
+\graphicspath{{figures/}{../analysis/results/}} % compile from inside thesis/
 \usepackage{geometry}
 \usepackage{setspace}
 \usepackage{hyperref}
@@ -167,8 +168,8 @@ The ESP32-C6 is agnostic to which physical actuator array is attached; it decode
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.8\textwidth]{system_architecture.png}
-    \caption{System block diagram: the host PC reads gripper state, hand-tracking video, and 9DTact tactile data, computes a target gripper position and a scalar haptic intensity, and writes the former to the gripper over Modbus RTU and the latter to the ESP32-C6 over USB serial. The ESP32-C6 renders the intensity through either the LRA or EM actuator array.}
+    \includegraphics[width=0.8\textwidth]{preprint_fig1.png}
+    \caption{System block diagram. The host PC reads the hand-tracking camera and the 9DTact touch sensors, computes a target finger position and a scalar haptic intensity in $[0,1]$, and writes the former to the gripper over Modbus RTU and the latter to the ESP32-C6 over USB serial. The ESP32-C6 renders the intensity through whichever array is attached, LRA or EM, closing the loop through the operator's own grip adjustment.}
     \label{fig:arch}
 \end{figure}
 

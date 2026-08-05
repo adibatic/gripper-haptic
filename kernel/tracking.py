@@ -1,11 +1,10 @@
 """Hand tracking: maps thumb-index pinch distance to a gripper target position."""
 
-from __future__ import annotations
-
 # =============================================================================
 # IMPORTS & SETUP
 # =============================================================================
 
+from __future__ import annotations
 import cv2
 import math
 import time

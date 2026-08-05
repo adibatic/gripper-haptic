@@ -40,9 +40,13 @@ gripper-haptic/
 ├── designs/                # CAD models and 3D print assets
 ├── thesis/
 │   ├── thesis.tex              # The manuscript
-│   ├── 01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.tex   # Two-page preprint
+│   ├── presentation_preprint.tex   # Two-page preprint
+│   ├── presentation_slide.pptx # Generated deck (see Writing & Manuscript)
+│   ├── presentation_script.md  # Generated spoken script, in step with the deck
 │   ├── build_preprint_figs.py  # Draws all six preprint figures (see Writing & Manuscript)
+│   ├── build_slides.py         # Builds the deck and script from the template
 │   ├── figures/                # Preprint/thesis figures (photos/ holds the fig2 crops)
+│   ├── template/               # deck_template.pptx, the deck's style source
 │   └── references.bib
 ├── src/                    # Vendored, not in the repo — see Setup
 │   ├── 9DTact-main/            # 9DTact tactile sensor source
@@ -342,7 +346,7 @@ python -m analysis \
   --preprint-figures thesis/figures
 ```
 
-`--preprint-figures DIR` is optional and additionally draws the two figures `thesis/01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.tex` includes — `preprint_fig5.png` (fragile survival + excess deformation) and `preprint_fig6.png` (subjective ratings + favorite picks). They are drawn from the same in-memory frames the CSVs are written from, so re-running the pipeline is the only step needed to refresh the preprint. Omit the flag to write tables only; `preprint_fig6.png` additionally needs `--likert-csv`.
+`--preprint-figures DIR` is optional and additionally draws the two figures `thesis/presentation_preprint.tex` includes — `preprint_fig5.png` (fragile survival + excess deformation) and `preprint_fig6.png` (subjective ratings + favorite picks). They are drawn from the same in-memory frames the CSVs are written from, so re-running the pipeline is the only step needed to refresh the preprint. Omit the flag to write tables only; `preprint_fig6.png` additionally needs `--likert-csv`.
 
 `--trials-dir` is scanned recursively, so pointing it at `data/experiment_logs` picks up every participant's trial CSVs from their `P01/`, `P02/`, ... subfolders in one pass — no need to run the pipeline per participant.
 
@@ -461,13 +465,17 @@ Both documents live in `thesis/` and need a LaTeX distribution (TeX Live or MiKT
 | File | What it is |
 | --- | --- |
 | `thesis.tex` | The full manuscript |
-| `01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.tex` | The two-page preprint, under the submission filename |
+| `presentation_preprint.tex` | The two-page preprint |
+
+Rename the preprint to the submission filename when submitting it; the
+repository keeps it under a stable name so the build scripts and this README do
+not have to track the submission convention.
 
 Compile **from inside `thesis/`**, not from the repo root:
 
 ```bash
 cd thesis
-latexmk -pdfdvi 01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.tex
+latexmk -pdfdvi presentation_preprint.tex
 ```
 
 `-pdfdvi` builds via latex → dvips → ps2pdf rather than pdflatex, because all
@@ -520,6 +528,23 @@ stays in `analysis/` because Section 5.5 is analysis output, while
 `build_preprint_figs.py` moved to `thesis/` because all six of its figures
 are preprint deliverables — `analysis/__main__.py` imports the two
 data-driven ones from there for `--preprint-figures`.
+
+### Presentation deck
+
+The presentation is generated, not hand-edited:
+
+```bash
+python thesis/build_slides.py
+```
+
+It reads `thesis/template/deck_template.pptx` — the pristine three-slide
+template that supplies all geometry, palette and type — and writes both
+`thesis/presentation_slide.pptx` and `thesis/presentation_script.md` from one
+script table in the file, so the spoken script and the slide notes cannot drift
+apart. Edit the template to restyle the deck and the script table to change what
+it says; do not edit the generated `.pptx` or `.md` directly, as the next build
+overwrites them. Its figures come from `thesis/figures/`, so regenerate those
+first if the analysis has been rerun.
 
 ---
 

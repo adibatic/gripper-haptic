@@ -1,5 +1,5 @@
 """
-Every figure thesis/01_IMAC_HashimotoLab_C2TB1701_AdrielImaranSantoso.tex
+Every figure thesis/presentation_preprint.tex
 includes, in one place so the six stay visually consistent.
 
 preprint_fig1 (system data flow), preprint_fig2 (hardware plate),

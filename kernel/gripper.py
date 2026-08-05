@@ -8,7 +8,6 @@ serial port, and the library is not thread-safe.
 """
 
 import threading
-
 from pyrobotiqgripper import RobotiqGripper
 
 # Mechanical limits / move defaults (0-255). Port and rates live in experiment.py.

@@ -10,16 +10,16 @@ Runs ON THE ESP32-C6 (MicroPython). Live haptic receiver for experiment.py.
 Use `repl`, not `run` — Ctrl-C must reach the board to stop the motors via the
 finally block. Ctrl-X detaches and frees the port for experiment.py.
 """
+
 import sys
 import select
 import time
+from haptic import *
 
 if not hasattr(time, 'ticks_ms'):
     time.ticks_ms = lambda: int(time.time() * 1000)  # type: ignore
     time.ticks_add = lambda t, d: t + d  # type: ignore
     time.ticks_diff = lambda t1, t2: t1 - t2  # type: ignore
-
-from haptic import *
 
 # ------------------------------------------------------------------ CONFIG ---
 HAND = "right"        # "right" or "left" — must match experiment.py's --hand.
