@@ -1,0 +1,40 @@
+% =====================================================================
+%  Spine sheet for the bound graduation thesis
+%  Per the departmental spine sample: course abbreviation, thesis title,
+%  month/year of graduation, and the author's name, read top-to-bottom
+%  along the spine.
+%
+%  Course abbreviation for this thesis: IMAC
+%  (International Mechanical and Aerospace Engineering)
+%
+%  Build: pdflatex spine.tex
+%  Print, trim to the measured spine width, and glue when binding.
+% =====================================================================
+
+\documentclass[12pt, a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{newtxtext}
+\usepackage[a4paper, margin=15mm]{geometry}
+\usepackage{graphicx}
+
+\pagestyle{empty}
+
+\begin{document}
+\centering
+
+% Rotated so the text runs along the spine of the bound volume.
+\rotatebox{90}{%
+  \begin{minipage}{250mm}
+    \centering
+    \fontsize{14}{18}\selectfont
+    IMAC \quad\textbullet\quad
+    Tactile-Feedback Teleoperation: Grip Force and Grasping Performance
+    Across Haptic Actuator Types for Fragile and Deformable Objects
+    \quad\textbullet\quad
+    September 2026 \quad\textbullet\quad
+    Adriel, Santoso, Imaran
+  \end{minipage}%
+}
+
+\end{document}
