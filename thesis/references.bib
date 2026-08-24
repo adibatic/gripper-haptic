@@ -7,11 +7,8 @@
 %  publisher record for that same paper). The `file` field names the PDF
 %  so an entry can be traced back to the document it describes.
 %
-%  SECTION B holds entries that are still cited from the stub sections of
-%  Chapters 2-6 but for which no PDF is held. They are retained so the
-%  document continues to compile. Their fields have NOT been verified
-%  against a source and must be checked, or the citation replaced, before
-%  submission.
+%  SECTION B holds manufacturer documentation cited for device
+%  specifications rather than for a research claim. No PDF is held.
 % =====================================================================
 
 
@@ -40,6 +37,22 @@
   year      = {2016},
   doi       = {10.1007/978-3-319-32552-1_43},
   file      = {references/handbook_of_robotics_ch43.pdf}
+}
+
+@incollection{howe1992,
+  author    = {Howe, Robert D. and Cutkosky, Mark R.},
+  title     = {Touch Sensing for Robotic Manipulation and Recognition},
+  booktitle = {The Robotics Review 2},
+  editor    = {Khatib, Oussama and Craig, John J. and
+               Lozano-P{\'e}rez, Tom{\'a}s},
+  publisher = {MIT Press},
+  address   = {Cambridge, MA},
+  pages     = {55--112},
+  year      = {1992},
+  file      = {references/the_robotics_review_2_touch_sensing.pdf}
+  % Held PDF is a CamScanner scan of pp. 51-95 with no text layer; the
+  % chapter's page range was read from the scanned page headers and
+  % confirmed against the publisher record.
 }
 
 @incollection{cutkosky2016,
@@ -184,9 +197,9 @@
   pages   = {219--230},
   year    = {2006},
   doi     = {10.1109/TVCG.2006.32},
-  file    = {references/kuchenbecker2010.pdf},
-  note    = {Held PDF is named \texttt{kuchenbecker2010.pdf}; the paper
-             itself is the 2006 IEEE TVCG article}
+  file    = {references/kuchenbecker2010.pdf}
+  % Held PDF is named kuchenbecker2010.pdf, but the paper itself is the
+  % 2006 IEEE TVCG article; fields verified against the PDF header.
 }
 
 @article{luo2024,
@@ -236,8 +249,9 @@
   eprint  = {2308.14277},
   archiveprefix = {arXiv},
   url     = {https://arxiv.org/abs/2308.14277},
-  file    = {references/lin2023.pdf},
-  note    = {Held PDF is the accepted preprint version}
+  file    = {references/lin2023.pdf}
+  % Held PDF is the accepted preprint; volume/issue/pages taken from the
+  % published RA-L record.
 }
 
 @article{li2024,
@@ -273,6 +287,21 @@
   doi       = {10.1109/VR.2019.8797921},
   file      = {references/vechev2019.pdf}
 }
+@inproceedings{pece2017,
+  author    = {Pece, Fabrizio and Zarate, Juan Jos{\'e} and Besse, Nadine and
+               Gudozhnik, Olexandr and Shea, Herbert and Hilliges, Otmar and
+               Vechev, Velko},
+  title     = {{MagTics}: Flexible and Thin Form Factor Magnetic Actuators
+               for Dynamic and Wearable Haptic Feedback},
+  booktitle = {Proceedings of the 30th Annual ACM Symposium on User
+               Interface Software and Technology (UIST)},
+  address   = {Qu{\'e}bec City, Canada},
+  pages     = {143--154},
+  year      = {2017},
+  doi       = {10.1145/3126594.3126609},
+  file      = {references/pece2017.pdf}
+}
+
 
 @misc{jawale2024,
   author        = {Jawale, Neel and Kaur, Navneet and Santoso, Amy and
@@ -291,11 +320,10 @@
 
 
 % =====================================================================
-%  SECTION B - NO PDF HELD; FIELDS UNVERIFIED
+%  SECTION B - HARDWARE DOCUMENTATION (no PDF held)
 %
-%  Cited only from the \todo stub sections of Chapters 2-6. Retained so
-%  the document compiles. Obtain the source and verify (or replace the
-%  citation) before submission.
+%  Manufacturer documentation cited for device specifications rather than
+%  for a research claim.
 % =====================================================================
 
 @manual{robotiq_manual,
@@ -305,112 +333,12 @@
   year         = {2023}
 }
 
-@inproceedings{donggelsight2021,
-  author    = {Dong, Siyuan and Ma, Daolin and Donlon, Elliott and
-               Rodriguez, Alberto},
-  title     = {{GelSight Wedge}: Measuring High-Resolution {3D} Contact
-               Geometry with a Compact Robot Finger},
-  booktitle = {Proceedings of the IEEE International Conference on
-               Robotics and Automation (ICRA)},
-  pages     = {6468--6475},
-  year      = {2021},
-  doi       = {10.1109/ICRA48506.2021.9560783}
-}
 
-@article{taylor2021,
-  author  = {Taylor, Ian H. and Dong, Siyuan and Rodriguez, Alberto},
-  title   = {{GelSlim} 3.0: High-Resolution Measurement of Shape, Force
-             and Slip in a Compact Tactile-Sensing Finger},
-  journal = {arXiv preprint arXiv:2103.12269},
-  year    = {2021}
-}
 
-@article{dahiya2010,
-  author  = {Dahiya, Ravinder S. and Metta, Giorgio and Valle, Maurizio
-             and Sandini, Giulio},
-  title   = {Tactile Sensing---From Humans to Humanoids},
-  journal = {IEEE Transactions on Robotics},
-  volume  = {26},
-  number  = {1},
-  pages   = {1--20},
-  year    = {2010},
-  doi     = {10.1109/TRO.2009.2033627}
-}
 
-@article{verrillo1985,
-  author  = {Verrillo, Ronald T.},
-  title   = {Psychophysics of Vibrotactile Stimulation},
-  journal = {Journal of the Acoustical Society of America},
-  volume  = {77},
-  number  = {1},
-  pages   = {225--232},
-  year    = {1985},
-  doi     = {10.1121/1.392263}
-}
 
-@article{pacchierotti2015,
-  author  = {Pacchierotti, Claudio and Prattichizzo, Domenico and
-             Kuchenbecker, Katherine J.},
-  title   = {Cutaneous Feedback of Fingertip Deformation and Vibration
-             for Palpation in Robotic Surgery},
-  journal = {IEEE Transactions on Biomedical Engineering},
-  volume  = {63},
-  number  = {2},
-  pages   = {278--287},
-  year    = {2016},
-  doi     = {10.1109/TBME.2015.2455932}
-}
 
-@article{pacchierotti2015b,
-  author  = {Pacchierotti, Claudio and Tirmizi, Asad and Prattichizzo,
-             Domenico},
-  title   = {Improving Transparency in Teleoperation by Means of
-             Cutaneous Tactile Force Feedback},
-  journal = {ACM Transactions on Applied Perception},
-  volume  = {11},
-  number  = {1},
-  pages   = {4},
-  year    = {2014},
-  doi     = {10.1145/2604969}
-}
 
-@inproceedings{tsetserukou2010,
-  author    = {Tsetserukou, Dzmitry and Hosokawa, Shotaro and
-               Terashima, Kazuhiko},
-  title     = {{LinkTouch}: A Wearable Haptic Device with Five-Bar
-               Linkage Mechanism for Presentation of Two-{DOF} Force
-               Feedback at the Fingerpad},
-  booktitle = {Proceedings of the IEEE Haptics Symposium},
-  year      = {2014},
-  doi       = {10.1109/HAPTICS.2014.6775483}
-}
 
-@inproceedings{garciarobledo2011,
-  author    = {Garc{\'\i}a-Robledo, Pablo and Ortego, Jorge and
-               Ferre, Manuel and Barrio, Jorge and
-               Sanchez-Ur{\'a}n, Miguel Angel},
-  title     = {Segmentation of Bimanual Virtual Object Manipulation
-               Tasks Using Multifinger Haptic Interfaces},
-  booktitle = {Proceedings of the IEEE World Haptics Conference (WHC)},
-  year      = {2011},
-  doi       = {10.1109/WHC.2011.5945547}
-}
 
-@article{vipins2025,
-  author  = {Wu, Qian and others},
-  title   = {{Vipins}: Combining a Pin Array and Vibrotactile Actuators
-             to Render Complex Shapes and Textures},
-  journal = {Proceedings of the IEEE},
-  year    = {2025}
-}
 
-@book{secchi2007,
-  author    = {Secchi, Cristian and Stramigioli, Stefano and
-               Fantuzzi, Cesare},
-  title     = {Control of Interactive Robotic Interfaces: A
-               Port-Hamiltonian Approach},
-  publisher = {Springer},
-  address   = {Berlin},
-  year      = {2007},
-  doi       = {10.1007/978-3-540-49713-7}
-}
