@@ -209,112 +209,242 @@ measurement, would be needed to rank the two actuator types with confidence.
 \section{Background and Motivation}
 \label{sec:background}
 
-Teleoperated robots are used wherever a human should not, or cannot, be
-physically present: nuclear decommissioning, disaster response, minimally
-invasive surgery, and the handling of hazardous or contaminated material. In
-each case the operator issues motion commands through a master interface and
-the robot reproduces them at the remote site, while sensory information about
-the remote environment is returned through a feedback channel \cite{zheng2024,huang2019}. The quality of
-that feedback channel bounds what the operator can safely do.
+When a person picks up an egg, their fingers tell them how hard they are
+squeezing, and they ease off before it cracks. That signal is missing in
+\emph{teleoperation}, where an operator works a robot from a distance and
+never touches the object at all.
 
-In practice the feedback channel is almost always visual. A camera stream tells
-the operator where the gripper is and, sometimes, whether it has closed on the
-object. What it does not convey is \emph{how hard} the gripper is squeezing.
-Human grasping normally regulates force through cutaneous mechanoreceptors in
-the fingertips, which report the onset of contact, the distribution of pressure,
-and incipient slip within tens of milliseconds. When that channel is removed,
-grip force is controlled open-loop, by guesswork, and the guess is
-systematically conservative in the wrong direction: operators squeeze harder
-than necessary because the cost of dropping an object is immediate and visible
-whereas the cost of over-squeezing is not \cite{huang2019}.
+Teleoperation is used wherever a person should not or cannot be present.
+Typical settings are maintenance in nuclear and chemical plants, disposal of
+explosive ordnance, search and rescue after disasters, and minimally invasive
+surgery \cite{niemeyer2016}. A system of this kind has two halves: the
+\emph{local site}, which holds the operator and the equipment they use to see
+and command, and the \emph{remote site}, which holds the robot, its sensors,
+and the objects being handled \cite{niemeyer2016}.
 
-For rigid, robust objects this matters little. It matters a great deal for
-fragile objects, which fail abruptly beyond a force threshold, and for
-deformable objects, which yield progressively without a clear failure point,
-because in both cases the visual signature of impending failure either arrives
-too late to act on or does not exist until the failure itself.
+How much the operator decides varies. Under \emph{direct control} they set the
+robot's motion themselves, with no help from the robot; under \emph{supervisory
+    control} they give a goal and the robot works out how to reach it
+\cite{niemeyer2016}. This thesis stays at the direct end, where the operator's
+own hand motion is the command, so what the system sends back to them sets the
+limit on what they can safely do.
+
+What the system sends back is mostly video. A camera shows where the gripper
+is and usually whether it has closed on the object, but an image says little
+about the contact itself. Grip force and surface texture are both hard to read
+from a picture \cite{becker2024}. Work on teleoperated manufacturing makes the
+same point, and argues that the channel running from robot back to operator has
+received far less design attention than the channel running the other way
+\cite{zheng2024}. Where something richer is offered, it is often guidance laid
+over the video, such as virtual fixtures, rather than a measurement of what the
+gripper is actually touching \cite{huang2019}.
+
+The operator is therefore left to set grip force without the sense that
+normally sets it. For sturdy objects this hardly matters. It matters for two
+classes of object that this thesis takes as its test cases. \emph{Fragile}
+objects break suddenly once squeezed past a threshold, and \emph{deformable}
+objects change shape gradually and never break at all. In both cases vision
+gives the operator little warning: the sign of damage either arrives too late
+to act on or never appears. Fragile items are exactly the case used to justify
+adding touch feedback in industrial teleoperation \cite{zheng2024}, and they
+are also the standard test in prosthetics, where a ``virtual eggs'' task
+measures whether a user can grasp without breaking \cite{chai2022}.
 
 \section{The Role of Touch in Human Grasping}
 \label{sec:role-of-touch}
 
-Precision grasping in humans is not a single act of closing the fingers but a
-continuous control loop. On contact, fast-adapting afferents signal the
-transition from free motion to loaded contact; slowly-adapting afferents then
-encode the sustained normal force; and micro-slip events, detected before gross
-slip occurs, drive rapid reflexive increases in grip force \cite{johansson2009}. The result is a grip
-that sits just above the minimum required to prevent slip, with a small safety
-margin, and that adapts within a fraction of a second when the load changes.
+Gripping something carefully is not one action but a control loop that runs
+continuously. It is fed by four kinds of touch receptor in the hairless skin
+of the hand, and they divide the work by speed. Two respond only while the
+skin is moving: the FA-I receptors cover roughly
+\SIrange{5}{50}{\hertz}, and the FA-II receptors are extremely sensitive to
+brief shocks and to vibration between about \SI{40}{\hertz} and
+\SI{400}{\hertz}. The other two report steady pressure: SA-I receptors respond
+below about \SI{5}{\hertz} and, unlike the fast pair, register force that is
+not changing, while SA-II receptors sense sustained force and skin tension
+\cite{johansson2009}. This split matters here because an artificial device
+does not stimulate touch in general. It stimulates whichever of these
+receptors its own motion happens to reach.
 
-Two features of this loop are relevant to the design of an artificial
-substitute. First, the information that matters most is \emph{change}: contact
-onset, slip onset, and force increments, rather than absolute force magnitude.
-Second, the loop is closed continuously rather than sampled at discrete
-decision points. Any haptic display that hopes to restore grip-force regulation
-must therefore deliver a signal that is both temporally prompt and continuously
-available, not a discrete alarm that fires once a threshold is crossed.
+The loop these receptors feed works mainly by prediction. A person sets grip
+force in advance from what they expect the object's weight and surface to be,
+and the result is efficient: grip force is normally only
+\SIrange{10}{40}{\percent} above the minimum needed to stop the object
+slipping \cite{johansson2009}. When the prediction is wrong, touch does trigger
+a correction, but not immediately. The delay around these corrective loops is
+roughly \SI{100}{\milli\second}, which is why skilled handling relies on
+predicting well rather than on reacting fast \cite{johansson2009}. Take the
+touch signal away and the ability to match grip to the surface is lost, as
+happens when sensation in the fingers is impaired \cite{johansson2009}.
+
+Two points follow for anything built to replace that signal. First, much of
+what matters arrives as separate \emph{events} rather than as a running force
+reading: first contact, loss of contact, and the tiny slips that come before an
+object actually slides. Robotics calls the last of these \emph{incipient slip},
+and it shows up as small local vibrations around the edge of the contact patch
+before the object moves \cite{cutkosky2016}. Second, the loop never stops
+running. A useful artificial display should therefore be quick and always
+available, not a one-off alarm that fires when some threshold is crossed. That
+brief events need their own treatment, separate from steady force, is
+established in haptics: adding short, high-frequency bursts on top of ordinary
+force feedback makes simulated contact feel markedly more realistic
+\cite{kuchenbecker2006}.
 
 \section{Existing Haptic Feedback Approaches and Their Limitations}
 \label{sec:existing-approaches}
 
-Wearable haptic devices for the fingertip and hand fall broadly into three
-families. \emph{Kinaesthetic} devices, such as exoskeletons and
-force-reflecting master arms \cite{kuchenbecker_2010}, apply forces to the
-finger joints and can in principle reproduce grip force directly, but they are
-bulky, expensive, and constrain the operator's free motion.
-\emph{Skin-deformation} devices, meaning normal-indentation and shear tactors,
-apply displacement to the fingerpad and reproduce contact more faithfully than
-vibration, but require comparatively large, slow actuators.
-\emph{Vibrotactile} devices, including eccentric rotating-mass motors, linear
-resonant actuators, and piezoelectric benders, are small, cheap, and fast, and
-dominate practical deployments \cite{pacchierotti2017,choi2013}, but they render force \emph{indirectly}: they
-substitute a vibration whose amplitude or frequency stands in for a force the
-skin never actually feels.
+Devices that deliver touch to the hand can be sorted by where they push from.
+At one end are \emph{kinaesthetic} devices, such as hand exoskeletons, which
+brace against the world or the forearm and can therefore resist the fingers
+directly. Moving that bracing point closer to the skin makes a device easier to
+wear but steadily removes its ability to resist motion, until only
+\emph{cutaneous} cues remain, meaning sensations delivered to the skin alone
+\cite{pacchierotti2017}. The teleoperation interface of Zheng et al.\ sits at
+the kinaesthetic end: an exoskeleton glove with five brushless motors pulls
+against the operator's fingertips to reproduce a force measured by a
+piezoelectric patch on the gripper \cite{zheng2024}. Devices like this
+reproduce force directly, but they are mechanically complex and they get in the
+way of the hand.
 
-Two gaps recur across this literature. First, most user studies evaluate a
-single actuator against a no-feedback baseline, establishing that feedback helps
-without establishing which kind of feedback helps most \cite{luo2024}; comparisons that hold
-the sensing pipeline fixed and vary only the actuator are rare. Second, the
-sensing side is frequently simplified: feedback is derived from motor current,
-from a single load cell, or from a simulated contact model rather than from a
-tactile sensor that actually measures the contact geometry.
+Skin-only devices give up that direct reproduction in exchange for being small.
+Touch receptors are densely packed and easily triggered, which makes it
+possible to build displays that are compact, comfortable, and cheap, and
+skin-only feedback has repeatedly improved performance in teleoperation
+\cite{pacchierotti2017}. Vibrating displays are the most common kind. Vibration
+is sensed through the fast-responding receptors of the hairless skin
+\cite{choi2013}, and it stands in for force rather than supplying it: the skin
+feels a buzz where a real grasp would have applied pressure.
+
+Which vibrating actuator is chosen is not a neutral decision, and the two
+compared in this thesis sit on opposite sides of a trade-off the wearable
+haptics literature states plainly. Resonant-mass actuators, of which the
+\emph{linear resonant actuator} (LRA) is the usual commercial form, are simple
+and efficient but cannot change their vibration frequency at all. Solenoid and
+voice-coil actuators are more flexible, can follow an arbitrary drive signal
+within their limits, and can hold a steady force, which a resonant mass cannot
+\cite{pacchierotti2017}. Commercial LRAs are around \SI{10}{\milli\metre}
+across and resonate near \SI{200}{\hertz} \cite{choi2013}, which falls in the
+band the FA-II receptors respond to \cite{johansson2009}, so an LRA works
+mainly through that one fast channel.
+
+The alternative used here is an \emph{electromagnetic} (EM) bistable pin, which
+follows the TacTiles design of Vechev et al.\ \cite{vechev2019}. The pin
+latches magnetically in either its extended or retracted position and draws
+power only while switching, holding \SI{200}{\milli\newton} against the finger
+with no power at all, in a package of \SI{1}{\centi\metre\cubed} and
+\SI{1.8}{\gram} \cite{vechev2019}. Because it can press into the fingerpad and
+stay there, it can deliver sustained pressure. Neither fast receptor type
+registers that, since both are insensitive to force that is not changing; it is
+the slow SA-I and SA-II receptors that report it \cite{johansson2009}. Vechev
+et al.\ make the design case directly: vibration reaches only the
+high-frequency receptors and so cannot convincingly render either a distinct
+touch event or the steady sensation of contact \cite{vechev2019}. Their
+participants told the device's two modes apart in \SI{87}{\percent} of trials,
+so the difference between a pin resting on the skin and a pin pulsing near it
+is one people can actually feel \cite{vechev2019}. The two actuators in this
+thesis are therefore not two settings of one display; they act on the skin in
+different ways.
+
+One limit applies to both. A vibrating display carries intensity coarsely.
+Weber fractions for vibration intensity cluster around
+\SIrange{10}{30}{\percent}, and in practice an amplitude difference of at
+least \SIrange{20}{30}{\percent} is needed before people can tell two levels
+apart reliably \cite{choi2013}. Such a display can convey a rough sense of how
+hard, rising as the grip tightens, but not a force reading. That bounds what
+any system of this type can be expected to do.
+
+The evidence that touch feedback helps in teleoperation is by now reasonably
+good, although the studies differ in setting. Coppola et al.\ tracked the
+operator's hand with a Leap Motion sensor and returned vibration through a
+custom glove; with ten participants, feedback improved grasping and
+significantly lowered reported effort and physical demand, though the robot
+hand was simulated rather than real \cite{coppola2022}. Gong et al.\ fed scaled
+tool vibrations back to thirty operators of a da Vinci system during
+telerobotic assembly, and once participants had some practice with the feedback
+they produced significantly lower vibrations and contact forces
+\cite{gong2024}. In prosthetics, encoding grip force as electrical stimulation
+of the skin improved handling of fragile objects on a virtual eggs test
+\cite{chai2022}. Arrays of vibrating actuators can now be embroidered directly
+into fabric, which removes much of the old practical objection to putting
+several of them on a hand \cite{luo2024}.
+
+What is still open is narrower, and it is what this thesis takes up. Each of
+these studies pairs one actuator with one sensing pipeline, so any benefit
+found belongs to the whole chain rather than to the actuator. Where two
+feedback conditions are compared, the sensing or control path usually differs
+between them as well. Whether the \emph{actuator type} alone changes the
+outcome, with everything upstream held identical, has not been measured.
 
 \section{Tactile Sensing on the Robot Side}
 \label{sec:tactile-sensing}
 
-Vision-based tactile sensors resolve the second gap. A camera images the inner
-surface of a deformable elastomer pad; when the pad contacts an object, the
-resulting deformation field is reconstructed from the image, giving a dense
-depth map of the contact patch at camera frame rate \cite{donggelsight2021,dahiya2010}. The 9DTact sensor used in
-this work belongs to this family \cite{lin2023} and is compact enough to mount on a
-conventional two-finger gripper without redesigning the finger.
+The other half of the problem is what the robot can measure. A tactile array
+has to recover either the shape of the contact or the pressure spread across
+it, and recovering shape calls for a soft skin \cite{cutkosky2016}.
+Vision-based sensors, also called visuotactile sensors, do this with a camera.
+Such a sensor has three parts: a soft \emph{sensing skin} that takes the
+contact, a \emph{lighting system} suited to that skin, and a \emph{camera}
+that photographs how the skin deforms \cite{li2024}. From that video stream a
+standard set of quantities can be computed, including which part of the skin
+is in contact, the three-dimensional shape of the contact, the force applied,
+and whether the object is slipping \cite{li2024}. Slip signals from such
+sensors have been pushed further still, to estimate how fast an object is
+sliding, though in that work the estimate drives the robot's own controller
+rather than a display for a person \cite{jawale2024}.
 
-Such a sensor supplies far more information than a haptic display of the kind
-described above can render: a full depth map versus, typically, one scalar per
-finger. Bridging that gap requires an explicit reduction, a mapping from
-contact geometry to actuator drive, and the choice of reduction is itself a
-design decision that this thesis makes explicit and holds constant across the
-conditions being compared.
+The 9DTact sensor used here is one of these. It works out a depth map of the
+contact from image brightness alone, with no markers printed on the gel, and
+reports a mean error of \SI{0.046}{\milli\metre} against known shapes. It
+measures $32.5 \times 25.5 \times 25.5$~\si{\milli\metre}, weighs
+\SI{20}{\gram}, and runs at up to 90 frames per second \cite{lin2023}. It is
+small enough to replace the fingertip pad on an ordinary two-finger gripper
+without redesigning the finger.
+
+This leaves a mismatch that any system like this has to settle openly. The
+sensor produces a full depth map for each finger, while the display on the
+operator's hand can carry only about one coarse number per channel, for the
+reasons given in Section~\ref{sec:existing-approaches}. Getting from one to the
+other means deliberately throwing information away, and how that is done is a
+design choice in its own right. A comparison between actuators is meaningless
+unless that choice is held fixed. This thesis states the reduction explicitly
+(Section~\ref{subsec:mapping}) and applies exactly the same one in both haptic
+conditions.
 
 \section{Problem Statement}
 \label{sec:problem-statement}
 
-This thesis addresses a compound question that the literature has generally
-split in two:
+One point of terminology is worth settling before the questions are stated.
+The system here is a direct-control system in the sense of
+Section~\ref{sec:background}, but it is not \emph{bilateral}, a term reserved
+in the telerobotics literature for systems that push force back at the operator
+through the very mechanism that measures their motion \cite{niemeyer2016}. In
+this system the command travels one way only: a camera tracks the gap between
+the operator's thumb and index finger and maps it to gripper position, with no
+mechanism for the robot to push back against. What returns to the operator is a
+separate skin-only display. The question is how much of ordinary grip control
+such a display can restore.
+
+This thesis therefore asks a two-part question that the literature has usually
+split up:
 
 \begin{enumerate}[label=(\roman*)]
-    \item Does tactile feedback, derived from a real vision-based tactile sensor
-          and rendered on a wearable actuator array, measurably improve
-          grip-force regulation and grasp outcomes when a teleoperator handles
-          fragile and deformable objects, relative to a visual-only baseline?
-    \item Given the same sensing and intensity-computation pipeline, does the
-          \emph{type} of actuator used to render the signal, a continuously
-          modulated resonant vibrator versus a discretely latching
-          electromagnetic pin, change those outcomes?
+    \item Does touch feedback, taken from a real vision-based tactile sensor
+          and delivered through a wearable actuator array, measurably improve
+          grip-force control and grasp outcomes when an operator handles
+          fragile and deformable objects, compared with vision alone?
+    \item Given the same sensor and the same intensity calculation, does the
+          \emph{type} of actuator that delivers the signal --- a continuously
+          modulated vibrating motor against a latching electromagnetic pin ---
+          change those outcomes?
 \end{enumerate}
 
-The second question is the one this work is structured to answer, because it
-requires a system in which everything upstream of the actuator can be held
-identical while the actuator itself is exchanged.
+The second question is the one the work is built to answer, because answering
+it requires a system in which everything before the actuator can be held
+identical while the actuator itself is swapped. As
+Section~\ref{sec:existing-approaches} set out, the two types differ not only in
+how they render a signal but in which touch receptors they reach, so there is a
+reason to expect a difference and, so far, no measurement of whether one
+exists.
 
 \section{Objectives}
 \label{sec:objectives}
@@ -322,41 +452,58 @@ identical while the actuator itself is exchanged.
 \begin{enumerate}
     \item Integrate vision-based tactile sensing into a Robotiq 2F-85 adaptive
           gripper and derive a real-time contact-intensity signal from it.
-    \item Design and build a five-channel wearable actuator array, driven by an
-          ESP32-C6, that can render that signal through either LRA or EM
-          bistable pin actuators without any change upstream of the driver.
+    \item Design and build a five-channel wearable actuator array, driven by
+          an ESP32-C6, that can deliver that signal through either LRA or EM
+          bistable pin actuators with no change anywhere upstream of the
+          driver.
     \item Command the gripper from the operator's own pinch aperture using
-          markerless hand tracking, so that the operator's control effort is
-          comparable across conditions.
+          markerless hand tracking, so that the effort of controlling the
+          gripper is comparable across conditions.
     \item Run a within-subjects user study comparing visual-only, LRA, and EM
           feedback on fragile and deformable objects, collecting both
           per-tick quantitative logs and per-condition subjective ratings.
     \item Analyse the resulting data to answer the two questions of
-          Section~\ref{sec:problem-statement}, and state explicitly which
-          confounds limit the strength of the answer.
+          Section~\ref{sec:problem-statement}, and state plainly which
+          confounds limit how firmly they can be answered.
 \end{enumerate}
 
 \section{Contributions}
 \label{sec:contributions}
 
-The specific contributions of this thesis are:
+This thesis contributes the following.
 
 \begin{itemize}
-    \item An end-to-end open teleoperation stack, covering tactile sensing,
-          hand tracking, gripper control, the serial haptic link, and firmware,
-          in which the haptic actuator is the only component that changes between
-          experimental conditions.
-    \item An intensity-rendering scheme for bistable electromagnetic pin
-          actuators that approximates a sustained, graded sensation through
-          burst-and-gap pulsing, permitting a like-for-like comparison against
-          a continuously modulated LRA.
-    \item An $N=22$ within-subjects study quantifying the effect of tactile
-          feedback and of actuator type on grip-force regulation and object
-          survival for fragile and deformable objects.
-    \item A metric, \emph{excess deformation}, that isolates the force applied
-          after the tactile display has saturated, and therefore after further
-          squeezing conveys no new information to the operator.
+    \item A complete, open teleoperation stack covering tactile sensing, hand
+          tracking, gripper control, the serial link to the hand, and the
+          firmware, in which the actuator is the only part that changes
+          between conditions.
+    \item A way of rendering graded intensity on bistable electromagnetic pins,
+          which produce no ongoing sensation once latched, by pulsing them in
+          bursts and gaps. This makes a like-for-like comparison against a
+          continuously modulated LRA possible.
+    \item A within-subjects study with $N=22$ participants measuring the effect
+          of touch feedback, and of actuator type, on grip-force control and
+          object survival for fragile and deformable objects. The sample is
+          larger than those of the closest comparable studies, which report
+          seven to ten participants \cite{becker2024,coppola2022}, and was
+          sized for the harder comparison between the two actuators rather
+          than the easier one against no feedback.
+    \item A metric, \emph{excess deformation}, that isolates the squeezing an
+          operator does after the display has already reached full intensity,
+          when further squeezing tells them nothing new. The metric follows
+          from the coarse intensity resolution discussed in
+          Section~\ref{sec:existing-approaches} and is defined against the
+          mapping in Section~\ref{subsec:mapping}.
 \end{itemize}
+
+The closest precedent for the system as a whole is the work of Becker et al.,
+who put GelSight sensors on a gripper and returned vibration to the operator in
+a virtual-reality teleoperation setup. In a preliminary study with seven
+participants, deformation of a plasticine ball fell by \SI{48}{\percent} when
+the feedback was switched on \cite{becker2024}. That result motivates the
+present study without answering either of its questions: it compares feedback
+against no feedback using a single actuator, and its authors describe it as
+preliminary.
 
 \section{Thesis Structure}
 \label{sec:structure}
