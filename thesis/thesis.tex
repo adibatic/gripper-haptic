@@ -5,6 +5,10 @@
 %
 %  Formatted to the departmental submission specification:
 %    - A4, portrait, horizontal writing, two-sided, left-side binding
+%    - Chapters open on a right-hand page (`openright`), so a chapter that
+%      ends on a recto is followed by a blank verso. `openany` removes
+%      those blanks and saves roughly a dozen pages, but recto opening is
+%      the safer reading of a two-sided, bound specification.
 %    - Margins: top 20 mm, bottom 25 mm, binding (inner) 25 mm,
 %               fore-edge (outer) 25 mm
 %    - Page number centred in the bottom margin
@@ -16,7 +20,7 @@
 %  The separate spine sheet for binding is in spine.tex.
 % =====================================================================
 
-\documentclass[12pt, a4paper, twoside, openany]{report}
+\documentclass[12pt, a4paper, twoside, openright]{report}
 
 % --------------------------- Encoding & fonts ------------------------
 \usepackage[utf8]{inputenc}
@@ -107,8 +111,8 @@
 
 % --------------------------- Convenience -----------------------------
 \newcommand{\thesistitle}{Tactile-Feedback Teleoperation: Grip Force and Grasping Performance Across Haptic Actuator Types for Fragile and Deformable Objects}
-\newcommand{\authorname}{Adriel, Santoso, Imaran}
-\newcommand{\studentid}{C2TB1701}          % TODO: insert actual student ID
+\newcommand{\authorname}{Santoso, Adriel Imaran}
+\newcommand{\studentid}{C2TB1701}
 \newcommand{\labname}{Hashimoto Laboratory}
 \newcommand{\supervisorname}{Prof.\ Koichi Hashimoto}
 \newcommand{\graduationdate}{September, 2026}
@@ -153,7 +157,7 @@
     \vspace*{20mm}
 \end{titlepage}
 
-\clearpage
+\cleardoublepage
 
 % =====================================================================
 %  FRONT MATTER
@@ -201,14 +205,14 @@ which actuator helps more. A larger study, with counterbalanced condition
 order, matched actuator placement, and a properly calibrated force
 measurement, would be needed to rank the two actuator types with confidence.
 
-\clearpage
+\cleardoublepage
 
 \tableofcontents
-\clearpage
+\cleardoublepage
 \listoffigures
-\clearpage
+\cleardoublepage
 \listoftables
-\clearpage
+\cleardoublepage
 
 % =====================================================================
 %  MAIN MATTER
@@ -1247,14 +1251,14 @@ Table~\ref{tab:quant} summarises the fragile-object results.
     \label{tab:quant}
     \begin{tabular}{@{}lrrrrr@{}}
         \toprule
-                                       & V     & LRA   & EM    & $\chi^2(2)$ & $p$ \\
+                                       & V     & LRA   & EM    & $\chi^2(2)$ & $p$            \\
         \midrule
-        Peak deformation volume (a.u.) & 20090 & 12290 & 15980 & 5.73  & 0.057 \\
-        Excess deformation (a.u.)      & 1527  & 170   & 260   & 5.09  & 0.079 \\
-        Grip adjustments (\#)          & 7     & 5     & 2     & 10.66 & \textbf{0.005} \\
-        Peak indentation depth (mm)    & 0.98  & 0.95  & 0.98  & 4.75  & 0.093 \\
+        Peak deformation volume (a.u.) & 20090 & 12290 & 15980 & 5.73        & 0.057          \\
+        Excess deformation (a.u.)      & 1527  & 170   & 260   & 5.09        & 0.079          \\
+        Grip adjustments (\#)          & 7     & 5     & 2     & 10.66       & \textbf{0.005} \\
+        Peak indentation depth (mm)    & 0.98  & 0.95  & 0.98  & 4.75        & 0.093          \\
         \midrule
-        Objects surviving (\%)         & 62    & 81    & 78    & 11.24 & \textbf{0.004} \\
+        Objects surviving (\%)         & 62    & 81    & 78    & 11.24       & \textbf{0.004} \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -1323,12 +1327,12 @@ across metrics.
     \label{tab:deformable}
     \begin{tabular}{@{}lrrrrrr@{}}
         \toprule
-                                       & V    & LRA  & EM   & $n$ & $\chi^2(2)$ & $p$ \\
+                                       & V    & LRA  & EM   & $n$ & $\chi^2(2)$ & $p$   \\
         \midrule
-        Peak deformation volume (a.u.) & 1336 & 1366 & 1149 & 22 & 4.73 & 0.094 \\
-        Excess deformation (a.u.)      & 60   & 40   & 42   & 21 & 0.70 & 0.705 \\
-        Grip adjustments (\#)          & 4    & 5    & 5.5  & 21 & 2.03 & 0.363 \\
-        Peak indentation depth (mm)    & 0.34 & 0.43 & 0.38 & 22 & 3.06 & 0.217 \\
+        Peak deformation volume (a.u.) & 1336 & 1366 & 1149 & 22  & 4.73        & 0.094 \\
+        Excess deformation (a.u.)      & 60   & 40   & 42   & 21  & 0.70        & 0.705 \\
+        Grip adjustments (\#)          & 4    & 5    & 5.5  & 21  & 2.03        & 0.363 \\
+        Peak indentation depth (mm)    & 0.34 & 0.43 & 0.38 & 22  & 3.06        & 0.217 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -1412,14 +1416,14 @@ metrics do.
     \label{tab:likert}
     \begin{tabular}{@{}lcccr@{}}
         \toprule
-        Item & V & LRA & EM & $p$ \\
+        Item                 & V              & LRA            & EM             & $p$               \\
         \midrule
-        Easy to manipulate      & 3.0 [2.0--4.0]  & 4.0 [3.0--4.0]    & 4.0 [3.0--4.0]    & \textbf{0.006} \\
-        Could tell contact      & 2.5 [2.0--3.0]  & 4.0 [4.0--4.8]    & 4.0 [3.0--4.8]    & \textbf{$<$0.001} \\
-        Confident in grasp      & 2.0 [2.0--3.0]  & 4.0 [3.0--4.0]    & 4.0 [3.0--4.0]    & \textbf{$<$0.001} \\
-        Could perceive force    & 1.0 [1.0--2.0]  & 3.5 [3.0--4.0]    & 3.0 [3.0--4.0]    & \textbf{$<$0.001} \\
-        Mental effort low       & 3.0 [2.3--4.0]  & 4.0 [3.0--4.8]    & 4.0 [3.0--5.0]    & 0.053 \\
-        Physical effort low     & 3.5 [3.0--5.0]  & 4.0 [3.0--5.0]    & 4.0 [3.0--5.0]    & 0.069 \\
+        Easy to manipulate   & 3.0 [2.0--4.0] & 4.0 [3.0--4.0] & 4.0 [3.0--4.0] & \textbf{0.006}    \\
+        Could tell contact   & 2.5 [2.0--3.0] & 4.0 [4.0--4.8] & 4.0 [3.0--4.8] & \textbf{$<$0.001} \\
+        Confident in grasp   & 2.0 [2.0--3.0] & 4.0 [3.0--4.0] & 4.0 [3.0--4.0] & \textbf{$<$0.001} \\
+        Could perceive force & 1.0 [1.0--2.0] & 3.5 [3.0--4.0] & 3.0 [3.0--4.0] & \textbf{$<$0.001} \\
+        Mental effort low    & 3.0 [2.3--4.0] & 4.0 [3.0--4.8] & 4.0 [3.0--5.0] & 0.053             \\
+        Physical effort low  & 3.5 [3.0--5.0] & 4.0 [3.0--5.0] & 4.0 [3.0--5.0] & 0.069             \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -1778,14 +1782,14 @@ next gain in teleoperated handling of delicate objects is likely to come from.
 % =====================================================================
 %  BACK MATTER
 % =====================================================================
-\clearpage
+\cleardoublepage
 \begingroup
 \raggedright
 \printbibliography[heading=bibintoc, title={References}]
 \endgroup
 
 \appendix
-\clearpage
+\cleardoublepage
 
 \chapter{Questionnaire Items}
 \label{app:questionnaire}
@@ -1840,18 +1844,296 @@ EM conditions respectively.
 
 \chapter{Per-Participant Summary Data}
 \label{app:data}
-\todo{Table of per-participant, per-condition medians for each metric of
-    Section~\ref{sec:metrics}, generated from
-    \texttt{section\_5\_1\_reduced\_metrics.csv}.}
+
+The tables below give each participant's median across the five repeated trials
+for every condition and object class, which is the reduction described in
+Section~\ref{sec:analysis-procedures} and the input to every test reported in
+Chapter~\ref{ch:results}. They are generated from
+\texttt{section\_5\_1\_reduced\_metrics.csv} in the analysis output
+directory. Survival counts
+come from the per-trial file, since survival is a per-trial rather than a
+per-participant outcome. A dash marks a participant and condition for which no
+value could be computed, which occurs where a trial produced no post-plateau
+samples.
+
+\section*{Fragile objects}
+
+\begin{table}[ht]
+    \centering
+    \small
+    \caption{Peak deformation volume (a.u.), fragile objects.}
+    \label{tab:appB-frag-peak}
+    \begin{tabular}{@{}lrrr@{\hspace{2em}}lrrr@{}}
+        \toprule
+            & V     & LRA   & EM    &     & V     & LRA   & EM    \\
+        \midrule
+        P01 & 36751 & 22452 & 17765 & P12 & 7483  & 4091  & 4026  \\
+        P02 & 14317 & 9064  & 9910  & P13 & 9292  & 25242 & 10290 \\
+        P03 & 33129 & 15585 & 19800 & P14 & 19638 & 12049 & 26592 \\
+        P04 & 23385 & 12533 & 24897 & P15 & 13581 & 8589  & 24352 \\
+        P05 & 24195 & 6970  & 13530 & P16 & 1051  & 27302 & 15690 \\
+        P06 & 23259 & 11208 & 16270 & P17 & 20300 & 10926 & 10892 \\
+        P07 & 32427 & 30095 & 26814 & P18 & 18759 & 25137 & 9427  \\
+        P08 & 27114 & 21659 & 12598 & P19 & 27255 & 18528 & 22006 \\
+        P09 & 12762 & 4595  & 6444  & P20 & 19885 & 20308 & 14667 \\
+        P10 & 11026 & 9530  & 16922 & P21 & 25838 & 31778 & 30924 \\
+        P11 & 20296 & 10404 & 9662  & P22 & 16907 & 8838  & 23281 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[ht]
+    \centering
+    \small
+    \caption{Excess deformation (a.u.), fragile objects.}
+    \label{tab:appB-frag-excess}
+    \begin{tabular}{@{}lrrr@{\hspace{2em}}lrrr@{}}
+        \toprule
+            & V     & LRA   & EM   &     & V     & LRA  & EM  \\
+        \midrule
+        P01 & 25854 & 12895 & 148  & P12 & 12632 & 186  & 76  \\
+        P02 & 835   & 104   & 1785 & P13 & 0     & 0    & 0   \\
+        P03 & 11623 & 5758  & 7984 & P14 & 1455  & 0    & 352 \\
+        P04 & 8681  & 0     & 9875 & P15 & 419   & 155  & 0   \\
+        P05 & 4685  & 253   & 935  & P16 & 0     & 5126 & 11  \\
+        P06 & 2494  & 3087  & 7151 & P17 & 2269  & 1297 & 0   \\
+        P07 & 666   & 1573  & 1427 & P18 & 0     & 20   & 72  \\
+        P08 & 10673 & 3512  & 4625 & P19 & 0     & 0    & 0   \\
+        P09 & 4590  & 0     & 367  & P20 & 1598  & 36   & 25  \\
+        P10 & 19    & 1     & 544  & P21 & 743   & 963  & 169 \\
+        P11 & 1938  & 395   & 367  & P22 & 1008  & 0    & 0   \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[ht]
+    \centering
+    \small
+    \caption{Grip adjustments (count), fragile objects.}
+    \label{tab:appB-frag-adj}
+    \begin{tabular}{@{}lrrr@{\hspace{2em}}lrrr@{}}
+        \toprule
+            & V  & LRA & EM &     & V  & LRA & EM \\
+        \midrule
+        P01 & 12 & 7   & 3  & P12 & 19 & 4   & 17 \\
+        P02 & 1  & 3   & 1  & P13 & 0  & 0   & 0  \\
+        P03 & 5  & 1   & 2  & P14 & 14 & 7   & 4  \\
+        P04 & 10 & 11  & 14 & P15 & 3  & 4   & 2  \\
+        P05 & 5  & 4   & 1  & P16 & 4  & 2   & 1  \\
+        P06 & 11 & 3   & 5  & P17 & 5  & 1   & 2  \\
+        P07 & 8  & 7   & 1  & P18 & 4  & 12  & 17 \\
+        P08 & 7  & 5   & 5  & P19 & 12 & 54  & 1  \\
+        P09 & 10 & 5   & 5  & P20 & 19 & 11  & 10 \\
+        P10 & 9  & 2   & 6  & P21 & 5  & 13  & 1  \\
+        P11 & 7  & 7   & 1  & P22 & 2  & 5   & 2  \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[ht]
+    \centering
+    \small
+    \caption{Peak indentation depth (mm), fragile objects.}
+    \label{tab:appB-frag-depth}
+    \begin{tabular}{@{}lrrr@{\hspace{2em}}lrrr@{}}
+        \toprule
+            & V    & LRA  & EM   &     & V    & LRA  & EM   \\
+        \midrule
+        P01 & 0.98 & 0.98 & 0.98 & P12 & 0.98 & 0.77 & 0.71 \\
+        P02 & 0.98 & 0.86 & 0.91 & P13 & 0.62 & 0.98 & 0.68 \\
+        P03 & 0.98 & 0.98 & 0.98 & P14 & 0.98 & 0.76 & 0.98 \\
+        P04 & 0.98 & 0.98 & 0.98 & P15 & 0.98 & 0.78 & 0.98 \\
+        P05 & 0.98 & 0.73 & 0.86 & P16 & 0.46 & 0.98 & 0.98 \\
+        P06 & 0.98 & 0.91 & 0.98 & P17 & 0.98 & 0.81 & 0.78 \\
+        P07 & 0.98 & 0.98 & 0.98 & P18 & 0.96 & 0.98 & 0.71 \\
+        P08 & 0.98 & 0.98 & 0.98 & P19 & 0.98 & 0.98 & 0.98 \\
+        P09 & 0.98 & 0.98 & 0.98 & P20 & 0.98 & 0.91 & 0.79 \\
+        P10 & 0.68 & 0.78 & 0.98 & P21 & 0.98 & 0.98 & 0.98 \\
+        P11 & 0.97 & 0.80 & 0.80 & P22 & 0.98 & 0.68 & 0.98 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[ht]
+    \centering
+    \small
+    \caption{Fragile objects surviving, out of five trials per condition.}
+    \label{tab:appB-frag-surv}
+    \begin{tabular}{@{}lrrr@{\hspace{2em}}lrrr@{}}
+        \toprule
+            & V & LRA & EM &     & V & LRA & EM \\
+        \midrule
+        P01 & 3 & 3   & 1  & P12 & 3 & 5   & 5  \\
+        P02 & 4 & 4   & 5  & P13 & 3 & 2   & 4  \\
+        P03 & 1 & 3   & 3  & P14 & 3 & 4   & 5  \\
+        P04 & 5 & 5   & 5  & P15 & 2 & 4   & 1  \\
+        P05 & 4 & 5   & 5  & P16 & 5 & 3   & 2  \\
+        P06 & 4 & 5   & 4  & P17 & 3 & 5   & 5  \\
+        P07 & 2 & 4   & 2  & P18 & 4 & 3   & 5  \\
+        P08 & 1 & 4   & 4  & P19 & 1 & 3   & 2  \\
+        P09 & 4 & 5   & 5  & P20 & 3 & 4   & 5  \\
+        P10 & 5 & 5   & 4  & P21 & 2 & 4   & 4  \\
+        P11 & 3 & 4   & 5  & P22 & 3 & 5   & 5  \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section*{Deformable objects}
+
+\begin{table}[ht]
+    \centering
+    \small
+    \caption{Peak deformation volume (a.u.), deformable objects.}
+    \label{tab:appB-def-peak}
+    \begin{tabular}{@{}lrrr@{\hspace{2em}}lrrr@{}}
+        \toprule
+            & V    & LRA   & EM   &     & V    & LRA  & EM   \\
+        \midrule
+        P01 & 384  & 1541  & 1790 & P12 & 218  & 113  & 118  \\
+        P02 & 843  & 1171  & 1060 & P13 & 0    & 297  & 229  \\
+        P03 & 864  & 2106  & 764  & P14 & 1808 & 1087 & 1377 \\
+        P04 & 3868 & 2386  & 2222 & P15 & 1895 & 1190 & 663  \\
+        P05 & 322  & 819   & 633  & P16 & 122  & 793  & 5    \\
+        P06 & 169  & 741   & 544  & P17 & 4195 & 4521 & 4141 \\
+        P07 & 9907 & 11850 & 1426 & P18 & 3383 & 4034 & 2763 \\
+        P08 & 0    & 533   & 1238 & P19 & 4395 & 3622 & 3974 \\
+        P09 & 252  & 151   & 126  & P20 & 2289 & 1799 & 1455 \\
+        P10 & 0    & 893   & 841  & P21 & 3454 & 2972 & 2869 \\
+        P11 & 2970 & 1544  & 741  & P22 & 3023 & 1919 & 3350 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[ht]
+    \centering
+    \small
+    \caption{Excess deformation (a.u.), deformable objects.}
+    \label{tab:appB-def-excess}
+    \begin{tabular}{@{}lrrr@{\hspace{2em}}lrrr@{}}
+        \toprule
+            & V    & LRA & EM  &     & V   & LRA & EM  \\
+        \midrule
+        P01 & 70   & 8   & 109 & P12 & 7   & 8   & 25  \\
+        P02 & 17   & 76  & 198 & P13 & 38  & 83  & 4   \\
+        P03 & 63   & 0   & 8   & P14 & 491 & 52  & 200 \\
+        P04 & 1418 & 333 & 504 & P15 & 28  & 129 & 21  \\
+        P05 & 104  & 0   & 55  & P16 & 0   & 0   & 0   \\
+        P06 & 3    & 6   & 33  & P17 & 575 & 927 & 422 \\
+        P07 & 60   & 836 & 55  & P18 & 3   & 944 & 72  \\
+        P08 & 16   & 101 & 23  & P19 & 436 & 505 & 206 \\
+        P09 & 34   & 0   & 52  & P20 & 24  & 28  & 0   \\
+        P10 & --   & 299 & 0   & P21 & 168 & 8   & 0   \\
+        P11 & 86   & 17  & 0   & P22 & 463 & 0   & 149 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[ht]
+    \centering
+    \small
+    \caption{Grip adjustments (count), deformable objects.}
+    \label{tab:appB-def-adj}
+    \begin{tabular}{@{}lrrr@{\hspace{2em}}lrrr@{}}
+        \toprule
+            & V  & LRA & EM &     & V  & LRA & EM \\
+        \midrule
+        P01 & 3  & 6   & 12 & P12 & 10 & 6   & 17 \\
+        P02 & 3  & 1   & 1  & P13 & 1  & 1   & 1  \\
+        P03 & 3  & 1   & 2  & P14 & 10 & 9   & 8  \\
+        P04 & 5  & 9   & 7  & P15 & 2  & 5   & 12 \\
+        P05 & 2  & 1   & 4  & P16 & 2  & 4   & 8  \\
+        P06 & 6  & 5   & 6  & P17 & 13 & 3   & 6  \\
+        P07 & 1  & 14  & 29 & P18 & 7  & 13  & 21 \\
+        P08 & 2  & 9   & 4  & P19 & 29 & 32  & 3  \\
+        P09 & 4  & 6   & 17 & P20 & 7  & 4   & 1  \\
+        P10 & -- & 1   & 1  & P21 & 5  & 8   & 4  \\
+        P11 & 9  & 1   & 2  & P22 & 3  & 1   & 5  \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[ht]
+    \centering
+    \small
+    \caption{Peak indentation depth (mm), deformable objects.}
+    \label{tab:appB-def-depth}
+    \begin{tabular}{@{}lrrr@{\hspace{2em}}lrrr@{}}
+        \toprule
+            & V    & LRA  & EM   &     & V    & LRA  & EM   \\
+        \midrule
+        P01 & 0.16 & 0.49 & 0.45 & P12 & 0.29 & 0.16 & 0.18 \\
+        P02 & 0.21 & 0.33 & 0.35 & P13 & 0.00 & 0.22 & 0.16 \\
+        P03 & 0.30 & 0.46 & 0.28 & P14 & 0.38 & 0.38 & 0.38 \\
+        P04 & 0.76 & 0.59 & 0.54 & P15 & 0.42 & 0.38 & 0.38 \\
+        P05 & 0.17 & 0.28 & 0.22 & P16 & 0.23 & 0.39 & 0.15 \\
+        P06 & 0.18 & 0.28 & 0.34 & P17 & 0.98 & 0.98 & 0.97 \\
+        P07 & 0.81 & 0.85 & 0.80 & P18 & 0.96 & 0.98 & 0.93 \\
+        P08 & 0.00 & 0.21 & 0.37 & P19 & 0.97 & 0.98 & 0.98 \\
+        P09 & 0.18 & 0.22 & 0.17 & P20 & 0.89 & 0.77 & 0.76 \\
+        P10 & 0.00 & 0.38 & 0.48 & P21 & 0.98 & 0.93 & 0.92 \\
+        P11 & 0.82 & 0.51 & 0.34 & P22 & 0.98 & 0.77 & 0.98 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
 \chapter{Firmware and Driver Details}
 \label{app:firmware}
-\todo{Driver schematic, bill of materials, pulse-timing parameters, and the
-    serial packet format used between host and ESP32-C6.}
 
-\clearpage
+This appendix collects the hardware and protocol details behind
+Section~\ref{sec:driver}. The timing parameters below are those compiled into
+the firmware and are reproduced here so that the drive schemes can be
+replicated without reading the source.
+
+\section*{Serial protocol}
+
+The host sends one ASCII line per haptic tick at \SI{115200}{baud}, carrying
+the two channel intensities to four decimal places and separated by a comma.
+The firmware clamps each value to $[0,1]$ and discards a malformed line rather
+than raising, so a corrupted byte cannot stop the drive loop. A watchdog zeroes
+both channels if no line arrives for \SI{200}{\milli\second}.
+
+\section*{Drive timing}
+
+\begin{table}[ht]
+    \centering
+    \small
+    \caption{Firmware timing parameters for the two drive schemes.}
+    \label{tab:appC-timing}
+    \begin{tabular}{@{}llr@{}}
+        \toprule
+        Scheme & Parameter                & Value                    \\
+        \midrule
+        LRA    & Carrier frequency        & \SI{200}{\hertz}         \\
+        LRA    & Carrier half-period      & \SI{2500}{\micro\second} \\
+        LRA    & Envelope window          & \SI{50}{\milli\second}   \\
+        \midrule
+        EM     & Engage pulse             & \SI{6}{\milli\second}    \\
+        EM     & Release pulse            & \SI{10}{\milli\second}   \\
+        EM     & Vibration pulse width    & \SI{4}{\milli\second}    \\
+        EM     & Pulses per burst         & 10                       \\
+        EM     & Inter-burst gap at $u=0$ & \SI{400}{\milli\second}  \\
+        EM     & Inter-burst gap at $u=1$ & \SI{35}{\milli\second}   \\
+        EM     & Channel stagger          & \SI{10}{\milli\second}   \\
+        EM     & Latch threshold          & $u = 0.1$                \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section*{Outstanding}
+
+\todo{Add the five-channel driver board schematic, the H-bridge part number
+    and supply rail, the per-channel and total current budget, and a bill of
+    materials for the printed fingertip modules of
+    Figure~\ref{fig:actuators}.}
+
+\cleardoublepage
 \chapter*{Acknowledgements}
 \addcontentsline{toc}{chapter}{Acknowledgements}
-\todo{Acknowledge \supervisorname, the laboratory, and the study participants.}
+
+\todo{Replace this placeholder before submission. Conventionally this section
+    thanks \supervisorname\ for supervision and guidance, the members of
+    \labname\ for practical help with the apparatus, and the twenty-two
+    participants who gave their time to the study. Any funding or equipment
+    support should also be acknowledged here.}
 
 \end{document}
