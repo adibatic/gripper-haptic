@@ -1464,7 +1464,7 @@ individual rating item and no objective metric distinguishes it from the EM.
 \section{Interpretation}
 \label{sec:interpretation}
 
-The results separate cleanly into a strong effect and a weak one.
+The results separate into a strong effect and a weak one.
 
 The strong effect is the presence of tactile feedback. For fragile objects,
 both haptic conditions raised survival by 16 to 19 percentage points over
@@ -1472,7 +1472,7 @@ visual-only feedback, and that improvement is statistically reliable at the
 per-participant rate level for both actuators. Grip adjustments after the
 plateau also fell reliably, though for the EM condition only. The mechanism is
 visible in the time-series traces. Under visual-only feedback the operator has
-no signal indicating when the useful part of the grasp is complete, and
+no signal indicating when the useful part of the grasp is complete and
 continues to squeeze after contact is fully established, whereas the haptic
 conditions supply exactly that signal.
 
@@ -1490,9 +1490,9 @@ and was the more frequently preferred condition, while the EM produced fewer
 grip adjustments. No comparison between them reaches significance on any
 metric, and no questionnaire item distinguishes them. Equivalence testing does
 not rescue the null either, since only one metric passes at the chosen margin
-and the rest are inconclusive in both directions. The honest reading is that
-this study establishes that feedback helps, does not establish which actuator
-helps more, and is not powered to declare the two interchangeable.
+and the rest are inconclusive in both directions. This study establishes that
+feedback helps, does not establish which actuator helps more, and is not
+powered to declare the two interchangeable.
 
 The absence of any effect on deformable objects is not a failure of the system
 but a property of the task. A foam cube imposes no penalty for over-squeezing,
@@ -1500,6 +1500,116 @@ so a channel whose value lies in discouraging over-squeezing has nothing to act
 on. This asymmetry is itself informative, since it suggests the benefit of
 tactile feedback in teleoperation is concentrated in tasks with a failure
 threshold rather than distributed across manipulation generally.
+
+\section{Why the Two Actuators Did Not Separate}
+\label{sec:why-no-separation}
+
+Section~\ref{sec:existing-approaches} set out a mechanistic reason to expect
+the two actuators to differ. An LRA vibrates near \SI{200}{\hertz} and so works
+through the fast FA-II channel, whereas a pin that presses into the fingerpad
+and stays there delivers sustained pressure, which only the slowly adapting
+receptors register. That prediction was not borne out, and three features of
+the implementation explain why.
+
+The first is that the sustained channel was never used. To render a graded
+intensity rather than a single on-off contact, the driver pulses the pin
+instead of holding it extended (Section~\ref{subsec:em-drive}). Both conditions
+therefore delivered a gated waveform, differing in temporal granularity rather
+than in kind, and the one property that would have separated them mechanically
+was left on the table.
+
+The second is that the intended rendering contrast was narrowed from the other
+side as well. The LRA is driven by envelope modulation of a fixed-amplitude
+carrier rather than by true amplitude modulation, because the microcontroller
+cannot generate the phase-locked antiphase pair that amplitude modulation would
+need (Section~\ref{subsec:lra-drive}). Both actuators are therefore switched
+rather than modulated, which is closer to a comparison of two pulse trains than
+of a continuous signal against a discrete one.
+
+The third is that the display saturates well before the operator stops
+squeezing. The mapping of Equation~\eqref{eq:mapping} reaches full intensity at
+\SI{1.0}{\milli\metre} of indentation, and both actuators carry intensity
+coarsely, since roughly a fifth of the range is needed before two levels can be
+told apart \cite{choi2013}. Whatever differences the two actuators have in
+rendering fidelity are compressed into a signal with few distinguishable
+levels, which limits how much the choice of actuator could matter even in
+principle.
+
+A participant comment states the untested hypothesis more directly than the
+data can. One wrote that the vibration motor felt more reactive for detecting
+contact, while the pin might be better if the goal were to hold and apply
+sustained pressure. That is close to the division of labour between fast and
+slow receptors described in Section~\ref{sec:role-of-touch}, and it suggests
+the comparison this thesis set out to make is still worth making with a driver
+that holds the pin rather than pulsing it.
+
+\section{The Gap Between What Participants Felt and What They Did}
+\label{sec:subjective-objective}
+
+The clearest divergence in the study is between the subjective and objective
+results. On the questionnaire, four of six items separate the haptic conditions
+from visual-only feedback, with perceived force rising from a median of 1 out
+of 5 to 3.5 under the LRA. In the forced-choice questions, 21 of 22
+participants preferred some form of haptic feedback and 17 named the LRA. Yet
+no objective metric distinguishes the LRA from the EM at all.
+
+Two readings are available and the data do not decide between them. The first
+is that the preference tracks something real that the four metrics do not
+capture, such as how promptly the display responds or how confident the
+operator feels while working. The second is that the preference tracks
+something incidental to the haptic channel.
+
+The free-text comments favour the second reading more than the first. Three
+participants independently reported that finger tracking degraded while the EM
+modules were worn, describing fingertip positions that fluctuated even when
+held still. This is corroborated in the implementation rather than only in
+self-report, since the hand-tracking confidence thresholds had to be lowered
+below their defaults because the actuator body occludes the two landmarks the
+pinch mapping depends on, and at stock settings the tracker lost the hand
+entirely during the EM condition (Section~\ref{sec:handtracking}). The EM
+housing is also the bulkier of the two and sits on the fingertip, where it
+interferes most. A participant who found the EM condition harder to control
+would plausibly report preferring the LRA without the haptic rendering
+differing at all.
+
+If that reading is right, the preference result measures the ergonomics of the
+wearable rather than the merits of the transduction method, and it reinforces
+rather than weakens the conclusion that this study cannot rank the two
+actuators.
+
+\section{Comparison with Prior Work}
+\label{sec:comparison}
+
+The survival result is consistent with the closest published precedent. Becker
+et al.\ reported a \SI{48}{\percent} reduction in deformation of a plasticine
+ball when vibrotactile feedback derived from a GelSight sensor was enabled, in
+a preliminary study with seven participants \cite{becker2024}. The present
+study finds an effect in the same direction on a fragile rather than a
+deformable object, at a larger sample, and with survival rather than
+deformation as the outcome. Notably, the deformable-object result here is null,
+which is worth setting against that precedent, since a plasticine ball records
+its deformation permanently whereas the foam cube used here recovers between
+trials and therefore carries no penalty for over-squeezing.
+
+The direction also matches results from adjacent settings. Gong et al.\
+measured significantly lower contact forces when scaled tool vibrations were
+returned to thirty operators during telerobotic assembly \cite{gong2024}, and
+Chai et al.\ found that encoding grip force as skin stimulation improved
+fragile-object handling on a virtual eggs task in prosthetics \cite{chai2022}.
+Coppola et al.\ reported reduced effort and physical demand with vibrotactile
+feedback in a hand-tracked teleoperation setup close in form to this one,
+though with a simulated robot hand \cite{coppola2022}. Across all of these, the
+benefit of adding a cutaneous channel is reasonably well established, and the
+present study adds a case where that benefit shows up in whether the object
+survives.
+
+What none of these studies answer, and what this one also fails to answer, is
+whether the actuator itself matters. Each pairs one actuator with one pipeline.
+This thesis held the pipeline fixed and varied only the actuator, which is the
+comparison the field lacks, and found no difference. That is a useful negative
+result only to the extent that the comparison was actually made, and
+Section~\ref{sec:why-no-separation} argues that the implementation narrowed it
+considerably.
 
 \section{Limitations}
 \label{sec:limitations}
@@ -1517,30 +1627,30 @@ session.
 transduction mechanism, but also in where they sit. The EM pin must press on
 the fingerpad to be felt and so occupies the distal phalanx, while the LRA is
 strapped over the middle phalanx (Section~\ref{subsec:em-drive}). The two
-therefore stimulate different skin, and the bulkier EM housing also changed how
-well hand tracking performed while it was worn. A preference for one actuator
-may reflect smoother control, or a more sensitive site, rather than a better
-sensation.
+therefore stimulate different skin, and the bulkier EM housing also degraded
+hand tracking while it was worn, as Section~\ref{sec:subjective-objective}
+describes. A preference for one actuator may reflect smoother control, or a
+more sensitive site, rather than a better sensation.
 
-\paragraph{Rendering narrows the intended contrast.} The intended contrast was
-continuous versus discretely-switched rendering. In practice the LRA is driven
-by envelope modulation of a fixed-amplitude carrier rather than by true
-amplitude modulation (Section~\ref{subsec:lra-drive}), so both conditions set
-intensity by gating a waveform on and off, differing chiefly in temporal
-granularity. A dedicated resonant-driver IC capable of amplitude modulation
-would sharpen the contrast.
+\paragraph{Rendering narrows the intended contrast.} Both conditions set
+intensity by gating a waveform on and off, for the reasons given in
+Section~\ref{sec:why-no-separation}, so they differ chiefly in temporal
+granularity. A dedicated resonant-driver IC capable of amplitude modulation on
+the LRA side, and a latch-and-hold drive on the EM side, would sharpen the
+contrast the study was built to test.
 
 \paragraph{Off-resonance carrier.} The LRA carrier was set empirically to
-approximately \SI{200}{\hertz} rather than tuned to the measured resonance of
-the specific actuators. Since an LRA is efficient only in a narrow band around
-resonance, the achievable amplitude range, and therefore the perceptual dynamic
-range of the intensity signal, may have been compressed.
+\SI{200}{\hertz} rather than tuned to the measured resonance of the specific
+actuators. Since an LRA is efficient only in a narrow band around resonance,
+the achievable amplitude range, and therefore the perceptual dynamic range of
+the intensity signal, may have been compressed.
 
-\paragraph{Differing native temporal response.} The LRA requires several drive
-cycles to ring up and ring down, whereas the EM latch transitions almost
-instantly. A
-comparison intended to isolate rendering style is therefore partly a comparison
-of responsiveness.
+\paragraph{Non-haptic cues were available.} Participants could see and hear the
+remote scene. One reported noticing that the egg was about to fail from visible
+cracks or faint sounds rather than from the display. The visual-only condition
+is therefore a realistic baseline rather than a sensory-deprivation control,
+and the measured benefit of haptic feedback is the benefit on top of whatever
+those incidental cues already provided.
 
 \paragraph{The pinch mapping is not per-participant.} The two pixel thresholds
 of Equation~\eqref{eq:pinchmap} are rig constants rather than per-participant
@@ -1550,12 +1660,11 @@ pinch does not command the same gripper position for everyone. Because the
 design is within-subjects this does not bias the comparison between conditions,
 but it adds between-participant variance that reduces power.
 
-\paragraph{Statistical power.}
-Several descriptively large differences do not reach significance, and the
-equivalence tests of Section~\ref{sec:lra-vs-em} are inconclusive for three of
-four metrics. At $N=22$ the study can detect the survival effect but is
-underpowered for the smaller actuator-versus-actuator comparison it was
-designed around.
+\paragraph{Statistical power.} Several descriptively large differences do not
+reach significance, and the equivalence tests of
+Section~\ref{sec:lra-vs-em} are inconclusive for three of four metrics. At
+$N=22$ the study can detect the survival effect but is underpowered for the
+smaller actuator-versus-actuator comparison it was designed around.
 
 \paragraph{Uncalibrated force.} Grip force is inferred from deformation volume
 in arbitrary units, not measured in newtons, and indentation depth rests on a
@@ -1564,7 +1673,9 @@ millimetre scale carries unquantified error.
 
 \paragraph{Tracking and latency.} Hand tracking is 2D and uncalibrated, and the
 end-to-end sensor-to-actuator latency still requires the bench measurement
-described in Section~\ref{sec:latency}.
+described in Section~\ref{sec:latency}. Several participants reported
+perceiving a delay, which makes that measurement worth having rather than
+merely tidy.
 
 \section{Energy-Based Modelling of the Loop}
 \label{sec:phs}
@@ -1575,12 +1686,13 @@ pipeline, and the actuator-skin interface. Teleoperation is commonly analysed
 this way, treating each subsystem as a two-port element and using passivity of
 the resulting energy flow as a sufficient condition for stability, an approach
 that extends to port-based models of the whole loop \cite{niemeyer2016}. A full
-port-Hamiltonian treatment of this system, with the contact, the tactile
-sensor's deformation measurement, and the EM actuator's stored magnetic energy
-each modelled as a port, lies beyond the scope of this thesis, but would
-offer a principled account of why one actuator class transmits sensed
-deformation more transparently than another, grounded in the energetics of the
-loop rather than in empirical comparison alone.
+port-Hamiltonian treatment, with the contact, the sensor's deformation
+measurement, and the EM actuator's stored magnetic energy each modelled as a
+port, lies beyond the scope of this thesis. It would, however, bear directly on
+the question of Section~\ref{sec:why-no-separation}, since the difference
+between holding a pin against the skin and pulsing it is a difference in how
+energy is delivered, and an energetic account would predict what the present
+comparison could not measure.
 
 % =====================================================================
 \chapter{Conclusion}
@@ -1591,36 +1703,77 @@ This thesis presented an end-to-end tactile-haptic teleoperation system that
 integrates vision-based tactile sensing into a Robotiq 2F-85 adaptive gripper,
 commands the gripper from the operator's own pinch aperture, and renders the
 sensed contact deformation on a wearable actuator array through either linear
-resonant actuators or electromagnetic bistable pin actuators,
-with an identical sensing and intensity-mapping pipeline upstream of the driver
-in both cases.
+resonant actuators or electromagnetic bistable pin actuators, with an identical
+sensing and intensity-mapping pipeline upstream of the driver in both cases.
+That last property is what the system was built for, since it allows the
+actuator to be exchanged while everything before it is held fixed.
 
-A within-subjects study with $N=22$ participants found that tactile feedback
-made the grasping of fragile objects safer. Object survival rose from 62\%
-under visual-only feedback to 81\% with the LRA and 78\% with the EM, a
-difference that holds up statistically for both actuators, and the number of
-grip adjustments made after the grasp was complete fell reliably under the EM.
-Excess deformation, the force applied after the tactile display had saturated,
-fell by close to an order of magnitude, although that reduction does not reach
-significance at this sample size. Deformable objects, which lack a failure
-threshold, showed no effect. Participants preferred both haptic conditions to
-visual-only feedback and most often chose the LRA, but neither the
-questionnaire nor any objective metric separated the two actuators.
+Section~\ref{sec:problem-statement} posed two questions, and the study answers
+them asymmetrically.
 
-The conclusion is therefore asymmetric, and deliberately so. The presence of
-tactile feedback matters, and the choice between these two actuators, under
-these conditions and at this sample size, does not demonstrably matter.
-Ranking actuator types would require a study that removes the confounds
-identified in Section~\ref{sec:limitations}, namely counterbalanced condition
-order, matched placement on the hand, resonance-tuned amplitude-modulated LRA
-drive, and a force proxy calibrated in newtons.
+The first asked whether tactile feedback improves grip-force control and grasp
+outcomes for fragile and deformable objects. For fragile objects it does.
+Object survival rose from \SI{62}{\percent} under visual-only feedback to
+\SI{81}{\percent} with the LRA and \SI{78}{\percent} with the EM, and that
+improvement is statistically reliable for both actuators. Grip adjustments made
+after the grasp was complete fell reliably under the EM. Excess deformation,
+the force applied after the display had saturated, fell by close to an order of
+magnitude, although that reduction does not reach significance at this sample
+size. For deformable objects the answer is no, and that null result is
+informative rather than disappointing, since an object with no failure
+threshold gives a channel whose value lies in discouraging over-squeezing
+nothing to act on. Participants agreed with the objective picture, with 21 of
+22 preferring some form of haptic feedback to none.
 
-Future work follows directly from these limitations, and from one extension the
-present system does not exploit. The tactile sensor produces a full depth map,
-of which this study renders a single scalar per finger. Rendering the spatial
-structure of the contact patch across the actuator array, rather than
-collapsing it to one intensity, is the most promising direction for
-recovering more of the information the sensor already measures.
+The second asked whether the type of actuator matters when the sensing and
+intensity mapping are held identical. On this evidence it does not, but the
+finding is weaker than it looks. No objective metric and no questionnaire item
+separates the two actuators, yet 17 of 22 participants named the LRA as their
+overall preference. Equivalence testing fails to establish that the two are
+interchangeable for three of four metrics, so the result is a genuine absence
+of evidence rather than evidence of absence. Section~\ref{sec:why-no-separation}
+argues that the implementation narrowed the intended contrast, because the pin
+was pulsed rather than held and the LRA envelope was gated rather than
+amplitude-modulated, leaving both actuators delivering switched waveforms that
+differ mainly in temporal granularity.
+
+The overall conclusion is therefore that the presence of tactile feedback
+matters and, on this evidence and at this sample size, the choice between these
+two actuators does not demonstrably matter. The second half of that sentence
+should be read as a statement about this experiment rather than about the
+actuators.
+
+Four pieces of work follow directly, in rough order of how much they would
+change the answer.
+
+\begin{enumerate}
+    \item \textbf{Sharpen the actuator contrast.} Drive the pin in a
+          latch-and-hold mode so that the sustained-pressure channel is
+          actually exercised, and drive the LRA with a resonance-tuned
+          amplitude-modulated stage. Without this the comparison remains
+          between two pulse trains.
+    \item \textbf{Remove the confounds.} Counterbalance condition order, match
+          actuator placement on the hand, and calibrate the force proxy in
+          newtons so that grip force is reported in physical units rather than
+          arbitrary ones.
+    \item \textbf{Measure the loop.} The end-to-end sensor-to-actuator latency
+          is still unmeasured, and several participants reported perceiving a
+          delay. A bench measurement would establish whether the perceived lag
+          is real and, if so, where in the chain it accumulates.
+    \item \textbf{Use the rest of the signal.} The tactile sensor produces a
+          full depth map, of which this study renders a single scalar per
+          finger, and the driver already carries five channels of which two
+          were used. Rendering the spatial structure of the contact patch
+          across the array is the most promising direction for recovering more
+          of the information the sensor already measures.
+\end{enumerate}
+
+The broader point is that the sensing side of teleoperated grasping is now
+considerably richer than the display side. A compact vision-based sensor
+resolves contact geometry to tens of micrometres, while the wearable display
+that must convey it carries perhaps a handful of distinguishable levels per
+finger. Closing that gap, rather than improving either end alone, is where the
+next gain in teleoperated handling of delicate objects is likely to come from.
 
 % =====================================================================
 %  BACK MATTER
