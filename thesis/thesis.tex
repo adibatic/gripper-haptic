@@ -16,7 +16,7 @@
 %  The separate spine sheet for binding is in spine.tex.
 % =====================================================================
 
-\documentclass[12pt, a4paper, twoside, openright]{report}
+\documentclass[12pt, a4paper, twoside, openany]{report}
 
 % --------------------------- Encoding & fonts ------------------------
 \usepackage[utf8]{inputenc}
@@ -88,6 +88,19 @@
     \renewcommand{\headrulewidth}{0pt}%
 }
 
+% --------------------------- Float placement -------------------------
+% Departmental instruction: figures go inside the main text, and the page
+% count is kept down. These parameters let a float occupy more of a text
+% page before LaTeX gives up and defers it to a page of its own, and they
+% raise the bar a float must clear to earn a dedicated float page.
+\renewcommand{\topfraction}{0.85}
+\renewcommand{\bottomfraction}{0.70}
+\renewcommand{\textfraction}{0.10}
+\renewcommand{\floatpagefraction}{0.85}
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{4}
+
 % --------------------------- Captions --------------------------------
 \captionsetup{font=small, labelfont=bf, width=0.9\textwidth}
 \captionsetup[sub]{font=small, labelfont=bf}
@@ -140,7 +153,7 @@
     \vspace*{20mm}
 \end{titlepage}
 
-\cleardoublepage
+\clearpage
 
 % =====================================================================
 %  FRONT MATTER
@@ -172,28 +185,30 @@ short latching H-bridge pulses.
 
 Twenty-two participants took part in a study comparing three feedback
 conditions (visual-only, LRA, and EM) while grasping fragile and deformable
-objects. For fragile objects, both types of tactile feedback sharply cut down
-on squeezing after the object was already fully grasped, and raised the
-object's survival rate from 62\% with vision alone to 81\% with the LRA and
-78\% with the EM. Deformable objects, which have no clear breaking point,
-showed no consistent difference between conditions. Participants also
-preferred both haptic conditions over vision alone and most often chose the
-LRA as their favourite, though no single survey question reliably told the two
-actuators apart.
+objects. For fragile objects, both types of tactile feedback raised the
+object's survival rate significantly, from 62\% with vision alone to 81\% with
+the LRA and 78\% with the EM, and the EM also cut the number of grip
+adjustments the operator made after the grasp was complete. Squeezing after the
+display had saturated fell by close to an order of magnitude, though that
+reduction does not reach significance at this sample size. Deformable objects,
+which have no clear breaking point, showed no difference between conditions.
+Participants also preferred both haptic conditions over vision alone and most
+often chose the LRA as their favourite, though no survey item and no objective
+metric reliably told the two actuators apart.
 
 These results show that tactile feedback clearly helps, but they do not show
 which actuator helps more. A larger study, with counterbalanced condition
 order, matched actuator placement, and a properly calibrated force
 measurement, would be needed to rank the two actuator types with confidence.
 
-\cleardoublepage
+\clearpage
 
 \tableofcontents
-\cleardoublepage
+\clearpage
 \listoffigures
-\cleardoublepage
+\clearpage
 \listoftables
-\cleardoublepage
+\clearpage
 
 % =====================================================================
 %  MAIN MATTER
@@ -218,7 +233,7 @@ Teleoperation is used wherever a person should not or cannot be present, such
 as maintenance in nuclear and chemical plants, disposal of explosive ordnance,
 search and rescue after disasters, and minimally invasive surgery
 \cite{niemeyer2016}. A system of this kind has two halves. The \emph{local
-site} holds the operator and the equipment they use to see and command, while
+    site} holds the operator and the equipment they use to see and command, while
 the \emph{remote site} holds the robot, its sensors, and the objects being
 handled \cite{niemeyer2016}. How much the operator decides varies. Under
 \emph{direct control} they set the robot's motion themselves, and under
@@ -374,10 +389,11 @@ identical while the actuator itself is swapped.
 \begin{enumerate}
     \item Integrate vision-based tactile sensing into a Robotiq 2F-85 adaptive
           gripper and derive a real-time contact-intensity signal from it.
-    \item Design and build a five-channel wearable actuator array, driven by an
+    \item Design and build a five-channel wearable actuator driver, based on an
           ESP32-C6, that can deliver that signal through either LRA or EM
           bistable pin actuators with no change anywhere upstream of the
-          driver.
+          driver. Two channels are used in this study, one per instrumented
+          gripper finger.
     \item Command the gripper from the operator's own pinch aperture using
           markerless hand tracking, so that the effort of controlling the
           gripper is comparable across conditions.
@@ -701,33 +717,38 @@ built to supply that comparison.
 \label{sec:framework}
 
 The system forms a single closed loop that begins and ends at the operator's
-hand. The operator pinches; a camera tracks the pinch aperture; the aperture is
-mapped to a commanded gripper opening; the gripper closes on the object; the
-tactile sensors report the resulting contact deformation; the deformation is
-reduced to a scalar intensity; and that intensity is rendered on the actuator
-array worn on the operator's fingertips. Figure~\ref{fig:signalflow} shows the
-signal path and the boundary between the host PC and the wearable hardware.
+hand. The operator pinches, a camera tracks the pinch aperture, the aperture is
+mapped to a commanded gripper opening, the gripper closes on the object, the
+tactile sensors report the resulting contact deformation, the deformation is
+reduced to a scalar intensity, and that intensity is rendered on the actuators
+worn on the operator's fingertips. Figure~\ref{fig:signalflow} shows the signal
+path and the boundary between the host PC and the wearable hardware.
 
-\begin{figure}[htbp]
+\begin{figure}[ht]
     \centering
-    \includegraphics[width=0.85\textwidth]{preprint_fig1.png}
+    \includegraphics[width=0.62\textwidth]{preprint_fig1.png}
     \caption{Signal flow of the teleoperation loop. Everything upstream of the
-        haptic driver is identical in the LRA and EM conditions; only the actuator
-        and its drive stage differ.}
+        haptic driver is identical in the LRA and EM conditions, and only the
+        actuator and its drive stage differ.}
     \label{fig:signalflow}
 \end{figure}
 
-The loop runs at approximately \SI{30}{\hertz}, set by the tactile camera frame
-rate, and is implemented as a set of cooperating threads on the host: a
-tracking thread, a tactile-sensing thread, a gripper-command thread, and a
-logging thread that writes one row per sensor update.
+The host runs four cooperating threads, each on its own timer rather than on a
+shared clock. Hand tracking runs at the hand camera's frame rate, gripper
+commands are issued at \SI{25}{\hertz}, tactile reads and the haptic serial
+send share a \SI{15}{\hertz} loop, and a status poll of the gripper runs at
+\SI{10}{\hertz}. The haptic path is therefore the slowest stage in the chain,
+with a new intensity value reaching the actuator roughly every
+\SI{67}{\milli\second}. That figure is a sampling interval and not an
+end-to-end latency, which remains unmeasured for the reasons given in
+Section~\ref{sec:latency}.
 
-\begin{figure}[htbp]
+\begin{figure}[ht]
     \centering
-    \includegraphics[width=0.9\textwidth]{preprint_fig2.png}
+    \includegraphics[width=0.58\textwidth]{preprint_fig2.png}
     \caption{Hardware. (a) The operator station and gripper apparatus, grouped
         as in Figure~\ref{fig:signalflow}. (b) The two actuator types compared in
-        this study: LRA (left) and EM bistable pin (right).}
+        this study, LRA on the left and EM bistable pin on the right.}
     \label{fig:hardware}
 \end{figure}
 
@@ -736,51 +757,121 @@ logging thread that writes one row per sensor update.
 
 The gripper is commanded from the operator's own hand rather than from a
 joystick or slider, so that the motor act of closing the gripper resembles the
-motor act of closing the hand. A single RGB camera observes the operator's
-dominant hand; a markerless hand-tracking model returns 2D landmark positions,
-from which the thumb-tip to index-tip distance is computed each frame. This
-pinch aperture is normalised against a per-participant calibration, taken from
-a fully open and a fully closed pinch recorded at the start of the session, and
-mapped linearly onto the gripper's commanded position register.
+motor act of closing the hand. A single RGB camera at
+$640 \times 480$ observes the operator's dominant hand, and a MediaPipe hand
+landmarker running in video mode returns 2D landmark positions for one hand.
+The pinch aperture $p$ is the pixel distance between the thumb tip and the
+index tip, landmarks 4 and 8.
 
-\todo{Add the calibration equation, the smoothing filter and its time constant,
-    the dead-band used to suppress tracking jitter, and a note on the failure mode
-    when the hand leaves the tracking volume.}
+Two detector settings depart from the library defaults. Detection, presence and
+tracking confidence thresholds are lowered to 0.4, 0.5 and 0.5 respectively,
+because the actuator body worn on the thumb and index fingertips partly covers
+the two landmarks the mapping depends on. At the stock thresholds this caused
+the tracker to lose hand presence entirely during the EM condition.
+
+Aperture is mapped to the gripper's commanded position register by linear
+interpolation between two fixed pixel thresholds, a closed threshold
+$p_{\text{min}} = \SI{40}{px}$ and an open threshold
+$p_{\text{max}} = \SI{180}{px}$,
+\begin{equation}
+    q = \operatorname{clamp}\!\left(
+    \left(1 - \frac{p - p_{\text{min}}}{p_{\text{max}} - p_{\text{min}}}\right)
+    q_{\text{max}},\; 0,\; q_{\text{max}}\right),
+    \label{eq:pinchmap}
+\end{equation}
+where $q_{\text{max}} = 225$ counts is the fully closed gripper position. The
+closed threshold is set above the bare-finger contact distance of roughly
+\SI{30}{px} because the actuator module adds physical standoff between the two
+fingertips.
+
+Three filters sit between the raw landmark distance and the commanded position.
+A \SI{1.5}{px} dead-band on the aperture suppresses sub-pixel landmark jitter.
+An input gate commits a new target only when it differs from the last committed
+target by more than 2 counts. The committed target is then smoothed by a
+first-order exponential filter with coefficient $\alpha = 0.45$ applied per
+frame, and the smoothed value snaps to the target once the two are within one
+count, so the gripper settles rather than creeping. A further dead-band of 3
+counts on the gripper output suppresses motor stutter while the hand is
+stationary.
+
+When the tracker loses the hand, the committed target is reset to the current
+smoothed value rather than to zero, so the gripper holds its position instead
+of releasing. The same hold applies when the operator pauses the session, which
+is used during setup and during the firmware swap that a change of condition
+requires.
+
+One consequence of Equation~\eqref{eq:pinchmap} should be stated plainly. The
+two thresholds are constants retuned per rig and per actuator thickness, not
+per participant. Hand size and camera distance therefore vary between
+participants without being compensated, so the same physical pinch does not map
+to the same gripper position for everyone. Section~\ref{sec:limitations} takes
+up what this costs.
 
 \section{Robotiq 2F-85 and Tactile Integration}
 \label{sec:gripper}
 
 The remote manipulator is a Robotiq 2F-85 adaptive two-finger gripper,
-controlled from the host over Modbus RTU \cite{robotiq_manual}. The gripper exposes commanded
-position, measured position, and motor current; the last of these is used as a
-secondary, coarse indicator of grasp effort but is not the primary force proxy
-in this study.
+controlled from the host over Modbus RTU \cite{robotiq_manual}. The gripper
+exposes commanded position, measured position, and motor current. The last of
+these is used as a secondary, coarse indicator of grasp effort but is not the
+primary force proxy in this study.
 
 \subsection{Sensor Mounting}
 \label{subsec:sensormount}
 
-A 9DTact vision-based tactile sensor replaces the fingertip pad on the gripper
-finger. The sensor comprises a deformable elastomer layer, a diffuse
-illumination ring, and a camera imaging the inner surface of the layer.
+A 9DTact vision-based tactile sensor replaces the fingertip pad on each gripper
+finger, as shown in Figure~\ref{fig:sensormount}. The sensor comprises a
+deformable elastomer layer, a diffuse illumination ring, and a camera imaging
+the inner surface of the layer.
 
-\todo{Add the printed mount geometry, the standoff distance from camera to gel,
-    cable routing, and a photograph of the assembled finger.}
+\begin{figure}[ht]
+    \centering
+    \begin{subfigure}[b]{0.3\textwidth}
+        \centering
+        \includegraphics[height=38mm]{touch_sensor.png}
+        \caption{Tactile sensor}
+    \end{subfigure}\hfill
+    \begin{subfigure}[b]{0.3\textwidth}
+        \centering
+        \includegraphics[height=38mm]{gripper.png}
+        \caption{Mounted on the gripper}
+    \end{subfigure}\hfill
+    \begin{subfigure}[b]{0.3\textwidth}
+        \centering
+        \includegraphics[height=38mm]{wearable_hand.png}
+        \caption{Wearable array}
+    \end{subfigure}
+    \caption{The two ends of the loop. The sensor replaces the fingertip pad on
+        each gripper finger, and the actuator modules are strapped to the
+        operator's thumb and index finger.}
+    \label{fig:sensormount}
+\end{figure}
+
+Each sensor is carried by a printed bracket measuring
+$35.5 \times 42.0 \times \SI{22.0}{\milli\metre}$, which clamps to the finger
+in place of the standard pad and fixes the camera-to-gel standoff. The two
+gripper cameras and the hand camera share one USB controller, so all three are
+opened in MJPG mode to keep the combined bandwidth within what the controller
+will carry. Contention on this bus is the most common cause of a dropped frame
+at start-up.
 
 \subsection{Calibration and Reconstruction}
 \label{subsec:sensorcalib}
 
-Calibration follows the 9DTact procedure \cite{lin2023}: a reference frame of the undeformed
-gel is captured, then a ball of known radius is pressed into the gel at a set of
-positions to fit the mapping from pixel intensity to indentation depth. From
-this mapping, each incoming frame yields a depth map of the contact patch, from
-which two quantities are derived:
+Calibration follows the 9DTact procedure \cite{lin2023}. A reference frame of
+the undeformed gel is captured by averaging 30 frames, then a ball of known
+radius is pressed into the gel at a set of positions to fit the mapping from
+pixel intensity to indentation depth. Each incoming frame is converted to a
+depth map of the contact patch by subtracting the reference and applying that
+mapping. Pixels deforming by more than \SI{0.1}{\milli\metre} are counted as
+contact. Two quantities are derived per frame.
 
 \begin{itemize}
-    \item \textbf{Deformation volume}: the integral of indentation depth over
-          the contact patch, in arbitrary units (a.u.). This is the primary
-          grip-force proxy used throughout the analysis. It is uncalibrated: it
-          is monotonic in applied force but is not expressed in newtons.
-    \item \textbf{Maximum indentation depth}: the peak of the depth map, in
+    \item \textbf{Deformation volume}, the integral of indentation depth over
+          the contact region, in arbitrary units. This is the primary
+          grip-force proxy used throughout the analysis. It is uncalibrated, so
+          it is monotonic in applied force but is not expressed in newtons.
+    \item \textbf{Maximum indentation depth}, the peak of the depth map, in
           millimetres. This is the quantity mapped to haptic intensity.
 \end{itemize}
 
@@ -789,71 +880,128 @@ which two quantities are derived:
 
 Maximum indentation depth $d$ is mapped to a normalised haptic intensity
 $u \in [0,1]$ by clipping and linear scaling against a fixed ceiling
-$d_{\max}$:
+$d_{\max}$,
 \begin{equation}
     u = \min\!\left(\frac{\max(d - d_0,\, 0)}{d_{\max} - d_0},\; 1\right),
     \label{eq:mapping}
 \end{equation}
 where $d_0$ is the no-contact noise floor established at calibration and
-$d_{\max} = \SI{1.0}{\milli\metre}$ is a safety ceiling above which the gripper
-is commanded to stop closing. Equation~\eqref{eq:mapping} is identical in both
-haptic conditions; the conditions differ only in how $u$ is realised physically.
+$d_{\max} = \SI{1.0}{\milli\metre}$ is a safety ceiling. Reaching that ceiling
+on either sensor also blocks further closing at the gripper, though never
+further opening, which protects the sensor fixture from the excess torque a
+rigid object would otherwise transmit. Equation~\eqref{eq:mapping} is identical
+in both haptic conditions, and the conditions differ only in how $u$ is
+realised physically.
 
 The saturation implied by Equation~\eqref{eq:mapping} has a direct experimental
-consequence. Once $d$ reaches $d_{\max}$, the display stops changing, and any
-further squeezing by the operator delivers no new information. Deformation
-volume accumulated after that point is therefore, by construction, effort the
-feedback channel could not have discouraged. This is the \emph{excess
-    deformation} metric defined in Section~\ref{sec:metrics}.
+consequence. Once $d$ reaches $d_{\max}$ the display stops changing, so any
+further squeezing delivers no new information to the operator. Deformation
+volume accumulated after that point is, by construction, effort the feedback
+channel could not have discouraged. This is the \emph{excess deformation}
+metric defined in Section~\ref{sec:metrics}.
 
 \section{ESP32-C6 Haptic Driver}
 \label{sec:driver}
 
 Intensity values are streamed from the host to an ESP32-C6 over a USB serial
-link as short binary packets, one per control tick. The firmware maintains the
-commanded intensity for each of five channels and regenerates the corresponding
-drive waveform locally, so a dropped packet degrades to a held value rather than
-to silence.
+link at \SI{115200}{baud}. Each packet is one ASCII line carrying the two
+channel intensities to four decimal places, which the firmware clamps to
+$[0,1]$ and discards if malformed, so a corrupted line cannot stop the drive
+loop. The firmware holds the last commanded intensity and regenerates the drive
+waveform locally, which decouples waveform timing from the
+\SI{15}{\hertz} packet rate. A watchdog zeroes both channels if no packet
+arrives for \SI{200}{\milli\second}, so a host failure silences the display
+rather than leaving an actuator latched against the skin.
+
+The driver board carries five channels, wired as five PWM and enable pairs for
+the LRA path and five H-bridge leg pairs for the EM path. This study drives two
+of them, one on the thumb and one on the index finger, matching the two
+instrumented gripper fingers. The remaining three are available for the spatial
+rendering discussed in Chapter~\ref{ch:conclusion} as future work.
 
 \subsection{LRA Drive}
 \label{subsec:lra-drive}
 
 Each linear resonant actuator is driven differentially from an H-bridge with a
-bipolar square-wave carrier at approximately \SI{200}{\hertz}. Intensity is
-rendered by envelope modulation: within a fixed \SI{50}{\milli\second} window,
-the carrier is gated on for a fraction of the window proportional to $u$.
+bipolar square-wave carrier at \SI{200}{\hertz}, produced by flipping the
+bridge polarity every \SI{2500}{\micro\second}. Intensity is rendered by
+envelope modulation, so within a fixed \SI{50}{\milli\second} window the
+carrier is gated on for a fraction of the window equal to $u$ and the bridge
+coasts for the remainder. The envelope therefore repeats at \SI{20}{\hertz}.
 
 This is a compromise rather than the ideal drive. An LRA's perceived amplitude
-is properly modulated by varying the drive \emph{amplitude} at the actuator's
-resonant frequency; the microcontroller's standard PWM peripheral cannot
-generate the phase-locked antiphase pair that amplitude-modulated bipolar drive
-would require. The consequence for interpretation is taken up in
-Section~\ref{sec:limitations}.
+is properly modulated by varying the drive amplitude at the actuator's resonant
+frequency. The microcontroller's standard PWM peripheral cannot generate the
+phase-locked antiphase pair that amplitude-modulated bipolar drive would
+require, so the on-fraction of a fixed-amplitude carrier stands in for
+amplitude. The carrier frequency was also set from bench testing rather than
+tuned to the measured resonance of these particular actuators. Both
+consequences are taken up in Section~\ref{sec:limitations}.
 
 \subsection{EM Bistable Pin Drive}
 \label{subsec:em-drive}
 
 Each electromagnetic actuator is a bistable pin that latches magnetically in
-either the extended or retracted state and requires power only to switch between
-them \cite{vechev2019}. A short H-bridge pulse of one polarity extends the pin against the
-operator's fingerpad; a pulse of the opposite polarity retracts it.
+either the extended or retracted state and requires power only to switch
+between them \cite{vechev2019}. A short H-bridge pulse of one polarity extends
+the pin against the operator's fingerpad and a pulse of the opposite polarity
+retracts it. Reliable latching needs \SI{6}{\milli\second} to engage and
+\SI{10}{\milli\second} to release, measured on the bench.
 
-Because a latched pin produces no ongoing sensation, a sustained, graded
-percept is approximated by repeated pulsing: intensity $u$ is mapped to the
-burst-to-gap ratio of an extend/retract pulse train, so that higher intensity
-produces more frequent contact events per unit time.
+Because a latched pin produces no ongoing sensation, a sustained and graded
+percept is approximated by pulsing. The firmware emits bursts of ten
+extend-retract pulse pairs, each pulse \SI{4}{\milli\second} long, separated by
+a gap that carries the intensity. The gap runs from \SI{400}{\milli\second} at
+$u = 0$ down to \SI{35}{\milli\second} at $u = 1$, interpolated linearly, so
+higher intensity produces more frequent contact events per unit time rather
+than stronger ones. Channels are staggered by \SI{10}{\milli\second} to keep
+two coils from switching on the same instant. Intensities below 0.1 are treated
+as no contact.
 
-\todo{Insert the schematic of the five-channel driver board, the H-bridge part
-    number, supply voltage and current budget, and the measured pulse width required
-    for reliable latching.}
+The pin is therefore never held extended during a trial. The sustained-pressure
+capability described in Section~\ref{sec:existing-approaches} is not exercised,
+which narrows the intended contrast between the two actuators to one of
+temporal granularity. Section~\ref{sec:limitations} returns to this.
+
+\begin{figure}[ht]
+    \centering
+    \begin{subfigure}[b]{0.42\textwidth}
+        \centering
+        \includegraphics[height=42mm]{lra_hand.png}
+        \caption{LRA, worn on the middle phalanx}
+    \end{subfigure}\hfill
+    \begin{subfigure}[b]{0.42\textwidth}
+        \centering
+        \includegraphics[height=42mm]{em_hand.png}
+        \caption{EM pin, worn on the fingertip}
+    \end{subfigure}
+    \caption{The two wearable actuator modules. The printed LRA carrier
+        measures $15 \times 16 \times \SI{5}{\milli\metre}$, and the EM housing,
+        assembled from a base and a cap, measures
+        $10 \times 24 \times \SI{15}{\milli\metre}$.}
+    \label{fig:actuators}
+\end{figure}
+
+Both actuators are carried in printed modules strapped to the thumb and index
+finger, shown in Figure~\ref{fig:actuators}. The two are not worn in the same
+place. The EM pin must press on the fingerpad to be felt, so it sits on the
+distal phalanx, while the LRA transmits vibration through the finger and is
+strapped further back, over the middle phalanx. The site therefore changes with
+the actuator, which is a confound in its own right and is taken up in
+Section~\ref{sec:limitations}. The larger EM housing also adds more standoff
+between the fingertips, which interacts with the pinch mapping of
+Equation~\eqref{eq:pinchmap}.
 
 \section{Data Logging}
 \label{sec:logging-arch}
 
-The host writes one CSV row per control tick for the duration of each recorded
+The host writes one CSV row per haptic tick for the duration of each recorded
 trial, containing the timestamp, commanded and measured gripper position, motor
 current, deformation volume, maximum indentation depth, the rendered haptic
-intensity, and the active control mode. These logs are the sole source of the
+intensity for each channel, and the active condition and object class. Rows are
+therefore written at \SI{15}{\hertz}. At the end of a fragile trial the operator
+records whether the object survived, and every trial is explicitly kept or
+discarded before the file is closed. These logs are the sole source of the
 quantitative metrics in Chapter~\ref{ch:results}.
 
 % =====================================================================
@@ -866,89 +1014,122 @@ quantitative metrics in Chapter~\ref{ch:results}.
 
 Twenty-two participants ($N=22$) took part in the study. Eligibility required
 normal or corrected-to-normal vision and no diagnosed sensory or motor
-impairment affecting the dominant hand; a screening item recorded any such
-impairment and was used to exclude affected responses from the subjective
-analysis. Prior robotics or teleoperation experience was not required, and was
-recorded as a covariate. All participants gave informed consent before taking
-part.
+impairment affecting the dominant hand. A screening item recorded any such
+impairment so that affected responses could be excluded from the subjective
+analysis. Age, gender, height and dominant hand were recorded, along with three
+separate self-reports of prior experience, covering teleoperation, virtual
+reality and gaming controllers, and the operation of robotic arms. Prior
+experience was not required for eligibility. All participants gave informed
+consent before taking part.
 
-The sample exceeds the $N=10$--$12$ typical of comparable vibrotactile
-teleoperation studies, which was the target set during design; the larger sample
-was recruited to improve power for the actuator-versus-actuator comparison,
-which was expected a priori to have a smaller effect than the
-feedback-versus-no-feedback comparison.
+The sample is larger than those of the closest comparable studies, which report
+seven to ten participants \cite{becker2024,coppola2022}. The larger sample was
+recruited to improve power for the actuator-versus-actuator comparison, which
+was expected in advance to show a smaller effect than the comparison between
+feedback and no feedback.
 
-\section{Design and Counterbalancing}
+\section{Design}
 \label{sec:design}
 
 The study uses a within-subjects design with one factor, feedback condition, at
-three levels: \textbf{visual-only} (V), \textbf{LRA}, and \textbf{EM}. Every
-participant experienced all three conditions, which controls for individual
+three levels, namely \textbf{visual-only} (V), \textbf{LRA}, and \textbf{EM}.
+Every participant experienced all three, which controls for individual
 differences in manual dexterity and grip-force perception that would otherwise
 dominate a between-subjects comparison at this sample size.
 
-\todo{State the realised condition order explicitly. The presentation preprint
-    records the order as fixed rather than counterbalanced; if that is correct, this
-    section must say so plainly here and the resulting practice/fatigue confound
-    must be carried into Section~\ref{sec:limitations} rather than described as
-    controlled.}
+Conditions were presented in the fixed order visual-only, then LRA, then EM.
+They were not counterbalanced. Each condition requires its own firmware on the
+ESP32-C6, and reflashing the board mid-session takes long enough that a
+randomised order was judged impractical during the session design. The cost is
+that practice and fatigue are confounded with condition. Any effect attributed
+to an actuator may in part reflect its position in the session, and this is
+carried into Section~\ref{sec:limitations} rather than treated as controlled.
 
-Within each condition, participants performed five trials per object class,
-giving ten trials per condition and thirty trials per participant, and 110
-trials per condition per object class across the sample.
+Within each condition, participants performed five trials on each object class.
+That gives ten trials per condition, thirty trials per participant, and 110
+trials per condition per object class across the sample, for 660 analysed
+trials in total.
+
+A small number of participants also ran exploratory conditions that are not
+part of the analysis. Seven ran a variant in which the electromagnetic pin was
+driven as a single latching contact rather than as a pulse train, and two ran
+variants of the LRA and EM conditions with the video feed removed. These
+recordings are retained in the dataset but excluded from every result reported
+in Chapter~\ref{ch:results}, since neither variant was run on enough
+participants to support a within-subjects test.
 
 \section{Task and Materials}
 \label{sec:task}
 
 Participants sat at a workstation facing a display carrying the remote-view
 camera feed, with no direct line of sight to the gripper. In the LRA and EM
-conditions they wore the corresponding actuator array on the fingertips of the
-dominant hand. The gripper stood vertically with its fingers pointing upward;
-each object was presented in a fixed cradle at the end of a horizontal support
-arm, positioned so that the object centre sat at a constant height of
-\SI{16.5}{\centi\metre} aligned with the centre of the open finger gap. The
-gripper body did not move during a trial: only the fingers opened and closed,
-under hand-tracking control.
+conditions they wore the corresponding actuator modules on the thumb and index
+finger of the dominant hand. The gripper stood vertically with its fingers
+pointing upward, and each object was presented in a fixed cradle at the end of
+a horizontal support arm, positioned so that the object centre sat at a
+constant height of \SI{16.5}{\centi\metre} aligned with the centre of the open
+finger gap. The gripper body did not move during a trial, and only the fingers
+opened and closed under hand-tracking control.
 
 Each trial consisted of closing the gripper on the presented object, holding
 briefly, and releasing it without dropping or visibly damaging it. Two object
-classes were used, shown in Figure~\ref{fig:objects}:
+classes were used, shown in Figure~\ref{fig:objects}.
 
 \begin{itemize}
-    \item \textbf{Fragile}: a hollow two-part plastic egg, which separates
+    \item \textbf{Fragile}, a hollow two-part plastic egg, which separates
           abruptly once the applied force exceeds the seam strength. Failure is
-          discrete and unambiguous, and the object is replaced between trials.
-    \item \textbf{Deformable}: a foam cube, which yields progressively and
+          discrete and unambiguous, and the object is reassembled or replaced
+          between trials.
+    \item \textbf{Deformable}, a foam cube, which yields progressively and
           recovers between trials, with no discrete failure point.
 \end{itemize}
 
-\begin{figure}[htbp]
+\begin{figure}[ht]
     \centering
-    \includegraphics[width=0.85\textwidth]{preprint_fig4.png}
+    \includegraphics[width=0.75\textwidth]{preprint_fig4.png}
     \caption{Object classes. (a) The hollow plastic egg used as the fragile
         object. (b) The same egg with its halves separated, the failure event scored
         as breakage. (c) The foam cube used as the deformable object.}
     \label{fig:objects}
 \end{figure}
 
+The two object classes are not matched on difficulty and are not intended to
+be. The fragile object carries a failure threshold that the feedback channel
+could plausibly help an operator avoid, while the deformable object carries
+none. The deformable class therefore acts as a control, since a channel whose
+value lies in discouraging over-squeezing has nothing to act on when
+over-squeezing costs nothing.
+
 \section{Session Protocol}
 \label{sec:protocol}
 
-Figure~\ref{fig:methodflow} summarises the session. Each session comprised:
-(1) informed consent and task explanation; (2) per-participant pinch
-calibration; (3) an untimed practice trial in each condition, in the order the
-participant would encounter them, with no data recorded; (4) the three
-experimental conditions, each completed in full before moving to the next;
-(5) a post-condition questionnaire administered immediately after each
-condition; and (6) a closing preference question and free-form interview.
-Rest breaks were offered between conditions.
+Figure~\ref{fig:methodflow} summarises the session. Each session began with
+informed consent and a task explanation, followed by a check that the pinch
+mapping of Equation~\eqref{eq:pinchmap} produced usable travel for that
+participant's hand at the seated camera distance. The mapping thresholds
+themselves are rig constants rather than per-participant values, so this step
+adjusted seating position rather than the mapping, a point taken up in
+Section~\ref{sec:limitations}.
 
-\begin{figure}[htbp]
+\begin{figure}[ht]
     \centering
-    \includegraphics[width=0.8\textwidth]{preprint_fig3.png}
+    \includegraphics[width=0.60\textwidth]{preprint_fig3.png}
     \caption{Flowchart of the experimental session, $N=22$.}
     \label{fig:methodflow}
 \end{figure}
+
+Each condition then ran as a block. Participants took an untimed practice trial
+with no data recorded, completed five fragile and five deformable trials, and
+answered the post-condition questionnaire immediately afterwards. The board was
+reflashed between conditions, which gave a natural rest break. After the third
+condition, participants answered two closing forced-choice questions and were
+invited to give free-form comments.
+
+Two operator actions punctuate each trial. At the end of a fragile trial the
+experimenter records whether the object survived, and at the end of every trial
+the recording is explicitly kept or discarded before the log file is closed.
+The survival judgement is written into the trial filename, which is what the
+analysis pipeline reads.
 
 \section{Instruments}
 \label{sec:instruments}
@@ -956,42 +1137,62 @@ Rest breaks were offered between conditions.
 \subsection{Quantitative Logging}
 \label{subsec:logging}
 
-Per-tick logs are as described in Section~\ref{sec:logging-arch}. Object
-outcome, survived or broke, for fragile objects, was scored by the
-experimenter immediately after each trial and recorded alongside the log.
+Per-tick logs are as described in Section~\ref{sec:logging-arch}, written at
+\SI{15}{\hertz} for the duration of each recorded trial. Fragile-object
+outcome, survived or broke, was scored by the experimenter immediately after
+each trial and recorded alongside the log.
 
 \subsection{Post-Condition Questionnaire}
 \label{subsec:questionnaire}
 
-After each condition, participants rated a set of 7-point Likert items
-(1 = strongly disagree, 7 = strongly agree) covering perceived force awareness,
-contact detection, damage anticipation, mental effort, and sense of control.
-Two further items, administered only in the LRA and EM conditions, addressed the
-perceived responsiveness and naturalness of the feedback itself. A single
-forced-choice preference question at the end of the session asked which
-condition the participant would choose to perform the task again.
+After each condition, participants rated six statements on a five-point Likert
+scale from 1, strongly disagree, to 5, strongly agree. The same six statements
+were used in all three conditions, covering ease of manipulation, contact
+detection, confidence in the grasp, perceived force, mental effort, and
+physical effort. The full wording is reproduced in
+Appendix~\ref{app:questionnaire}.
 
-\todo{Reproduce the exact item wording as administered, in
-    Appendix~\ref{app:questionnaire}, and confirm the item numbering used by the
-    analysis pipeline matches it.}
+Two forced-choice questions closed the session. The first asked which condition
+gave the best sense of contact and grasp state, and the second asked which
+condition the participant preferred overall. Both offered all three conditions
+as options, labelled in plain language as no feedback, vibration motor and pin
+actuator. A free-text field invited any further comments.
 
 \section{Analysis Procedures}
 \label{sec:analysis-procedures}
 
 Per-trial metrics (Section~\ref{sec:metrics}) are reduced to one value per
-participant per condition per object class using the median across repeated
-trials, so that a single unusually careless grasp cannot dominate a
-participant's contribution. Cross-condition comparisons use the Friedman test,
-the non-parametric repeated-measures analogue of one-way ANOVA, with pairwise
-Wilcoxon signed-rank tests and Holm correction across the three condition pairs
-where the omnibus test is significant. Fragile-object survival, being a paired
-binary outcome, is tested with McNemar's test. Results are reported as medians
-and interquartile ranges rather than means and standard deviations, for
-robustness to the high-force outliers the study is designed to detect. All
-analyses are implemented in the accompanying \texttt{analysis} package and
-regenerate the tables and figures of Chapter~\ref{ch:results} from the raw logs.
-CSV outputs referenced by filename in Chapter~\ref{ch:results} are written to
-\texttt{analysis/results/}.
+participant per condition per object class using the median across the five
+repeated trials, so that a single unusually careless grasp cannot dominate a
+participant's contribution. Results are reported as medians and interquartile
+ranges rather than means and standard deviations, for robustness to the
+high-force outliers the study is designed to detect.
+
+Four tests are used, each matched to the shape of the outcome.
+
+\begin{itemize}
+    \item \textbf{Across the three conditions}, the Friedman test, which is the
+          non-parametric repeated-measures analogue of one-way ANOVA. Where the
+          omnibus test is significant, pairwise Wilcoxon signed-rank tests
+          follow, with Holm correction across the three condition pairs.
+    \item \textbf{Between LRA and EM alone}, a paired Wilcoxon signed-rank
+          test, which isolates the actuator-type variable because everything
+          upstream of the actuator is identical in the two conditions.
+    \item \textbf{Fragile-object survival}, which is a paired binary outcome.
+          Cochran's Q tests across all three conditions and an exact binomial
+          McNemar test compares LRA against EM.
+    \item \textbf{Equivalence between LRA and EM}, tested with paired two
+          one-sided tests. The equivalence margin is set at half the pooled
+          standard deviation of the metric, a conventional medium effect size,
+          with a per-side significance level of 0.05. This test is reported
+          because a failure to find a difference is not the same claim as a
+          demonstrated equivalence, and only the second is a positive result.
+\end{itemize}
+
+All analyses are implemented in the accompanying \texttt{analysis} package,
+which regenerates the tables and figures of Chapter~\ref{ch:results} from the
+raw logs. CSV outputs referenced by filename in Chapter~\ref{ch:results} are
+written to \texttt{analysis/results/}.
 
 % =====================================================================
 \chapter{Results}
@@ -1001,136 +1202,192 @@ CSV outputs referenced by filename in Chapter~\ref{ch:results} are written to
 \section{Derived Per-Trial Metrics}
 \label{sec:metrics}
 
-Four metrics are computed from each trial log:
+Four metrics are computed from each trial log. All four are oriented so that
+lower is better.
 
 \begin{itemize}
-    \item \textbf{Peak deformation volume} (a.u.): the maximum deformation
-          volume reached during the trial; the primary grip-force proxy.
-    \item \textbf{Excess deformation} (a.u.): deformation volume accumulated
-          after maximum indentation depth has plateaued, i.e.\ after the haptic
-          display has saturated per Equation~\eqref{eq:mapping} and further
-          squeezing conveys nothing new.
-    \item \textbf{Grip adjustments} (count): the number of squeeze/release
-          reversals after the plateau, taken as a sign of searching for an
+    \item \textbf{Peak deformation volume} (a.u.), the maximum deformation
+          volume reached during the trial, used as the primary grip-force
+          proxy.
+    \item \textbf{Excess deformation} (a.u.), the deformation volume
+          accumulated after indentation depth has plateaued. The plateau is
+          taken as the first sample at which depth reaches
+          \SI{95}{\percent} of its trial maximum. Past that point the display
+          has saturated under Equation~\eqref{eq:mapping} and further squeezing
+          conveys nothing new.
+    \item \textbf{Grip adjustments} (count), the number of squeeze and release
+          reversals after the plateau, read as a sign of searching for an
           appropriate grip rather than holding steady.
-    \item \textbf{Peak indentation depth} (\si{\milli\metre}): the maximum of
+    \item \textbf{Peak indentation depth} (\si{\milli\metre}), the maximum of
           the depth map, reported mainly as a check on the safety ceiling.
 \end{itemize}
+
+Each metric is first reduced to one value per participant per condition per
+object class by taking the median across the five repeated trials, and the
+tables below report the median and interquartile range of those per-participant
+values across the sample. Because the force proxy was never calibrated in
+newtons, the two sensors are combined by taking the larger of the two raw
+proxies rather than by summing calibrated readings. The analysis package
+supports both, and the uncalibrated path is the one used throughout this
+chapter.
 
 \section{Fragile Objects}
 \label{sec:results-fragile}
 
 Table~\ref{tab:quant} summarises the fragile-object results.
 
-\begin{table}[htbp]
+\begin{table}[ht]
     \centering
     \caption{Fragile-object results by condition (V = visual only). The first
-        four rows give the median value for a participant, where lower is better.
-        The last row is the percentage of all 110 trials per condition in which the
-        object survived. Peak indentation depth differs little across conditions
-        because the \SI{1.0}{\milli\metre} safety ceiling caps it before any
-        difference could emerge.}
+        four rows give the median across participants of each participant's median
+        trial, where lower is better. The last row is the percentage of all 110
+        trials per condition in which the object survived. Peak indentation depth
+        differs little across conditions because the \SI{1.0}{\milli\metre} safety
+        ceiling caps it before any difference could emerge.}
     \label{tab:quant}
-    \begin{tabular}{@{}lrrr@{}}
+    \begin{tabular}{@{}lrrrrr@{}}
         \toprule
-                                       & V     & LRA   & EM    \\
+                                       & V     & LRA   & EM    & $\chi^2(2)$ & $p$ \\
         \midrule
-        Peak deformation volume (a.u.) & 20100 & 12300 & 16000 \\
-        Excess deformation (a.u.)      & 1530  & 170   & 260   \\
-        Grip adjustments (\#)          & 7     & 5     & 2     \\
-        Peak indentation depth (mm)    & 0.98  & 0.95  & 0.98  \\
+        Peak deformation volume (a.u.) & 20090 & 12290 & 15980 & 5.73  & 0.057 \\
+        Excess deformation (a.u.)      & 1527  & 170   & 260   & 5.09  & 0.079 \\
+        Grip adjustments (\#)          & 7     & 5     & 2     & 10.66 & \textbf{0.005} \\
+        Peak indentation depth (mm)    & 0.98  & 0.95  & 0.98  & 4.75  & 0.093 \\
         \midrule
-        Objects surviving (\%)         & 62    & 81    & 78    \\
+        Objects surviving (\%)         & 62    & 81    & 78    & 11.24 & \textbf{0.004} \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-Both haptic conditions reduced the force applied after the display had
-saturated: median excess deformation fell roughly ninefold under the LRA and
-roughly sixfold under the EM relative to visual-only feedback. Grip adjustments
-fell most under the EM condition. Object survival rose from 62\% under
-visual-only feedback to 81\% (LRA) and 78\% (EM), as shown in
+The descriptive pattern is consistent across the force metrics. Both haptic
+conditions reduced the force applied after the display had saturated, with
+median excess deformation falling roughly ninefold under the LRA and roughly
+sixfold under the EM relative to visual-only feedback. Peak deformation volume
+fell by a smaller margin, and grip adjustments fell furthest under the EM.
+
+The inferential picture is more restrained, and the distinction matters. Of the
+four force metrics, only grip adjustments clears the omnibus Friedman test at
+the conventional level, $\chi^2(2) = 10.66$, $p = 0.005$, where the EM
+condition differs from visual-only feedback after Holm correction
+($p = 0.021$). Excess deformation gives $\chi^2(2) = 5.09$, $p = 0.079$, and
+peak deformation volume gives $\chi^2(2) = 5.73$, $p = 0.057$, so neither
+reaches significance as an omnibus test despite the large descriptive drops.
+The pairwise comparison of visual-only against LRA on excess deformation is
+nominally significant after correction ($p = 0.019$), but under the protocol
+set out in Section~\ref{sec:analysis-procedures} that comparison is not
+protected by a significant omnibus result and is therefore reported as
+suggestive rather than established. Peak indentation depth shows no effect,
+which is the expected consequence of the safety ceiling.
+
+Object survival is the clearest result in the study. Treating each
+participant's survival proportion as the unit of analysis, the three conditions
+differ, $\chi^2(2) = 11.24$, $p = 0.004$, and both haptic conditions beat
+visual-only feedback after Holm correction, with $p = 0.018$ for the LRA and
+$p = 0.037$ for the EM. The two haptic conditions do not differ from each other
+($p = 0.69$). Pooled across the sample, 68 of 110 trials survived under
+visual-only feedback, against 89 under the LRA and 86 under the EM, which is
+the \SIrange{16}{19}{} percentage point improvement visible in
 Figure~\ref{fig:results}.
 
-\begin{figure}[htbp]
+\begin{figure}[ht]
     \centering
-    \includegraphics[width=0.9\textwidth]{preprint_fig5.png}
+    \includegraphics[width=0.85\textwidth]{preprint_fig5.png}
     \caption{Objective results for fragile objects. (a) Survival rate, 110
         trials per condition. (b) Excess deformation per participant (a.u.,
         $\log(x+1)$ scale).}
     \label{fig:results}
 \end{figure}
 
-\todo{Insert the omnibus Friedman statistics, the Holm-corrected pairwise
-    $p$-values, and the McNemar result for survival, from the analysis outputs
-    \texttt{section\_5\_3\_cross\_condition.csv} and
-    \texttt{section\_5\_4\_fragile\_mcnemar.csv}. Report effect sizes alongside
-    $p$-values.}
+One qualification belongs with that result. Collapsing each participant to a
+single surviving or breaking outcome, rather than to a proportion, weakens the
+test considerably. Cochran's Q on the binary form gives $Q(2) = 4.67$,
+$p = 0.097$, and no pairwise comparison survives correction. The survival
+finding therefore rests on the graded per-participant rate and should be
+reported that way rather than as a difference in whether a typical participant
+succeeded.
 
 \section{Deformable Objects}
 \label{sec:results-deformable}
 
-Deformable objects showed no reliable difference between conditions on any of
-the four metrics. This is consistent with the nature of the object class: a foam
-cube has no failure threshold to avoid, so there is no penalty for squeezing
-harder and correspondingly little for the feedback channel to correct.
+Deformable objects show no reliable difference between conditions on any
+metric, as Table~\ref{tab:deformable} records. Every omnibus test is far from
+significance, and the direction of the small differences is not consistent
+across metrics.
 
-\todo{Report the deformable-object table in the same format as
-    Table~\ref{tab:quant}, together with the omnibus tests, so that the null result
-    is stated with statistics rather than asserted.}
+\begin{table}[ht]
+    \centering
+    \caption{Deformable-object results by condition. Columns and units are as in
+        Table~\ref{tab:quant}. Two metrics rest on 21 rather than 22 participants
+        because one participant produced no post-plateau samples in at least one
+        condition.}
+    \label{tab:deformable}
+    \begin{tabular}{@{}lrrrrrr@{}}
+        \toprule
+                                       & V    & LRA  & EM   & $n$ & $\chi^2(2)$ & $p$ \\
+        \midrule
+        Peak deformation volume (a.u.) & 1336 & 1366 & 1149 & 22 & 4.73 & 0.094 \\
+        Excess deformation (a.u.)      & 60   & 40   & 42   & 21 & 0.70 & 0.705 \\
+        Grip adjustments (\#)          & 4    & 5    & 5.5  & 21 & 2.03 & 0.363 \\
+        Peak indentation depth (mm)    & 0.34 & 0.43 & 0.38 & 22 & 3.06 & 0.217 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-\section{Sensor-to-Actuator Latency}
-\label{sec:latency}
-
-\todo{Outstanding. The trial logs are timestamped at the control-loop rate
-    ($\approx$\SI{30}{\hertz}) but do not establish true end-to-end latency from
-    tactile frame capture to physical actuator motion. A bench measurement is
-    required, combining a frame-capture timestamp, a serial packet timestamp, and
-    either an oscilloscope or photodiode trigger on the actuator itself, reported
-    once per
-    actuator type as a latency distribution.}
+This is the expected outcome rather than a failure of the system. A foam cube
+has no failure threshold to avoid, so squeezing harder carries no penalty and
+the feedback channel has nothing to correct. The deformable class was included
+as a control for exactly this reason, and the absence of an effect where none
+should appear supports the interpretation of the fragile-object results rather
+than undermining it. Peak indentation depth stays well below the
+\SI{1.0}{\milli\metre} ceiling in every condition, confirming that the safety
+cutoff was not reached on this object class.
 
 \section{LRA Versus EM}
 \label{sec:lra-vs-em}
 
-Because the two haptic conditions share an identical sensing and
-intensity-computation pipeline, a direct paired comparison between them isolates
-the actuator-type variable. On the fragile-object metrics the two conditions
-are close: the LRA yields the lower median excess deformation and the EM the
-lower number of grip adjustments, and neither difference is large relative to
-the spread across participants.
+Because the two haptic conditions share an identical sensor, intensity
+calculation and control mapping, a direct paired comparison between them
+isolates the actuator as the only variable. No such comparison reaches
+significance. On fragile objects the paired Wilcoxon tests give $p = 0.66$ for
+peak deformation volume, $p = 0.49$ for excess deformation, $p = 0.23$ for grip
+adjustments and $p = 0.55$ for peak indentation depth. Survival does not
+separate them either, whether tested as a rate ($p = 0.69$) or with an exact
+McNemar test on the binary outcome, where five participants survived more often
+under the LRA and one under the EM ($p = 0.22$).
 
-\todo{Insert the paired Wilcoxon results from
-    \texttt{section\_5\_4\_lra\_vs\_em.csv} and the equivalence
-    test from \texttt{section\_5\_9\_tost\_equivalence.csv}. If the TOST result
-    supports equivalence within the chosen bound, say so explicitly: a null result
-    and a demonstrated equivalence are different claims and should not be
-    conflated.}
+A failure to find a difference is not the same claim as a demonstrated
+equivalence, and the two are worth separating explicitly. Paired two one-sided
+tests were run against a margin of half the pooled standard deviation of each
+metric. Only excess deformation on fragile objects passes, and only narrowly,
+with $p = 0.046$. Peak deformation volume ($p = 0.066$), peak indentation depth
+($p = 0.13$) and grip adjustments ($p = 0.31$) all fail. For those three
+metrics the study is therefore inconclusive in both directions, since it can
+neither detect a difference nor rule one out at the chosen margin. The honest
+summary is that this study does not distinguish the two actuators, and for most
+metrics it is not powered to declare them equivalent either.
 
 \section{Time-Series Behaviour}
 \label{sec:timeseries}
 
 Representative single-trial traces for each condition illustrate the behaviour
-the excess-deformation metric is designed to capture: under visual-only
+the excess-deformation metric is designed to capture. Under visual-only
 feedback, deformation volume continues to rise after indentation depth has
 plateaued, whereas under both haptic conditions it tends to level off shortly
 after the plateau.
 
-\begin{figure}[htbp]
+\begin{figure}[ht]
     \centering
-    \begin{subfigure}[b]{0.48\textwidth}
+    \begin{subfigure}[b]{0.32\textwidth}
         \centering
         \includegraphics[width=\textwidth]{section_5_5_timeseries_visual_only.png}
         \caption{Visual-only}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[b]{0.48\textwidth}
+    \end{subfigure}\hfill
+    \begin{subfigure}[b]{0.32\textwidth}
         \centering
         \includegraphics[width=\textwidth]{section_5_5_timeseries_lra.png}
         \caption{LRA}
-    \end{subfigure}
-    \\[1ex]
-    \begin{subfigure}[b]{0.48\textwidth}
+    \end{subfigure}\hfill
+    \begin{subfigure}[b]{0.32\textwidth}
         \centering
         \includegraphics[width=\textwidth]{section_5_5_timeseries_em.png}
         \caption{EM}
@@ -1143,26 +1400,61 @@ after the plateau.
 \section{Subjective Results}
 \label{sec:results-likert}
 
-Participants rated both haptic conditions above visual-only feedback, most
-strongly on items concerning the ability to feel grip force and confidence in
-the grasp (Figure~\ref{fig:likert}). In the forced-choice preference question
-the LRA was the most frequently selected condition. No individual questionnaire
-item separated the two haptic conditions reliably.
+Table~\ref{tab:likert} gives the per-item medians and interquartile ranges. The
+subjective data separate the conditions far more sharply than the objective
+metrics do.
 
-\begin{figure}[htbp]
+\begin{table}[ht]
     \centering
-    \includegraphics[width=0.9\textwidth]{preprint_fig6.png}
-    \caption{Subjective results. (a) Item-by-item ratings relative to
-        visual-only feedback, $N=22$; additional star marks indicate stronger
-        statistical reliability. (b) Share of forced-choice favourite picks per
-        condition.}
-    \label{fig:likert}
-\end{figure}
+    \caption{Post-condition questionnaire, median [interquartile range] on a
+        five-point scale, $N=22$. Higher is better on every item. The final column
+        gives the omnibus Friedman $p$-value across the three conditions.}
+    \label{tab:likert}
+    \begin{tabular}{@{}lcccr@{}}
+        \toprule
+        Item & V & LRA & EM & $p$ \\
+        \midrule
+        Easy to manipulate      & 3.0 [2.0--4.0]  & 4.0 [3.0--4.0]    & 4.0 [3.0--4.0]    & \textbf{0.006} \\
+        Could tell contact      & 2.5 [2.0--3.0]  & 4.0 [4.0--4.8]    & 4.0 [3.0--4.8]    & \textbf{$<$0.001} \\
+        Confident in grasp      & 2.0 [2.0--3.0]  & 4.0 [3.0--4.0]    & 4.0 [3.0--4.0]    & \textbf{$<$0.001} \\
+        Could perceive force    & 1.0 [1.0--2.0]  & 3.5 [3.0--4.0]    & 3.0 [3.0--4.0]    & \textbf{$<$0.001} \\
+        Mental effort low       & 3.0 [2.3--4.0]  & 4.0 [3.0--4.8]    & 4.0 [3.0--5.0]    & 0.053 \\
+        Physical effort low     & 3.5 [3.0--5.0]  & 4.0 [3.0--5.0]    & 4.0 [3.0--5.0]    & 0.069 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-\todo{Insert the per-item medians and IQRs and the Friedman/Wilcoxon statistics
-    from \texttt{section\_5\_6\_likert\_summary.csv} and
-    \texttt{section\_5\_6\_likert\_friedman.csv}, and the preference counts from
-    \texttt{section\_5\_6\_likert\_preference.csv}.}
+Four of the six items differ across conditions, and in every case the
+difference is between visual-only feedback and the two haptic conditions rather
+than between the actuators. The largest effect is on perceived force, where the
+median rises from 1 out of 5 under visual-only feedback to 3.5 under the LRA
+and 3 under the EM, $\chi^2(2) = 30.66$, $p < 0.001$, with both haptic
+conditions differing from visual-only at $p < 0.001$ after correction. Contact
+detection and grasp confidence follow the same pattern. The two effort items do
+not reach significance. No item separates the LRA from the EM, with the
+smallest such comparison reaching only $p = 0.13$.
+
+The forced-choice questions are more decisive than any rating. Asked which
+condition gave the best sense of contact and grasp state, 16 of 22 participants
+chose the LRA and 6 chose the EM, with none choosing visual-only feedback
+($\chi^2 = 17.82$, $p < 0.001$). Asked which condition they preferred overall,
+17 chose the LRA, 4 the EM, and 1 visual-only feedback ($\chi^2 = 19.73$,
+$p < 0.001$). Twenty-one of 22 participants therefore preferred some form of
+haptic feedback to none, and a clear majority named the LRA, even though no
+individual rating item and no objective metric distinguishes it from the EM.
+
+\section{Sensor-to-Actuator Latency}
+\label{sec:latency}
+
+\todo{Outstanding. Trial logs are timestamped at the \SI{15}{\hertz} haptic
+    loop rate, which bounds how often a new intensity can reach the actuator but
+    does not establish end-to-end latency from tactile frame capture to physical
+    actuator motion. A bench measurement is required, combining a frame-capture
+    timestamp, a serial packet timestamp, and either an oscilloscope or a
+    photodiode trigger on the actuator itself, reported once per actuator type as
+    a latency distribution. Participant comments in
+    Appendix~\ref{app:questionnaire} repeatedly mention perceived delay, so this
+    measurement is worth making.}
 
 % =====================================================================
 \chapter{Discussion}
@@ -1174,30 +1466,40 @@ item separated the two haptic conditions reliably.
 
 The results separate cleanly into a strong effect and a weak one.
 
-The strong effect is the presence of tactile feedback. For fragile objects, both
-haptic conditions reduced excess deformation by roughly an order of magnitude
-and raised survival by 16--19 percentage points over visual-only feedback. The
-mechanism is visible in the time-series traces: under visual-only feedback the
-operator has no signal that indicates when the useful part of the grasp is
-complete, and continues to squeeze after contact is fully established. The
-haptic conditions supply exactly that signal, and the metric most improved is
-the one that measures effort applied after the signal saturates. That the effect
-appears in survival, not merely in the force proxy, is what makes it
-practically meaningful.
+The strong effect is the presence of tactile feedback. For fragile objects,
+both haptic conditions raised survival by 16 to 19 percentage points over
+visual-only feedback, and that improvement is statistically reliable at the
+per-participant rate level for both actuators. Grip adjustments after the
+plateau also fell reliably, though for the EM condition only. The mechanism is
+visible in the time-series traces. Under visual-only feedback the operator has
+no signal indicating when the useful part of the grasp is complete, and
+continues to squeeze after contact is fully established, whereas the haptic
+conditions supply exactly that signal.
+
+The metric that measures this most directly, excess deformation, shows the
+largest descriptive change of any metric in the study, falling roughly ninefold
+under the LRA. It is worth being careful about what that supports. The omnibus
+test on excess deformation does not reach significance at this sample size, so
+the reduction is a strong descriptive pattern rather than a confirmed effect.
+What carries the argument is that the benefit appears in survival, which is the
+outcome that actually matters and which is significant, rather than in the
+force proxy alone.
 
 The weak effect is actuator type. The LRA produced the lower excess deformation
-and was the more frequently preferred condition; the EM produced fewer grip
-adjustments. Neither difference is large relative to between-participant spread,
-and no questionnaire item distinguished the two. The honest reading is that this
-study establishes that feedback helps, and does not establish which actuator
-helps more.
+and was the more frequently preferred condition, while the EM produced fewer
+grip adjustments. No comparison between them reaches significance on any
+metric, and no questionnaire item distinguishes them. Equivalence testing does
+not rescue the null either, since only one metric passes at the chosen margin
+and the rest are inconclusive in both directions. The honest reading is that
+this study establishes that feedback helps, does not establish which actuator
+helps more, and is not powered to declare the two interchangeable.
 
 The absence of any effect on deformable objects is not a failure of the system
 but a property of the task. A foam cube imposes no penalty for over-squeezing,
 so a channel whose value lies in discouraging over-squeezing has nothing to act
-on. This asymmetry is itself informative: it suggests the benefit of tactile
-feedback in teleoperation is concentrated in tasks with a failure threshold
-rather than distributed across manipulation generally.
+on. This asymmetry is itself informative, since it suggests the benefit of
+tactile feedback in teleoperation is concentrated in tasks with a failure
+threshold rather than distributed across manipulation generally.
 
 \section{Limitations}
 \label{sec:limitations}
@@ -1212,9 +1514,13 @@ difference attributed to an actuator may in part reflect its position in the
 session.
 
 \paragraph{The two actuators differ in more than one way.} They differ in
-transduction mechanism, but also in placement on the hand and in how well hand
-tracking performed while each was worn. A preference for one actuator may
-therefore reflect smoother control rather than a better sensation.
+transduction mechanism, but also in where they sit. The EM pin must press on
+the fingerpad to be felt and so occupies the distal phalanx, while the LRA is
+strapped over the middle phalanx (Section~\ref{subsec:em-drive}). The two
+therefore stimulate different skin, and the bulkier EM housing also changed how
+well hand tracking performed while it was worn. A preference for one actuator
+may reflect smoother control, or a more sensitive site, rather than a better
+sensation.
 
 \paragraph{Rendering narrows the intended contrast.} The intended contrast was
 continuous versus discretely-switched rendering. In practice the LRA is driven
@@ -1231,9 +1537,25 @@ resonance, the achievable amplitude range, and therefore the perceptual dynamic
 range of the intensity signal, may have been compressed.
 
 \paragraph{Differing native temporal response.} The LRA requires several drive
-cycles to ring up and ring down; the EM latch transitions almost instantly. A
+cycles to ring up and ring down, whereas the EM latch transitions almost
+instantly. A
 comparison intended to isolate rendering style is therefore partly a comparison
 of responsiveness.
+
+\paragraph{The pinch mapping is not per-participant.} The two pixel thresholds
+of Equation~\eqref{eq:pinchmap} are rig constants rather than per-participant
+values (Section~\ref{sec:handtracking}). Hand size and seated camera distance
+therefore vary across participants without compensation, so the same physical
+pinch does not command the same gripper position for everyone. Because the
+design is within-subjects this does not bias the comparison between conditions,
+but it adds between-participant variance that reduces power.
+
+\paragraph{Statistical power.}
+Several descriptively large differences do not reach significance, and the
+equivalence tests of Section~\ref{sec:lra-vs-em} are inconclusive for three of
+four metrics. At $N=22$ the study can detect the survival effect but is
+underpowered for the smaller actuator-versus-actuator comparison it was
+designed around.
 
 \paragraph{Uncalibrated force.} Grip force is inferred from deformation volume
 in arbitrary units, not measured in newtons, and indentation depth rests on a
@@ -1268,30 +1590,33 @@ loop rather than in empirical comparison alone.
 This thesis presented an end-to-end tactile-haptic teleoperation system that
 integrates vision-based tactile sensing into a Robotiq 2F-85 adaptive gripper,
 commands the gripper from the operator's own pinch aperture, and renders the
-sensed contact deformation on a five-channel wearable actuator array through
-either linear resonant actuators or electromagnetic bistable pin actuators,
+sensed contact deformation on a wearable actuator array through either linear
+resonant actuators or electromagnetic bistable pin actuators,
 with an identical sensing and intensity-mapping pipeline upstream of the driver
 in both cases.
 
 A within-subjects study with $N=22$ participants found that tactile feedback
-made the grasping of fragile objects substantially safer: excess deformation
-(force applied after the tactile display had saturated) fell by close to
-an order of magnitude, and object survival rose from 62\% under visual-only
-feedback to 81\% with the LRA and 78\% with the EM. Deformable objects, which
-lack a failure threshold, showed no reliable effect. Participants preferred both
-haptic conditions to visual-only feedback and most often chose the LRA, but no
-questionnaire item separated the two actuators reliably.
+made the grasping of fragile objects safer. Object survival rose from 62\%
+under visual-only feedback to 81\% with the LRA and 78\% with the EM, a
+difference that holds up statistically for both actuators, and the number of
+grip adjustments made after the grasp was complete fell reliably under the EM.
+Excess deformation, the force applied after the tactile display had saturated,
+fell by close to an order of magnitude, although that reduction does not reach
+significance at this sample size. Deformable objects, which lack a failure
+threshold, showed no effect. Participants preferred both haptic conditions to
+visual-only feedback and most often chose the LRA, but neither the
+questionnaire nor any objective metric separated the two actuators.
 
-The conclusion is therefore asymmetric, and deliberately so: the presence of
+The conclusion is therefore asymmetric, and deliberately so. The presence of
 tactile feedback matters, and the choice between these two actuators, under
-these conditions and at this sample size, does not demonstrably matter. Ranking
-actuator types would require a study that removes the confounds identified in
-Section~\ref{sec:limitations}: counterbalanced condition order, matched
-placement on the hand, resonance-tuned amplitude-modulated LRA drive, and a
-force proxy calibrated in newtons.
+these conditions and at this sample size, does not demonstrably matter.
+Ranking actuator types would require a study that removes the confounds
+identified in Section~\ref{sec:limitations}, namely counterbalanced condition
+order, matched placement on the hand, resonance-tuned amplitude-modulated LRA
+drive, and a force proxy calibrated in newtons.
 
 Future work follows directly from these limitations, and from one extension the
-present system does not exploit: the tactile sensor produces a full depth map,
+present system does not exploit. The tactile sensor produces a full depth map,
 of which this study renders a single scalar per finger. Rendering the spatial
 structure of the contact patch across the actuator array, rather than
 collapsing it to one intensity, is the most promising direction for
@@ -1300,19 +1625,65 @@ recovering more of the information the sensor already measures.
 % =====================================================================
 %  BACK MATTER
 % =====================================================================
-\cleardoublepage
+\clearpage
 \begingroup
 \raggedright
 \printbibliography[heading=bibintoc, title={References}]
 \endgroup
 
 \appendix
-\cleardoublepage
+\clearpage
 
 \chapter{Questionnaire Items}
 \label{app:questionnaire}
-\todo{Reproduce the questionnaire exactly as administered, including the
-    demographic and screening items and the closing preference question.}
+
+The questionnaire was administered as a single online form. Section~A was
+completed once at the start of the session. Section~B was completed three
+times, once immediately after each condition block, with identical wording each
+time. Section~C was completed once at the end of the session.
+
+\section*{A. Background and screening}
+
+\begin{enumerate}[label=A\arabic*., leftmargin=*]
+    \item Participant ID
+    \item Name
+    \item Age
+    \item Gender
+    \item Height (cm)
+    \item Dominant hand
+    \item Prior experience with teleoperation
+    \item Prior experience with VR/gaming controllers
+    \item Prior experience operating robotic arms/manipulators
+    \item Do you have any visual, auditory, or tactile sensory impairments
+          relevant to this study?
+\end{enumerate}
+
+\section*{B. Post-condition items}
+
+Rated on a five-point scale, where 1 is strongly disagree and 5 is strongly
+agree.
+
+\begin{enumerate}[label=B\arabic*., leftmargin=*]
+    \item It was easy to manipulate objects using the teleoperation system.
+    \item I could clearly tell when the robot hand made contact with an object.
+    \item I felt confident that the object was securely grasped in the robot
+          hand.
+    \item I could perceive how much force I was applying to the object.
+    \item Mental effort required for this task was low.
+    \item Physical effort required for this task was low.
+\end{enumerate}
+
+\section*{C. Closing items}
+
+The three response options were labelled in plain language, as No Feedback,
+Vibration Motor, and Pin Actuator, corresponding to the visual-only, LRA, and
+EM conditions respectively.
+
+\begin{enumerate}[label=C\arabic*., leftmargin=*]
+    \item Which condition gave you the best sense of contact/grasp state?
+    \item Which condition did you prefer overall?
+    \item Any additional comments or suggestions? (optional)
+\end{enumerate}
 
 \chapter{Per-Participant Summary Data}
 \label{app:data}
@@ -1325,7 +1696,7 @@ recovering more of the information the sensor already measures.
 \todo{Driver schematic, bill of materials, pulse-timing parameters, and the
     serial packet format used between host and ESP32-C6.}
 
-\cleardoublepage
+\clearpage
 \chapter*{Acknowledgements}
 \addcontentsline{toc}{chapter}{Acknowledgements}
 \todo{Acknowledge \supervisorname, the laboratory, and the study participants.}
