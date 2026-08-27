@@ -978,15 +978,30 @@ blinded direction test (six pulses, order hidden until after every trial was
 scored, repeated on both study channels) found that only one polarity moves
 the actuator at all; the opposite polarity produces no sensation in either
 direction, and the actuator returns passively once the effective pulse ends,
-rather than being driven back. The unit built for this study is therefore not
-bistable in practice: it is a single-direction pulsed electromagnet with a
-passive mechanical return, whatever the intended design. The firmware still
-issues both polarities every cycle, since the ineffective one is harmless, but
-only the effective pulse does anything, and no configuration of this hardware
-can hold a steady extended contact. This behaviour was verified with the hand
-in its normal wearing orientation; Section~\ref{sec:limitations} reports a
-follow-up check suggesting the passive return, and possibly the pull itself,
-may be gravity-assisted rather than a property of the actuator alone.
+rather than being driven back. As built and run for this study, the actuator
+is therefore not bistable in practice: it behaves as a single-direction
+pulsed electromagnet with a passive mechanical return, and no configuration
+of the deployed firmware can hold a steady extended contact.
+
+The root cause, traced afterwards, is a mismatch between the firmware's model
+of the drive electronics and the part actually populated on the driver board.
+Each channel is driven by its own single-channel H-bridge motor driver IC
+(Texas Instruments DRV8838), addressed through a phase/enable (PH/EN)
+interface rather than the symmetric push-pull pair the firmware assumes: one
+pin sets direction and the other is a hard enable, and pulling the enable pin
+low disables the output entirely rather than reversing it. The firmware pairs
+each channel's two control pins and treats them as if either one alone
+reverses current, which holds for a dual-channel push-pull driver but not for
+this part. In practice this means the "engage" pulse asserts the enable pin
+high with direction set one way, producing a genuine driven pulse, while the
+"disengage" pulse asserts the enable pin low, switching the output off rather
+than reversing it. The driver hardware is therefore capable of true
+bidirectional drive, given the correct control sequence; the limitation
+observed and reported here is in the firmware's control scheme, not in the
+chip. This behaviour was verified with the hand in its normal wearing
+orientation; Section~\ref{sec:limitations} reports a follow-up check
+suggesting the passive return, and possibly the pull itself, may be
+gravity-assisted rather than a property of the actuator alone.
 
 Because the actuator produces no ongoing sensation from a single pulse, a
 sustained and graded percept is approximated by pulsing repeatedly. The
@@ -2171,14 +2186,26 @@ both channels if no line arrives for \SI{200}{\milli\second}.
     \end{tabular}
 \end{table}
 
+\section*{Driver IC}
+
+Each of the driver board's five channels is switched by its own single-channel
+H-bridge motor driver IC (Texas Instruments DRV8838), addressed through a
+phase/enable interface rather than a symmetric push-pull pair. This was
+identified from the board's bill of materials rather than by inspecting the
+physical part, and is the basis for the root-cause discussion in
+Section~\ref{subsec:em-drive}. Per-channel current draw was not independently
+measured on the bench; the manufacturer's datasheet for this part should be
+consulted for its rated output current rather than a figure asserted here.
+The board's schematic and full bill of materials are not reproduced in this
+thesis, since the board was supplied by an external collaborator and its
+design is not the author's to publish.
+
 \section*{Outstanding}
 
-\todo{Add the five-channel driver board schematic, the driver IC part number
-    and supply rail (bench testing, described in
-    Section~\ref{subsec:em-drive}, found the EM channels drive only one
-    polarity effectively, so identify the actual part before naming it), the
-    per-channel and total current budget, and a bill of materials for the
-    printed fingertip modules of Figure~\ref{fig:actuators}.}
+\todo{A bill of materials for the printed fingertip modules of
+    Figure~\ref{fig:actuators} (magnet dimensions and grade, coil wire gauge
+    and turn count or part number, housing material) is still needed and is
+    unrelated to the driver board above.}
 
 \cleardoublepage
 \chapter*{Acknowledgements}
