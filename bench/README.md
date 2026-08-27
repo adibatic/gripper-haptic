@@ -77,39 +77,54 @@ were reporting when several described a perceived delay.
 
 ---
 
-## 2. Is the EM drive really an H-bridge?
+## 2. Is the EM drive really an H-bridge? (resolved)
 
-Chapter 3 and the README both describe the EM channels as bistable pins on
-an H-bridge, with `IN1`/`IN2` pushing current either way. That claim should
-be verified before it goes into a submitted thesis. There are two checks and
-they answer different questions.
+Chapter 3 and the README originally described the EM channels as bistable
+pins on an H-bridge, with `IN1`/`IN2` pushing current either way. That claim
+has since been checked and corrected: the hardware does carry a real
+per-channel H-bridge, but the firmware's control scheme never drives it
+bidirectionally in practice. Both checks below contributed to that finding,
+and are kept as a record of how it was reached.
 
-### Step 1 — what part is on the board
+### Step 1 — what part is on the board (resolved)
 
-Look at the driver board between the ESP32 and the coil.
+This was originally meant to be answered by reading the chip's top marking
+under a macro photo. It has since been confirmed a more direct way, from the
+board's own bill of materials: each of the five channels is driven by its own
+dedicated **single-channel H-bridge motor driver IC** (one per channel, five
+in total on the one board), not the dual-channel part this document
+originally guessed at (DRV8833/TB6612FNG).
 
-- If a wire runs **straight from a GPIO to the coil** with no chip in
-  between, there is no bridge. Stop here.
-- If there is a small IC, read its top marking under a phone macro shot and
-  look up the datasheet. Parts common at this scale: **DRV8833**,
-  **TB6612FNG**, **DRV8871**, **AT8236**, **L293D**. Four discrete MOSFETs in
-  an H pattern is also a real bridge.
-- Check the marking actually maps to a **dual-channel, bidirectional** part.
-  A single-channel or unidirectional driver will not do what the firmware
-  assumes.
+That changes the diagnosis. A single-channel H-bridge driver of this kind is
+controlled through a **phase/enable (PH/EN) interface**, not a symmetric
+`IN1`/`IN2` push-pull pair: one pin sets direction (`PH`) and the other is a
+hard enable (`EN`) — pulling `EN` low disables the output entirely
+(high-impedance), it does not drive current the other way. `firmware/haptic.py`
+pairs each channel's old PWM pin with its EN pin and calls them `IN1`/`IN2` as
+if either one alone reverses current, which is the right model for a
+dual-channel push-pull part but not for a PH/EN part.
 
-Two details from the firmware are worth carrying into that inspection:
+Read against the direction-check results (Step 2 below), this fully explains
+what was found:
 
-- `EM_PINS` reuses exactly the pins in `MOTOR_PWM_PINS` and `MOTOR_EN_PINS`.
-  The EM path and the LRA path share the same driver channels.
-- `ACDriver` (the LRA path) alternates `IN1`/`IN2` polarity every half period
-  to make a bipolar carrier. That only produces alternating current *if a
-  bridge is present*. If the LRA buzzes, something between the GPIOs and the
-  coil is reversing polarity.
-- `NSLEEP_PIN = 19` implies a driver IC with a sleep or standby input.
-  DRV8833 (`nSLEEP`) and TB6612FNG (`STBY`) both have one. Two pins per
-  channel plus one sleep pin fits **DRV8833** more closely than TB6612FNG,
-  which needs three pins per channel.
+- The "engage" pulse (`IN2`: PWM-pin=0, EN-pin=1) asserts `EN` high with
+  `PH` low — a genuine, enabled drive in one direction. This is why it moves
+  the pin.
+- The "disengage" pulse (`IN1`: PWM-pin=1, EN-pin=0) asserts `EN` **low** —
+  the driver output is simply switched off, not reversed. This is why it does
+  nothing, in either direction, every time it was tested.
+
+So the chip is not missing and not faulty — it is a real, capable H-bridge per
+channel that could drive both directions if commanded correctly (`EN` held
+high while `PH` is toggled). The firmware's control scheme just never does
+that; it only ever asserts `EN` while `PH` is at the value that gives the
+"engage" direction. This is a firmware/protocol mismatch, not a hardware
+defect or a missing bridge.
+
+The shared sleep pin (`NSLEEP_PIN = 19`) is consistent with this too: a part
+of this kind commonly exposes a global sleep/standby input, and one line
+driving all five channels' sleep pins together matches a single shared net
+across identical per-channel chips.
 
 ### Step 2 — what the hardware actually does
 
@@ -127,17 +142,17 @@ is coming makes it very easy to feel what you expect.
 
 ### What the outcome means for the wording
 
-| Observation | What to write |
-| --- | --- |
-| Both directions move the pin, oppositely | H-bridge confirmed. Current wording stands. |
-| Only one direction moves it; the pin must be pushed back by hand | Not an H-bridge in practice. Describe it as a **single-direction pulsed solenoid with a mechanical return**, and drop "bistable" unless the pin genuinely holds position unpowered. |
-| Only one direction moves it, but the pin *stays* where it was put | Latching is real, drive is not bidirectional. Describe as a **latching pin driven by unidirectional pulses**. |
-| Nothing moves on the channel you tested | Wrong channel, or that channel is unsoldered. Re-run with `CHANNEL` set to the other one. |
-
-Note that step 2 alone cannot separate "no bridge fitted" from "bridge fitted
-but one half is dead or unwired". Only step 1 distinguishes those. The
-distinction matters for the wording, because a populated bridge with a
-broken leg is a fault, whereas no bridge at all is a design difference.
+The result actually obtained — only one direction moves the pin, on both
+channels tested, twice — is now explained by Step 1: a real per-channel
+H-bridge exists, but the firmware's control scheme never asserts the enable
+line while commanding the reverse phase, so the reverse pulse always lands as
+"output disabled" rather than "output reversed". Describe the actuator's
+behaviour as built and run in the study as a **single-direction pulsed
+electromagnet with a passive mechanical return**, and note separately, as a
+matter of root cause, that the driver hardware is capable of true bidirectional
+drive and the limitation is in the firmware/pin-mapping rather than the chip.
+Drop "bistable" from the actuator's description unless the pin is shown to
+hold position unpowered, which was not observed.
 
 ### Step 3 — checking whether the passive return is gravity
 
@@ -152,25 +167,18 @@ so treat it as suggestive and say so, not as a second confirmed finding — but
 it's worth recording either way, since it bears on whether this actuator's
 behaviour would carry over to a different mounting orientation.
 
-### The second, unsoldered board
+### The "second, unsoldered board" theory (retracted)
 
-The most likely explanation, from the pin map rather than from looking at it:
+An earlier version of this document guessed that the five `EM_PINS` channels
+might be spread across two physical boards, on the reasoning that a
+dual-channel bridge part would need two boards to cover five channels, with
+one board carrying the two channels (T1, T2) the study actually used and a
+second board left as a spare or future extension.
 
-`EM_PINS` defines five channels. If each board carries a **dual** H-bridge,
-which is what DRV8833 and TB6612FNG both are, then one board serves two
-channels. The study used exactly two, thumb and index, which
-`firmware/stream.py` maps to `THUMB, INDEX = (0, 1)` on a right-hand mount,
-that is channels T1 and T2. Those are the first two entries of `EM_PINS`.
-
-So a single soldered board carrying T1 and T2 covers everything the study
-needed, and a second board would extend the array to T3 and T4 without being
-required. That is consistent with the array being built for five channels and
-wired for two.
-
-To confirm rather than infer: check whether the soldered board's inputs go to
-GPIO 20/21 and 14/15 (T1 and T2). If they do, the reading above is right. If
-the second board is wired to the same pins, or to none, it is a spare rather
-than an extension.
-
-A left-hand mount would break this, since `stream.py` maps left-hand
-thumb/index to channels 4 and 3, which would sit on different boards.
+Step 1's finding retracts that: each channel has its own dedicated
+single-channel driver IC, and all five channels live on the one board built
+for this project. There is no second board implied by the pin count, and the
+earlier reasoning was built on the wrong assumption about the part (a dual
+bridge) rather than what was actually populated (five single-channel bridges).
+If a second board exists in the lab, it is a spare unit or an unrelated build,
+not a structural extension of the five-channel array.
