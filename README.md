@@ -4,7 +4,7 @@
 
 This repository is the source code for a bachelor's thesis investigating grip force and grasping performance across haptic feedback actuator types in robotic gripper teleoperation. A Robotiq 2F-85 Adaptive Gripper is fitted with stress-deformation-based tactile sensors; tactile data is translated and sent to a custom multi-channel actuator platform (ESP32-C6) for real-time stimuli. The study collects quantitative latency metrics and qualitative survey data comparing user experience during delicate object manipulation.
 
-The stack supports two haptic feedback methods — LRA vibration motors (PWM) and EM pin actuators (H-bridge) — selectable from a single script, plus direct Modbus RTU communication with the Robotiq gripper from a host PC.
+The stack supports two haptic feedback methods — LRA vibration motors (PWM) and EM pin actuators (single-direction pulse drive) — selectable from a single script, plus direct Modbus RTU communication with the Robotiq gripper from a host PC.
 
 ## Repository Structure
 
@@ -412,14 +412,14 @@ NSLEEP is held HIGH (no sleep) via GPIO 19.
 
 ### Electromagnetic Actuators
 
-Selected via `METHOD = "em"` in `firmware/stream.py`. EMs are bistable pin actuators driven by H-bridges. Each actuator is controlled by an IN1/IN2 pair — a short pulse in one direction engages the pin toward the skin; the opposite direction retracts it. Because the actuator latches mechanically, zero power is drawn while held.
+Selected via `METHOD = "em"` in `firmware/stream.py`. Each actuator is controlled by an IN1/IN2 pair, but this is **not** a bistable, bidirectional H-bridge drive as earlier notes here assumed. A randomised, blinded bench test (`bench/em_direction_check.py`, run twice on two different channels, same result both times) found that only the IN2 pulse moves the pin at all — IN1 produces no sensation in either direction. The pin does not latch: it returns passively once the IN2 pulse ends, so power is not held at zero while "engaged"; it's just not being driven at that moment.
 
-> Bench-confirmed the pin only contacts skin on the IN2 pulse, not IN1 — backwards from the H-bridge's nominal "forward" convention. `EM.engage()`/`disengage()` (`firmware/haptic.py`) pulse IN2/IN1 accordingly, so `engage` always means contact and `disengage` always means retract regardless of the underlying pin direction.
+> `EM.engage()`/`disengage()` (`firmware/haptic.py`) still pulse IN2/IN1 respectively, since firing the ineffective pulse is harmless, but only `engage` actually does anything. Treat `disengage` as a no-op and the actuator as a single-direction pulsed electromagnet with a mechanical return, not a latching pin. See `bench/README.md` for the test and how it was run.
 
 | Mode | Behaviour |
 | --- | --- |
-| `engage` | 6 ms IN2 pulse → pin contacts skin, latches |
-| `disengage` | 10 ms IN1 pulse → pin retracts, latches |
+| `engage` | 6 ms IN2 pulse → pin contacts skin, then falls back on its own |
+| `disengage` | 10 ms IN1 pulse → no observed effect |
 | `pulse` | 3 ms forward + 3 ms reverse → quick tap, no sustained contact |
 | `burst` | Rapid sequence of pulses, up to ~200 Hz in short windows |
 

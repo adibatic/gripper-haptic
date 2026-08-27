@@ -139,6 +139,19 @@ but one half is dead or unwired". Only step 1 distinguishes those. The
 distinction matters for the wording, because a populated bridge with a
 broken leg is a fault, whereas no bridge at all is a design difference.
 
+### Step 3 — checking whether the passive return is gravity
+
+If step 2 comes back "single direction only", one more thing is worth
+checking before writing that up as a property of the actuator: repeat the
+same test with the hand inverted (palm up instead of palm down). If the
+single working direction stops moving the pin at all in that orientation,
+gravity is doing some or all of the work in the normal orientation, not the
+magnet's pull. A null result on this follow-up is not itself a conclusive
+trial (it will read as "INCONCLUSIVE" from the script, since nothing moved),
+so treat it as suggestive and say so, not as a second confirmed finding — but
+it's worth recording either way, since it bears on whether this actuator's
+behaviour would carry over to a different mounting orientation.
+
 ### The second, unsoldered board
 
 The most likely explanation, from the pin map rather than from looking at it:

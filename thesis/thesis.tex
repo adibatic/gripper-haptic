@@ -184,8 +184,9 @@ proxy and a normalised haptic intensity value, which is streamed back to a
 wearable actuator array on the operator's hand, driven by an ESP32-C6. The
 same pipeline renders two mechanically distinct actuator types: linear
 resonant actuators (LRAs), driven by a bipolar resonant carrier whose envelope
-encodes intensity, and electromagnetic (EM) bistable pin actuators, driven by
-short latching H-bridge pulses.
+encodes intensity, and electromagnetic (EM) actuators, driven by short
+single-direction pulses that pull a magnet against the fingerpad and release it
+to return passively.
 
 Twenty-two participants took part in a study comparing three feedback
 conditions (visual-only, LRA, and EM) while grasping fragile and deformable
@@ -320,10 +321,13 @@ in different ways. A \emph{linear resonant actuator} (LRA) is a small vibrating
 mass whose frequency is fixed by its mechanical resonance, typically near
 \SI{200}{\hertz} \cite{choi2013}, which places it in the band the FA-II
 receptors respond to \cite{johansson2009}. An \emph{electromagnetic} (EM)
-bistable pin instead presses into the fingerpad and latches there, so it can in
-principle deliver pressure that does not change, which the fast receptors do
-not register at all \cite{johansson2009,vechev2019}. Chapter~\ref{ch:literature}
-develops this contrast and the evidence behind it.
+actuator instead pulls a magnet against the fingerpad on each pulse, giving a
+discrete contact event rather than a continuous vibration
+\cite{johansson2009,vechev2019}. Designs in this family can in principle be
+built to latch and hold a steady pressure the fast receptors do not register at
+all; the unit built for this thesis was verified on the bench not to do so, and
+Section~\ref{subsec:em-drive} returns to what that means for the comparison.
+Chapter~\ref{ch:literature} develops this contrast and the evidence behind it.
 
 One limit applies to either family. A cutaneous display carries intensity
 coarsely, since an amplitude difference of at least \SIrange{20}{30}{\percent}
@@ -395,7 +399,7 @@ identical while the actuator itself is swapped.
           gripper and derive a real-time contact-intensity signal from it.
     \item Design and build a five-channel wearable actuator driver, based on an
           ESP32-C6, that can deliver that signal through either LRA or EM
-          bistable pin actuators with no change anywhere upstream of the
+          pulsed actuators with no change anywhere upstream of the
           driver. Two channels are used in this study, one per instrumented
           gripper finger.
     \item Command the gripper from the operator's own pinch aperture using
@@ -419,10 +423,11 @@ This thesis contributes the following.
           tracking, gripper control, the serial link to the hand, and the
           firmware, in which the actuator is the only part that changes between
           conditions.
-    \item A way of rendering graded intensity on bistable electromagnetic pins,
-          which produce no ongoing sensation once latched, by pulsing them in
-          bursts and gaps. This makes a like-for-like comparison against a
-          continuously modulated LRA possible.
+    \item A way of rendering graded intensity on electromagnetic actuators,
+          which each pulse delivers as a single discrete contact event rather
+          than a continuous sensation, by pulsing them in bursts and gaps.
+          This makes a like-for-like comparison against a continuously
+          modulated LRA possible.
     \item A within-subjects study with $N=22$ participants measuring the effect
           of touch feedback, and of actuator type, on grip-force control and
           object survival for fragile and deformable objects. The sample is
@@ -681,10 +686,15 @@ The relevance to grip-force rendering is that a latched pin delivers pressure
 that does not change, and neither fast receptor type registers unchanging
 force, leaving the slowly adapting SA-I and SA-II receptors to report it
 \cite{johansson2009}. In principle this gives the two families access to
-different parts of the sensory apparatus. The driver built for this thesis does
-not exploit that fully, since it pulses the pin to render a graded intensity
-rather than holding it, and Section~\ref{sec:limitations} returns to what that
-costs.
+different parts of the sensory apparatus. The unit built for this thesis does
+not realise contact mode at all: bench verification (a randomised, blinded
+direction check, described in Section~\ref{subsec:em-drive}) found that only
+one polarity of the drive pulse moves the actuator, so it cannot be commanded
+to extend and hold; it can only be pulsed, and the actuator returns passively
+once the pulse ends. The graded-intensity scheme therefore renders every EM
+percept in what Vechev et al.\ call pulse mode, and
+Section~\ref{sec:limitations} returns to what that costs against the
+contact-mode comparison this section describes.
 
 \section{The Comparative Gap}
 \label{sec:lit-gap}
@@ -752,7 +762,7 @@ Section~\ref{sec:latency}.
     \includegraphics[width=0.58\textwidth]{preprint_fig2.png}
     \caption{Hardware. (a) The operator station and gripper apparatus, grouped
         as in Figure~\ref{fig:signalflow}. (b) The two actuator types compared in
-        this study, LRA on the left and EM bistable pin on the right.}
+        this study, LRA on the left and EM pulsed actuator on the right.}
     \label{fig:hardware}
 \end{figure}
 
@@ -918,7 +928,7 @@ arrives for \SI{200}{\milli\second}, so a host failure silences the display
 rather than leaving an actuator latched against the skin.
 
 The driver board carries five channels, wired as five PWM and enable pairs for
-the LRA path and five H-bridge leg pairs for the EM path. This study drives two
+the LRA path and five IN1/IN2 pin pairs for the EM path. This study drives two
 of them, one on the thumb and one on the index finger, matching the two
 instrumented gripper fingers. The remaining three are available for the spatial
 rendering discussed in Chapter~\ref{ch:conclusion} as future work.
@@ -926,12 +936,20 @@ rendering discussed in Chapter~\ref{ch:conclusion} as future work.
 \subsection{LRA Drive}
 \label{subsec:lra-drive}
 
-Each linear resonant actuator is driven differentially from an H-bridge with a
-bipolar square-wave carrier at \SI{200}{\hertz}, produced by flipping the
-bridge polarity every \SI{2500}{\micro\second}. Intensity is rendered by
+Each linear resonant actuator is driven differentially with a bipolar
+square-wave carrier at \SI{200}{\hertz}, produced by flipping the commanded
+polarity every \SI{2500}{\micro\second}, on the assumption that an H-bridge
+sits between the microcontroller pins and the motor. Intensity is rendered by
 envelope modulation, so within a fixed \SI{50}{\milli\second} window the
-carrier is gated on for a fraction of the window equal to $u$ and the bridge
+carrier is gated on for a fraction of the window equal to $u$ and the drive
 coasts for the remainder. The envelope therefore repeats at \SI{20}{\hertz}.
+The LRA channels share their physical pins with the EM channels
+(Section~\ref{subsec:em-drive}), on which bench verification found only one
+polarity to be effective; that finding was not independently confirmed on the
+LRA path, since a genuinely unipolar drive would still produce an audible tap
+rather than silence, but it means the bipolar-carrier description above should
+be read as the design intent rather than as a confirmed property of this
+board.
 
 This is a compromise rather than the ideal drive. An LRA's perceived amplitude
 is properly modulated by varying the drive amplitude at the actuator's resonant
@@ -942,19 +960,38 @@ amplitude. The carrier frequency was also set from bench testing rather than
 tuned to the measured resonance of these particular actuators. Both
 consequences are taken up in Section~\ref{sec:limitations}.
 
-\subsection{EM Bistable Pin Drive}
+\subsection{EM Actuator Drive}
 \label{subsec:em-drive}
 
-Each electromagnetic actuator is a bistable pin that latches magnetically in
-either the extended or retracted state and requires power only to switch
-between them \cite{vechev2019}. A short H-bridge pulse of one polarity extends
-the pin against the operator's fingerpad and a pulse of the opposite polarity
-retracts it. Reliable latching needs \SI{6}{\milli\second} to engage and
-\SI{10}{\milli\second} to release, measured on the bench.
+Each electromagnetic actuator is built as a permanent magnet suspended between
+two coil faces in a 3D-printed housing, following the general form of the
+bistable design in \cite{vechev2019}, which is meant to latch magnetically in
+either an extended or retracted state and require power only to switch between
+them. The firmware assumes that design and drives each channel through an
+IN1/IN2 pin pair, with one polarity intended to extend the pin against the
+operator's fingerpad and the opposite polarity intended to retract it, using
+\SI{6}{\milli\second} engage and \SI{10}{\milli\second} release pulses measured
+on the bench.
 
-Because a latched pin produces no ongoing sensation, a sustained and graded
-percept is approximated by pulsing. The firmware emits bursts of ten
-extend-retract pulse pairs, each pulse \SI{4}{\milli\second} long, separated by
+This assumption was checked directly rather than taken on trust. A randomised,
+blinded direction test (six pulses, order hidden until after every trial was
+scored, repeated on both study channels) found that only one polarity moves
+the actuator at all; the opposite polarity produces no sensation in either
+direction, and the actuator returns passively once the effective pulse ends,
+rather than being driven back. The unit built for this study is therefore not
+bistable in practice: it is a single-direction pulsed electromagnet with a
+passive mechanical return, whatever the intended design. The firmware still
+issues both polarities every cycle, since the ineffective one is harmless, but
+only the effective pulse does anything, and no configuration of this hardware
+can hold a steady extended contact. This behaviour was verified with the hand
+in its normal wearing orientation; Section~\ref{sec:limitations} reports a
+follow-up check suggesting the passive return, and possibly the pull itself,
+may be gravity-assisted rather than a property of the actuator alone.
+
+Because the actuator produces no ongoing sensation from a single pulse, a
+sustained and graded percept is approximated by pulsing repeatedly. The
+firmware emits bursts of ten
+pulses, each \SI{4}{\milli\second} long, separated by
 a gap that carries the intensity. The gap runs from \SI{400}{\milli\second} at
 $u = 0$ down to \SI{35}{\milli\second} at $u = 1$, interpolated linearly, so
 higher intensity produces more frequent contact events per unit time rather
@@ -1643,6 +1680,20 @@ granularity. A dedicated resonant-driver IC capable of amplitude modulation on
 the LRA side, and a latch-and-hold drive on the EM side, would sharpen the
 contrast the study was built to test.
 
+\paragraph{The EM actuator's motion may be orientation-dependent.} The
+single-direction behaviour reported in Section~\ref{subsec:em-drive} was
+verified with the hand in its normal wearing orientation, palm and fingertips
+facing down. A follow-up check with the hand inverted (palm up) found no
+perceptible movement in either direction, which falls below the same script's
+own threshold for a conclusive result and was not repeated, so it should be
+read as suggestive rather than confirmed. It is nonetheless consistent with
+gravity, not magnetic force alone, contributing to the motion felt in the
+normal orientation, which would make the actuator's already limited behaviour
+further dependent on how the hand is held. The study itself is unaffected,
+since participants wore the device in a single, consistent, palm-down
+orientation throughout, but the mechanism should not be assumed to generalise
+to other mountings without checking.
+
 \paragraph{Off-resonance carrier.} The LRA carrier was set empirically to
 \SI{200}{\hertz} rather than tuned to the measured resonance of the specific
 actuators. Since an LRA is efficient only in a narrow band around resonance,
@@ -1707,8 +1758,9 @@ This thesis presented an end-to-end tactile-haptic teleoperation system that
 integrates vision-based tactile sensing into a Robotiq 2F-85 adaptive gripper,
 commands the gripper from the operator's own pinch aperture, and renders the
 sensed contact deformation on a wearable actuator array through either linear
-resonant actuators or electromagnetic bistable pin actuators, with an identical
-sensing and intensity-mapping pipeline upstream of the driver in both cases.
+resonant actuators or single-direction pulsed electromagnetic actuators, with
+an identical sensing and intensity-mapping pipeline upstream of the driver in
+both cases.
 That last property is what the system was built for, since it allows the
 actuator to be exchanged while everything before it is held fixed.
 
@@ -2114,17 +2166,19 @@ both channels if no line arrives for \SI{200}{\milli\second}.
         EM     & Inter-burst gap at $u=0$ & \SI{400}{\milli\second}  \\
         EM     & Inter-burst gap at $u=1$ & \SI{35}{\milli\second}   \\
         EM     & Channel stagger          & \SI{10}{\milli\second}   \\
-        EM     & Latch threshold          & $u = 0.1$                \\
+        EM     & No-contact threshold     & $u = 0.1$                \\
         \bottomrule
     \end{tabular}
 \end{table}
 
 \section*{Outstanding}
 
-\todo{Add the five-channel driver board schematic, the H-bridge part number
-    and supply rail, the per-channel and total current budget, and a bill of
-    materials for the printed fingertip modules of
-    Figure~\ref{fig:actuators}.}
+\todo{Add the five-channel driver board schematic, the driver IC part number
+    and supply rail (bench testing, described in
+    Section~\ref{subsec:em-drive}, found the EM channels drive only one
+    polarity effectively, so identify the actual part before naming it), the
+    per-channel and total current budget, and a bill of materials for the
+    printed fingertip modules of Figure~\ref{fig:actuators}.}
 
 \cleardoublepage
 \chapter*{Acknowledgements}
