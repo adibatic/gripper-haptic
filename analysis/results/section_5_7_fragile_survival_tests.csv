@@ -1,8 +1,0 @@
-level,n,omnibus_test,omnibus_stat,omnibus_dof,omnibus_p,comparison,pairwise_test,a_survived_only,b_survived_only,pairwise_p,holm_p
-rate,22,friedman,11.2394,2,0.0036,visual_only_vs_lra,wilcoxon,,,0.0060,0.0180
-rate,22,friedman,11.2394,2,0.0036,visual_only_vs_em,wilcoxon,,,0.0186,0.0373
-rate,22,friedman,11.2394,2,0.0036,lra_vs_em,wilcoxon,,,0.6927,0.6927
-rate_medians,22,,,,,visual_only=0.600;lra=0.800;em=0.900,,,,,
-binary,22,cochran_q,4.6667,2,0.0970,visual_only_vs_lra,mcnemar,1,6,0.1250,0.3750
-binary,22,cochran_q,4.6667,2,0.0970,visual_only_vs_em,mcnemar,2,3,1.0000,1.0000
-binary,22,cochran_q,4.6667,2,0.0970,lra_vs_em,mcnemar,5,1,0.2188,0.4375

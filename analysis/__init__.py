@@ -1,5 +1,5 @@
 """
-Thesis Chapter 5 analysis pipeline (Sections 5.1, 5.3-5.7, 5.9).
+Thesis Chapter 5 analysis pipeline (Sections 5.1-5.6).
 
     python -m analysis --trials-dir data/experiment_logs --out analysis/results \\
         [--likert-csv ...] [--collapse sum_n|max] [--preprint-figures thesis/figures]
@@ -11,14 +11,15 @@ Thesis Chapter 5 analysis pipeline (Sections 5.1, 5.3-5.7, 5.9).
 The tests are rank-based, so only sum_n vs max can reorder trials. Run both and
 confirm the findings agree.
 
-Section 5.2 (latency) is NOT computed here — it needs a separate bench
-measurement; the ~30 Hz trial CSV cannot capture true sensor-to-actuator latency.
+Section 5.7 (latency) is NOT computed here — it needs a separate bench
+measurement; the 15 Hz trial CSV cannot capture true sensor-to-actuator latency.
 
 Module map:
     trials.py       5.1  loading, per-trial metrics, per-participant reduction
     tests.py             statistical primitives (Holm, TOST, Cochran's Q, McNemar)
-    comparisons.py  5.3/5.4/5.9  cross-condition, LRA vs EM, equivalence
-    survival.py     5.4/5.7  fragile-object survival (paired binary outcome)
+    comparisons.py  5.2/5.3/5.4  cross-condition, LRA vs EM, equivalence
+    survival.py     5.2  fragile-object survival (paired binary outcome)
+    robustness.py   5.2  saturation rate; practice-adjusted survival model
     likert.py       5.6  qualitative survey
     visualization.py     5.5  time-series figures
     __main__.py          CLI entry point

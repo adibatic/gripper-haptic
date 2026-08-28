@@ -1,0 +1,6 @@
+level,n,friedman_stat,friedman_p,comparison,wilcoxon_p,holm_p
+participant_rate,22,9.3611,0.0093,visual_only_vs_lra,0.0191,0.0573
+participant_rate,22,9.3611,0.0093,visual_only_vs_em,0.0210,0.0573
+participant_rate,22,9.3611,0.0093,lra_vs_em,0.5045,0.5045
+medians,22,,,visual_only=0.800;lra=0.500;em=0.600,,
+pooled_trial_rate,22,,,visual_only=0.718;lra=0.473;em=0.527,,

@@ -1,10 +1,11 @@
 """
-Sections 5.3, 5.4 and 5.9 — condition comparisons on the per-trial metrics.
+Sections 5.2, 5.3 and 5.4 — condition comparisons on the per-trial metrics.
 
-5.3 compares all three conditions (Friedman, then pairwise Wilcoxon with Holm
-correction); 5.4 tests LRA against EM directly; 5.9 asks the separate
-question of whether those two are *equivalent* (TOST), which a non-significant
-5.4 result cannot answer on its own.
+The cross-condition test compares all three conditions (Friedman, then pairwise
+Wilcoxon with Holm correction) and feeds both the fragile results of 5.2 and the
+deformable results of 5.3; 5.4 tests LRA against EM directly, and additionally
+asks the separate question of whether those two are *equivalent* (TOST), which a
+non-significant Wilcoxon result cannot answer on its own.
 """
 
 import os
@@ -33,11 +34,11 @@ def _complete_cases(reduced_df, metric, obj, conditions, label):
 
 
 # ---------------------------------------------------------------------------
-# Section 5.3 — Cross-Condition Comparison (Friedman + Wilcoxon)
+# Sections 5.2 and 5.3 — Cross-Condition Comparison (Friedman + Wilcoxon)
 # ---------------------------------------------------------------------------
 
 def friedman_and_pairwise(reduced_df, metric):
-    """Section 5.3: Friedman across the 3 conditions for `metric`, then
+    """Sections 5.2 and 5.3: Friedman across the 3 conditions for `metric`, then
     pairwise Wilcoxon signed-rank with Holm correction.
 
     Pairwise results are reported unconditionally, with the Friedman result
@@ -112,15 +113,15 @@ def friedman_and_pairwise(reduced_df, metric):
 
 
 def write_cross_condition_report(all_results, out_dir):
-    """Writes a CSV summary table for Section 5.3, one row per
+    """Writes a CSV summary table for Sections 5.2 and 5.3, one row per
     metric x object x comparison.
 
     Args:
         all_results: {metric: friedman_and_pairwise() result}, one entry
             per Section 5.1 metric.
-        out_dir: Directory to write section_5_3_cross_condition.csv into.
+        out_dir: Directory to write section_5_2_5_3_cross_condition.csv into.
     """
-    path = os.path.join(out_dir, "section_5_3_cross_condition.csv")
+    path = os.path.join(out_dir, "section_5_2_5_3_cross_condition.csv")
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["metric", "object", "n", "friedman_stat", "friedman_p",
@@ -148,7 +149,7 @@ def write_cross_condition_report(all_results, out_dir):
 
 def lra_vs_em(reduced_df, metric):
     """Section 5.4: direct paired Wilcoxon between lra and em only,
-    reported separately from the 3-way comparison in Section 5.3.
+    reported separately from the 3-way comparison in Sections 5.2 and 5.3.
 
     Args:
         reduced_df: Output of reduce_to_participant_condition_object().
@@ -215,7 +216,7 @@ def write_lra_vs_em_report(all_results, out_dir):
 
 
 # ---------------------------------------------------------------------------
-# Section 5.9 — TOST Equivalence (LRA vs EM)
+# Section 5.4 — TOST Equivalence (LRA vs EM)
 #
 # Section 5.4's Wilcoxon test can only fail to reject "no difference" — it
 # cannot show the two actuators ARE equivalent. Two One-Sided Tests (TOST)
@@ -237,10 +238,10 @@ def write_lra_vs_em_report(all_results, out_dir):
 
 
 def lra_vs_em_tost(reduced_df, metric, margin_sd, alpha=0.05):
-    """Section 5.9: TOST equivalence between lra and em for `metric`,
+    """Section 5.4: TOST equivalence between lra and em for `metric`,
     on the same complete-case participants as lra_vs_em() (Section
     5.4), so the two sections are directly comparable — 5.4 asks "is there
-    a detectable difference," 5.9 asks "can we rule out a difference of at
+    a detectable difference," the TOST asks "can we rule out a difference of at
     least margin_sd standard deviations."
 
     Args:
@@ -269,7 +270,7 @@ def lra_vs_em_tost(reduced_df, metric, margin_sd, alpha=0.05):
 
 
 def write_tost_equivalence_report(all_results, margin_sd, alpha, out_dir):
-    """Writes a CSV summary table for Section 5.9, one row per metric x object.
+    """Writes a CSV summary table for Section 5.4, one row per metric x object.
 
     Args:
         all_results: {metric: lra_vs_em_tost() result}, one entry per
@@ -277,9 +278,9 @@ def write_tost_equivalence_report(all_results, margin_sd, alpha, out_dir):
         margin_sd: The equivalence margin used (echoed into every row so the
             table is self-describing if read out of context).
         alpha: The per-side significance level used.
-        out_dir: Directory to write section_5_9_tost_equivalence.csv into.
+        out_dir: Directory to write section_5_4_tost_equivalence.csv into.
     """
-    path = os.path.join(out_dir, "section_5_9_tost_equivalence.csv")
+    path = os.path.join(out_dir, "section_5_4_tost_equivalence.csv")
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["metric", "object", "n", "margin_sd", "alpha", "margin_raw",
