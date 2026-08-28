@@ -18,6 +18,8 @@ from .survival import (write_fragile_breakage_summary, mcnemar_fragile_survival,
                        write_fragile_mcnemar_report,
                        fragile_survival_across_conditions,
                        write_fragile_survival_tests_report)
+from .robustness import (saturation_rate, practice_adjusted_survival,
+                          write_robustness_report)
 from .likert import analyze_likert
 from .visualization import plot_representative_trials
 
@@ -37,8 +39,8 @@ from build_preprint_figs import plot_preprint_results, plot_preprint_likert
 
 def main():
     """Parses args and runs the full Chapter 5 pipeline: loads and reduces
-    trial data (5.1), cross-condition and LRA-vs-EM comparisons (5.3/5.4),
-    fragile survival (5.7), TOST equivalence (5.9), representative
+    trial data (5.1), cross-condition and LRA-vs-EM comparisons (5.2/5.3/5.4),
+    fragile survival (5.2), TOST equivalence (5.4), representative
     time-series figures (5.5), and — if --likert-csv is given — the survey
     analysis (5.6)."""
     parser = argparse.ArgumentParser(description="Run thesis Chapter 5 analysis on real trial data.")
@@ -63,13 +65,13 @@ def main():
                               "force proxies (uncalibrated) — works pre-calibration. Depth is "
                               "max(L,R) either way. Run both and confirm findings agree.")
     parser.add_argument("--equiv-margin-sd", type=float, default=0.5,
-                         help="Section 5.9 TOST equivalence margin, as a multiple of each "
+                         help="Section 5.4 TOST equivalence margin, as a multiple of each "
                               "metric's pooled SD (effect-size-scaled). Default 0.5 (a "
                               "'medium' Cohen's d) — this is a judgment call about the "
                               "smallest difference you'd consider practically meaningful; "
                               "state and justify your choice in the thesis text.")
     parser.add_argument("--equiv-alpha", type=float, default=0.05,
-                         help="Per-side significance level for the Section 5.9 TOST test "
+                         help="Per-side significance level for the Section 5.4 TOST test "
                               "(default 0.05, the conventional two-one-sided-tests level).")
     args = parser.parse_args()
 
@@ -88,14 +90,14 @@ def main():
     print(f"Wrote {os.path.join(args.out, 'section_5_1_reduced_metrics.csv')} "
           f"({len(reduced_df)} participant x condition x object rows)")
 
-    # Four Section 5.1 metrics, then the three Section 5.8 trajectory-shape
+    # Four Section 5.1 metrics, then the three exploratory trajectory-shape
     # metrics; every comparison below runs over all seven.
     all_metrics = ["peak_force_proxy", "peak_depth_mm", "time_to_first_contact_s",
                    "force_overshoot_proxy",
                    "approach_rate_mm_s", "n_force_reversals_post_plateau",
                    "time_above_90pct_peak_s"]
 
-    print("\nRunning Section 5.3 (cross-condition Friedman + Wilcoxon)...")
+    print("\nRunning Sections 5.2/5.3 (cross-condition Friedman + Wilcoxon)...")
     cross_condition_results = {}
     for metric in all_metrics:
         cross_condition_results[metric] = friedman_and_pairwise(reduced_df, metric)
@@ -107,11 +109,11 @@ def main():
         lra_em_results[metric] = lra_vs_em(reduced_df, metric)
     write_lra_vs_em_report(lra_em_results, args.out)
 
-    print("\nRunning Section 5.4 (fragile breakage: McNemar lra vs em)...")
+    print("\nRunning Section 5.2 (fragile breakage: McNemar lra vs em)...")
     mcnemar_result = mcnemar_fragile_survival(reduced_df)
     write_fragile_mcnemar_report(mcnemar_result, args.out)
 
-    print(f"\nRunning Section 5.9 (TOST equivalence, lra vs em, "
+    print(f"\nRunning Section 5.4 (TOST equivalence, lra vs em, "
           f"margin={args.equiv_margin_sd} pooled SD, alpha={args.equiv_alpha})...")
     tost_results = {}
     for metric in all_metrics:
@@ -119,10 +121,16 @@ def main():
             reduced_df, metric, args.equiv_margin_sd, args.equiv_alpha)
     write_tost_equivalence_report(tost_results, args.equiv_margin_sd, args.equiv_alpha, args.out)
 
-    print("\nRunning Section 5.7 (fragile survival across conditions: rate-level "
+    print("\nRunning Section 5.2 (fragile survival across conditions: rate-level "
           "Friedman/Wilcoxon + binary Cochran's Q/McNemar, incl. vision vs haptic)...")
     survival_tests = fragile_survival_across_conditions(trial_df, reduced_df)
     write_fragile_survival_tests_report(survival_tests, args.out)
+
+    print("\nRunning Section 5.2 robustness (saturation rate; practice-adjusted "
+          "survival)...")
+    saturation = saturation_rate(trial_df)
+    practice = practice_adjusted_survival(trial_df)
+    write_robustness_report(saturation, practice, args.out)
 
     print("\nGenerating Section 5.5 time-series figures...")
     plot_representative_trials(args.trials_dir, args.out, args.collapse)
@@ -143,12 +151,12 @@ def main():
         else:
             plot_preprint_likert(*likert, args.preprint_figures)
 
-    print(f"\nAll Section 5.1/5.3/5.4/5.5/5.6/5.7/5.9 outputs written to {args.out}/ "
+    print(f"\nAll Section 5.1-5.6 outputs written to {args.out}/ "
           f"(collapse={args.collapse})")
     print("ROBUSTNESS: re-run with the other --collapse mode into a separate --out and")
     print("confirm the significant findings hold under both — report that in Section 5.1.")
-    print("Section 5.2 (sensor-to-actuator latency) requires a separate bench")
-    print("measurement and is NOT computed by this script — see thesis Section 5.2.")
+    print("Section 5.7 (sensor-to-actuator latency) requires a separate bench")
+    print("measurement and is NOT computed by this script — see thesis Section 5.7.")
 
 
 if __name__ == "__main__":

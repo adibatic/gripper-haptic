@@ -89,7 +89,7 @@ def compute_trial_metrics(trial_csv_path, contact_threshold_mm, collapse):
     """Compute the per-trial metrics from one trial CSV (schema: t,
     gripper_pos_bit, left/right_force_proxy, left/right_force_N,
     left/right_max_depth_mm): the four thesis Section 5.1 metrics, plus
-    three Section 5.8 trajectory-shape metrics added to characterize *how*
+    three exploratory trajectory-shape metrics added to characterize *how*
     a grasp unfolds, not just its outcome — approach_rate_mm_s (how fast
     depth rises during the approach), n_force_reversals_post_plateau (force
     correction oscillations once contact is established), and
@@ -144,7 +144,7 @@ def compute_trial_metrics(trial_csv_path, contact_threshold_mm, collapse):
     # This is an operational definition chosen for this script and shared
     # by force_overshoot_proxy AND the two post-plateau metrics below; if
     # you adopt a different plateau definition when writing the thesis,
-    # update it here AND in Section 5.1/5.8's text so all stay consistent.
+    # update it here AND in Section 5.1's text so all stay consistent.
     plateau_idx = None
     if peak_depth is not None and peak_depth > 0:
         plateau_idx_arr = np.where(depth >= 0.95 * peak_depth)[0]
@@ -159,7 +159,7 @@ def compute_trial_metrics(trial_csv_path, contact_threshold_mm, collapse):
         if np.isfinite(force_at_plateau) and np.isfinite(tail).any():
             overshoot = float(np.nanmax(tail)) - float(force_at_plateau)
 
-    # Approach rate (Section 5.8): mean rate of depth increase from first
+    # Approach rate (exploratory): mean rate of depth increase from first
     # contact to plateau, mm/s. None if contact and plateau coincide/invert
     # (zero or negative elapsed time — e.g. depth is already at 95% of its
     # max on the very first contacted sample).
@@ -170,7 +170,7 @@ def compute_trial_metrics(trial_csv_path, contact_threshold_mm, collapse):
             d_depth = depth[plateau_idx] - depth[contact_idx]
             approach_rate = float(d_depth / dt)
 
-    # Force-correction reversals post-plateau (Section 5.8): direction
+    # Force-correction reversals post-plateau (exploratory): direction
     # changes in the force trace once contact has plateaued — a proxy for
     # how much a participant "hunts" for the right grip force rather than
     # settling.
@@ -178,7 +178,7 @@ def compute_trial_metrics(trial_csv_path, contact_threshold_mm, collapse):
     if plateau_idx is not None:
         n_reversals = _count_reversals(force[plateau_idx:])
 
-    # Dwell time above 90% of peak force (Section 5.8), over the whole
+    # Dwell time above 90% of peak force (exploratory), over the whole
     # trial: sum of the time interval FOLLOWING each sample that is itself
     # >= 0.9 * peak_force. An interval-count approximation (not exact
     # trapezoidal integration under the threshold crossing), consistent
@@ -205,7 +205,7 @@ def load_all_trials(trials_dir, contact_threshold_mm, collapse):
     """Scan trials_dir for files matching FNAME_RE, compute per-trial
     metrics for each, and return a long-format DataFrame with one row per
     trial: participant, condition, object, trial_num, + the seven metrics
-    from compute_trial_metrics() (four Section 5.1 + three Section 5.8).
+    from compute_trial_metrics() (four Section 5.1 + three exploratory).
 
     Args:
         trials_dir: Directory to scan for trial CSVs.
@@ -239,7 +239,7 @@ def load_all_trials(trials_dir, contact_threshold_mm, collapse):
         # prompt). Untagged fragile trials (recorded before this feature
         # existed, or where the prompt was skipped) and all deformable
         # trials get None here, which reduce_to_participant_condition_object()
-        # and the Section 5.3/5.4 tests already treat as missing data.
+        # and the Section 5.2-5.4 tests already treat as missing data.
         fragile_survived = {"success": 1.0, "break": 0.0}.get(outcome)
 
         row = {

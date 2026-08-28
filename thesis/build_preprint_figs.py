@@ -11,7 +11,7 @@ itself to reach both thesis/figures/ and the analysis package):
 
     python thesis/build_preprint_figs.py
 
-preprint_fig5 (fragile survival + excess deformation) and preprint_fig6
+preprint_fig5 (fragile survival + post-plateau force rise) and preprint_fig6
 (subjective ratings + favorite picks) ARE generated from trial data — they are
 drawn from the same in-memory frames the analysis pipeline writes its CSVs
 from, so a figure can never drift from the table beside it. They are plotted
@@ -416,8 +416,8 @@ def draw_method_flow():
         # itself out of wording the subtitle makes redundant -- so naming when
         # each is collected costs the figure no height.
         b3 = box(ax, 0.3, 0.60, 4.35, 2.40,
-                 "OBJECTIVE\n(every grasp)\n\nDeformation volume\n"
-                 "(total and excess),\ndent depth, survival",
+                 "OBJECTIVE\n(every grasp)\n\nDeformation volume,\n"
+                 "dent depth, saturation,\nsurvival",
                  fontsize=6.9, facecolor="#eaf1f8")
         b4 = box(ax, 5.35, 0.60, 4.35, 2.40,
                  "SUBJECTIVE\n(after all trials)\n\nRated all 3 conditions\n"
@@ -583,9 +583,9 @@ def _stars(p):
 
 def plot_preprint_results(breakage, reduced_df, out_dir):
     """Preprint Fig. 5 — fragile objects, the OBJECTIVE half of the Results:
-    (a) pooled survival rate per condition, (b) per-participant excess
-    deformation (deformation volume that kept rising after the dent had
-    already stopped getting deeper).
+    (a) pooled survival rate per condition, (b) per-participant post-plateau
+    force rise (how much further the deformation volume climbed after the dent
+    had stopped getting deeper).
 
     Labelled "deformation" rather than "force" throughout: the underlying
     column is a deformation-volume proxy that was never calibrated against a
@@ -634,10 +634,10 @@ def plot_preprint_results(breakage, reduced_df, out_dir):
         ax_b.plot([i] * len(values), values, "o", ms=1.8,
                   color=_blend("black", 0.45), mew=0)
     ax_b.set_yscale("log")
-    # Units live in the caption, not here: "(b) Excess deformation (a.u.)"
+    # Units live in the caption, not here: "(b) Post-plateau force rise (a.u.)"
     # left only ~4px of right margin on this panel, close enough to the
     # edge that a different matplotlib could clip it outright.
-    ax_b.set_title("(b) Excess deformation", fontsize=6.5)
+    ax_b.set_title("(b) Post-plateau force rise", fontsize=6.5)
 
     for ax in (ax_a, ax_b):
         ax.set_xticks(range(1, len(CONDITIONS) + 1) if ax is ax_b else range(len(CONDITIONS)))

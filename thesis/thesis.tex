@@ -17,7 +17,10 @@
 %
 %  Build:  latexmk -pdf graduation_thesis.tex
 %     or:  pdflatex -> biber -> pdflatex -> pdflatex
-%  The separate spine sheet for binding is in spine.tex.
+%  The spine sheet for binding is the last page of this file. It is laid
+%  out so that it occupies a sheet of its own and can be cut out; set
+%  \spinethickness there to the measured thickness of the bound volume
+%  before printing.
 % =====================================================================
 
 \documentclass[12pt, a4paper, twoside, openright]{report}
@@ -169,12 +172,12 @@
 \addcontentsline{toc}{chapter}{Abstract}
 
 Teleoperation cuts off the tactile signals that inform grip force in direct
-grasping, so an operator must rely solely on vision to determine how hard a
-remote gripper is squeezing. This becomes a problem with objects that show no
-visual signs before breaking. This thesis implements tactile feedback to
-complete the closed-loop haptic process and investigates whether tactile
-feedback improves grasping of such objects, and whether the haptic actuator
-used to deliver it matters.
+grasping, leaving an operator to judge how hard a remote gripper is squeezing
+from vision alone, which becomes a problem with objects that give no visual
+warning before they break. This thesis implements tactile feedback to complete
+the closed-loop haptic process, and investigates both whether that feedback
+improves the grasping of such objects and whether the type of haptic actuator
+delivering it matters.
 
 The operator's thumb and index finger are tracked with markerless hand
 tracking, and the resulting pinch aperture commands a Robotiq 2F-85 adaptive
@@ -192,19 +195,26 @@ Twenty-two participants took part in a study comparing three feedback
 conditions (visual-only, LRA, and EM) while grasping fragile and deformable
 objects. For fragile objects, both types of tactile feedback raised the
 object's survival rate significantly, from 62\% with vision alone to 81\% with
-the LRA and 78\% with the EM, and the EM also cut the number of grip
-adjustments the operator made after the grasp was complete. Squeezing after the
-display had saturated fell by close to an order of magnitude, though that
-reduction does not reach significance at this sample size. Deformable objects,
-which have no clear breaking point, showed no difference between conditions.
-Participants also preferred both haptic conditions over vision alone and most
-often chose the LRA as their favourite, though no survey item and no objective
-metric reliably told the two actuators apart.
+the LRA and 78\% with the EM, an improvement that survives adjustment for the
+practice effect the fixed condition order introduces; the EM additionally cut
+the number of grip adjustments the operator made after the grasp was complete.
+Squeezing hard enough to drive the gripper into its depth safety cutoff became
+markedly less common under both haptic conditions, falling from 72\% of trials
+to 47\% and 53\%. Deformable objects, which have no clear breaking point,
+showed no difference between conditions. Participants preferred both haptic
+conditions over vision alone and chose the LRA as their favourite far more
+often than the EM, although no individual survey item and no objective metric
+told the two actuators apart.
 
-These results show that tactile feedback clearly helps, but they do not show
-which actuator helps more. A larger study, with counterbalanced condition
-order, matched actuator placement, and a properly calibrated force
-measurement, would be needed to rank the two actuator types with confidence.
+These results show that tactile feedback helps, but not which actuator helps
+more, and the implementation goes some way towards explaining the second
+outcome: a depth ceiling set per object class held the fragile-object display
+below half its nominal range, while a firmware defect left the electromagnetic
+pin unable to hold a sustained contact, so both actuators ended up delivering
+switched waveforms in the same frequency band. Ranking the two types with
+confidence would require a larger study with counterbalanced condition order,
+matched actuator placement, an intensity mapping that uses its full range, and
+a force measurement calibrated in newtons.
 
 \cleardoublepage
 
@@ -236,75 +246,75 @@ touches the object at all.
 
 Teleoperation is used wherever a person should not or cannot be present, such
 as maintenance in nuclear and chemical plants, disposal of explosive ordnance,
-search and rescue after disasters, and minimally invasive surgery
-\cite{niemeyer2016}. A system of this kind has two halves. The \emph{local
-    site} holds the operator and the equipment they use to see and command, while
-the \emph{remote site} holds the robot, its sensors, and the objects being
-handled \cite{niemeyer2016}. How much the operator decides varies. Under
-\emph{direct control} they set the robot's motion themselves, and under
-\emph{supervisory control} they give a goal and the robot works out how to
-reach it \cite{niemeyer2016}. This thesis stays at the direct end, where the
-operator's own hand motion is the command, so what the system sends back to
-them sets the limit on what they can safely do.
+search and rescue after disasters, and minimally invasive surgery. A system of
+this kind has two halves: the \emph{local site}, which holds the operator
+together with the equipment they use to see and command, and the \emph{remote
+    site}, which holds the robot, its sensors, and the objects being handled. How
+much the operator decides varies between architectures, since under
+\emph{direct control} they set the robot's motion themselves whereas under
+\emph{supervisory control} they give a goal and leave the robot to work out
+how to reach it \cite{niemeyer2016}. This thesis works within direct control,
+where the operator's own hand motion is the command, so what the system sends
+back to them sets the limit on what they can safely do.
 
-What the system sends back is mostly video. A camera shows where the gripper is
-and usually whether it has closed on the object, but an image says little about
-the contact itself. This is a long-standing observation rather than a new one.
-Howe and Cutkosky argued that successful manipulation needs to know contact
-shape and contact force, and that these can only be measured through touch,
-since people use touch to learn mechanical properties of the world that vision
-cannot sense at all \cite{howe1992}. Recent teleoperation work reports the same
-difficulty, noting that grip force and surface texture are both hard to read
-from a picture \cite{becker2024}.
+What comes back to the operator is a picture: a camera shows where the gripper
+is and usually whether it has closed on the object, but never how hard it is
+squeezing. Howe and Cutkosky argued in 1992 that successful manipulation needs
+to know contact shape and contact force, that these can only be measured
+through touch, and that people rely on touch for mechanical properties of the
+world vision cannot sense at all \cite{howe1992}; recent
+teleoperation work reports the same difficulty, noting that grip force and
+surface texture are both hard to read from a picture \cite{becker2024}.
 
 The operator is therefore left to set grip force without the sense that
-normally sets it. For sturdy objects this hardly matters. It matters for two
-classes of object that this thesis takes as its test cases. \emph{Fragile}
-objects break suddenly once squeezed past a threshold, and \emph{deformable}
-objects change shape gradually and never break at all. In both cases vision
-gives the operator little warning, because the sign of damage either arrives
-too late to act on or never appears.
+normally sets it, which hardly matters for sturdy objects but matters a great
+deal for the two classes this thesis takes as its test cases. \emph{Fragile}
+objects break suddenly once squeezed past a threshold, whereas
+\emph{deformable} objects change shape gradually and never break at all, and in
+both cases vision gives the operator little warning, since the sign of damage
+either arrives too late to act on or never appears.
 
 \section{The Role of Touch in Human Grasping}
 \label{sec:role-of-touch}
 
 Gripping something carefully is not one action but a control loop that runs
-continuously. It is fed by roughly 17\,000 touch receptors spread across the
-grasping surfaces of the hand, spaced about \SI{0.7}{\milli\metre} apart at the
-fingertip \cite{howe1992}. Four kinds of receptor share the work, and they
-divide it by speed. Two respond only while the skin is moving, the FA-I
-receptors over roughly \SIrange{5}{50}{\hertz} and the FA-II receptors over
-roughly \SIrange{40}{400}{\hertz}. The other two report pressure that is not
+continuously, fed by roughly 17\,000 touch receptors spread across the grasping
+surfaces of the hand and spaced about \SI{0.7}{\milli\metre} apart at the
+fingertip \cite{howe1992}. Four kinds of receptor share the work and divide it
+by speed. Two respond only while the skin is moving, the FA-I receptors over
+roughly \SIrange{5}{50}{\hertz} and the FA-II receptors over roughly
+\SIrange{40}{400}{\hertz}, while the other two report pressure that is not
 changing, SA-I below about \SI{5}{\hertz} and SA-II for sustained force and
 skin tension \cite{johansson2009}. This split matters here because an
-artificial device does not stimulate touch in general. It stimulates whichever
-of these receptors its own motion happens to reach.
+artificial device does not stimulate touch in general but only whichever of
+these receptors its own motion happens to reach.
 
 The loop these receptors feed works mainly by prediction. A person sets grip
 force in advance from what they expect the object's weight and surface to be,
 and the result is efficient, with grip force normally only
-\SIrange{10}{40}{\percent} above the minimum needed to stop the object slipping
-\cite{johansson2009}. That economy holds even when weight and surface friction
-vary widely \cite{howe1992}. When the prediction is wrong, touch does trigger a
-correction, but not immediately. The delay around these corrective loops is
-roughly \SI{100}{\milli\second}, which is why skilled handling relies on
-predicting well rather than on reacting fast \cite{johansson2009}. Take the
-touch signal away and the ability to match grip to the surface is lost, as
-happens when sensation in the fingers is impaired \cite{johansson2009}.
+\SIrange{10}{40}{\percent} above the minimum needed to stop the object
+slipping \cite{johansson2009}. That economy holds even when weight and surface
+friction vary widely \cite{howe1992}. When the prediction is wrong, touch does
+trigger a correction, but not immediately. The delay around these corrective
+loops is roughly \SI{100}{\milli\second}, which is why skilled handling relies
+on predicting well rather than on reacting fast. Take the touch signal away
+and the ability to match grip to the surface is lost, as happens when
+sensation in the fingers is impaired \cite{johansson2009}.
 
-Two points follow for anything built to replace that signal. First, much of
-what matters arrives as separate events rather than as a running force reading.
-Recordings from single nerve fibres show the FA-I receptors signalling the
-earliest stage of slip and triggering a reflexive, unconscious increase in grip
-force, while the FA-II receptors report the making and breaking of contact
-\cite{howe1992}. Second, the loop never stops running, so a useful artificial
-display should be quick and always available rather than a one-off alarm that
-fires when some threshold is crossed.
+Two points follow for anything built to replace that signal. The first is that
+much of what matters arrives as separate events rather than as a running force
+reading, since recordings from single nerve fibres show the FA-I receptors
+signalling the earliest stage of slip and triggering a reflexive, unconscious
+increase in grip force, while the FA-II receptors report the making and
+breaking of contact \cite{howe1992}. The second is that the loop never stops
+running, so a useful artificial display should be quick and continuously
+available rather than a one-off alarm that fires when some threshold is
+crossed.
 
 \section{Delivering Touch Back to the Operator}
 \label{sec:existing-approaches}
 
-It helps to separate two senses that touch combines. \emph{Cutaneous} sensing
+Touch combines two senses. \emph{Cutaneous} sensing
 responds to stimuli applied to the skin, \emph{kinaesthetic} sensing reports
 the position and motion of the limbs together with the forces the muscles
 exert, and using both at once to learn about the world is called \emph{haptic}
@@ -316,20 +326,20 @@ removing its ability to resist motion, until only cutaneous cues remain
 \cite{pacchierotti2017}. This thesis works at the cutaneous end, where the
 display is small enough to wear without obstructing the hand.
 
-Two families of cutaneous actuator are compared here, and they act on the skin
+Two types of cutaneous actuator are compared here, and they act on the skin
 in different ways. A \emph{linear resonant actuator} (LRA) is a small vibrating
 mass whose frequency is fixed by its mechanical resonance, typically near
 \SI{200}{\hertz} \cite{choi2013}, which places it in the band the FA-II
 receptors respond to \cite{johansson2009}. An \emph{electromagnetic} (EM)
 actuator instead pulls a magnet against the fingerpad on each pulse, giving a
 discrete contact event rather than a continuous vibration
-\cite{johansson2009,vechev2019}. Designs in this family can in principle be
+\cite{johansson2009,vechev2019}. Designs of this kind can in principle be
 built to latch and hold a steady pressure the fast receptors do not register at
 all; the unit built for this thesis was verified on the bench not to do so, and
 Section~\ref{subsec:em-drive} returns to what that means for the comparison.
 Chapter~\ref{ch:literature} develops this contrast and the evidence behind it.
 
-One limit applies to either family. A cutaneous display carries intensity
+One limit applies to either type. A cutaneous display carries intensity
 coarsely, since an amplitude difference of at least \SIrange{20}{30}{\percent}
 is needed before people can tell two vibration levels apart reliably
 \cite{choi2013}. Such a display can convey a rough sense of how hard the grip
@@ -351,14 +361,14 @@ $32.5 \times 25.5 \times 25.5$~\si{\milli\metre}, and runs at up to 90 frames
 per second \cite{lin2023}. It is small enough to replace the fingertip pad on
 an ordinary two-finger gripper without redesigning the finger.
 
-This leaves a mismatch that any system like this has to settle openly. The
-sensor produces a full depth map for each finger, while the display on the
-operator's hand can carry only about one coarse number per channel. Getting
+This leaves a mismatch that any system of this kind has to settle openly:
+the sensor produces a full depth map for each finger, whereas the display on
+the operator's hand can carry only about one coarse number per channel. Getting
 from one to the other means deliberately discarding information, and how that
-is done is a design choice in its own right. A comparison between actuators is
-meaningless unless that choice is held fixed. This thesis states the reduction
-explicitly in Section~\ref{subsec:mapping} and applies exactly the same one in
-both haptic conditions.
+is done is a design choice in its own right, so a comparison between actuators
+is meaningless unless the choice is held fixed. This thesis states the
+reduction explicitly in Section~\ref{subsec:mapping} and applies exactly the
+same one in both haptic conditions.
 
 \section{Problem Statement}
 \label{sec:problem-statement}
@@ -431,14 +441,20 @@ This thesis contributes the following.
     \item A within-subjects study with $N=22$ participants measuring the effect
           of touch feedback, and of actuator type, on grip-force control and
           object survival for fragile and deformable objects. The sample is
-          larger than those of the closest comparable studies, which report
-          seven to ten participants \cite{becker2024,coppola2022}, and was
-          sized for the harder comparison between the two actuators rather than
-          the easier one against no feedback.
-    \item A metric, \emph{excess deformation}, that isolates the squeezing an
-          operator does after the display has already reached full intensity,
-          when further squeezing tells them nothing new. The metric is defined
-          against the mapping in Section~\ref{subsec:mapping}.
+          larger than those of the closest visuotactile-teleoperation studies,
+          which report seven to ten participants
+          \cite{becker2024,coppola2022}, and was recruited with the harder
+          comparison between the two actuators in mind rather than the easier
+          one against no feedback, though no formal power calculation was
+          carried out and Section~\ref{sec:limitations} reports that the study
+          proved underpowered for that comparison.
+    \item Two measures of over-squeezing that need no calibrated force scale:
+          the \emph{post-plateau force rise}, which captures how much further
+          an operator loads an object once contact depth has levelled off, and
+          the \emph{saturation rate}, the proportion of trials driven into the
+          gripper's depth safety cutoff. Section~\ref{sec:metrics} defines both
+          and explains why the second answers the over-squeezing question more
+          directly than the first.
 \end{itemize}
 
 \section{Thesis Structure}
@@ -466,22 +482,22 @@ teleoperation and the problem of returning contact information to the operator.
 The second is tactile sensing on the robot, and in particular the vision-based
 sensors that make fingertip measurement practical. The third is the wearable
 haptic hardware that delivers a signal to the skin, together with the evidence
-that doing so helps. The fourth narrows to the two actuator families this study
+that doing so helps. The fourth narrows to the two actuator types this study
 compares. A final section states the gap that follows.
 
 \section{Teleoperation and the Feedback Problem}
 \label{sec:lit-grasping}
 
-Telerobotic control architectures are usually placed on a spectrum running from
-direct control, where the operator specifies motion and the robot supplies
-none, through shared control, to supervisory control, where the robot holds
-enough autonomy to refine a high-level goal \cite{niemeyer2016}. Systems that
-also return force to the operator through the master mechanism are called
-bilateral, and they have attracted most of the field's attention because they
-promise telepresence \cite{niemeyer2016}. They also carry the field's hardest
-control problems, since closing a force loop across two sites raises stability
-questions that are normally handled by requiring the interconnection to be
-passive \cite{niemeyer2016}.
+Telerobotic control architectures are usually placed on a spectrum running
+from direct control, where the operator specifies motion and the robot
+supplies none, through shared control, to supervisory control, where the robot
+holds enough autonomy to refine a high-level goal. Systems that also return
+force to the operator through the master mechanism are called bilateral, and
+they have attracted most of the field's attention because they promise
+telepresence. They also carry the field's hardest control problems, since
+closing a force loop across two sites raises stability questions that are
+normally handled by requiring the interconnection to be passive
+\cite{niemeyer2016}.
 
 A bilateral architecture is not the only way to return contact information, and
 for a lightweight system it is not always the practical one. The alternative
@@ -492,10 +508,10 @@ should be measured at the remote site and what should be shown to the operator.
 That question has received less attention than the command path. Zheng et al.\
 make the point directly in a study of teleoperated manufacturing, observing
 that most work concentrates on getting commands to the robot and comparatively
-little on the channel running back, which they identify as the one that governs
-operator cognitive load \cite{zheng2024}. Their own system grasps fragile
-cylindrical products, a task chosen precisely because mishandling is
-unrecoverable \cite{zheng2024}.
+little on the channel running back, which they identify as the one that
+governs operator cognitive load. Their own system grasps fragile cylindrical
+products, a task chosen precisely because mishandling is unrecoverable
+\cite{zheng2024}.
 
 Where richer feedback is offered, it is often computed guidance rather than
 measurement. Huang et al.\ compared haptic guidance virtual fixtures against
@@ -524,23 +540,22 @@ sensing elements \cite{cutkosky2016,howe1992}. For a long time this was easier
 to state than to build. Howe and Cutkosky identified packaging as the limiting
 problem, naming both the difficulty of making an array small and curved enough
 to sit on a robot finger and the need to reduce the number of wires running to
-it \cite{howe1992}. They added a placement constraint, since the finer the
-task, the closer the sensor must sit to the contact so that the compliance and
-inertia of the intervening structure do not corrupt the measurement
-\cite{howe1992}. Writing in 1992 they could report no use of tactile sensing in
-the real-time control of manipulation at all, and judged the remaining
-obstacles to be ones of integration rather than of transducer design
-\cite{howe1992}.
+it. They added a placement constraint, since the finer the task, the closer
+the sensor must sit to the contact so that the compliance and inertia of the
+intervening structure do not corrupt the measurement. Writing in 1992 they
+could report no use of tactile sensing in the real-time control of
+manipulation at all, and judged the remaining obstacles to be ones of
+integration rather than of transducer design \cite{howe1992}.
 
 Vision-based sensors, also called visuotactile sensors, addressed the wiring
 and packaging problem by replacing the wired grid with a camera. Such a sensor
 has three parts, a soft sensing skin that takes the contact, a lighting system
-matched to that skin, and a camera that images how the skin deforms
-\cite{li2024}. Because the output is an image, resolution costs pixels rather
-than wires, and the quantities derived from the image stream are computed in
-software. A recent review groups these into contact-area segmentation,
-three-dimensional reconstruction of the contact geometry, force estimation,
-slip detection, and localisation \cite{li2024}.
+matched to that skin, and a camera that images how the skin deforms. Because
+the output is an image, resolution costs pixels rather than wires, and the
+quantities derived from the image stream are computed in software. A recent
+review groups these into contact-area segmentation, three-dimensional
+reconstruction of the contact geometry, force estimation, slip detection, and
+localisation \cite{li2024}.
 
 Slip is the quantity that connects most directly to grasping, and it is also
 the one where tactile sensing has least competition from vision. The robotics
@@ -555,15 +570,14 @@ that corrections are proportionate rather than maximal \cite{jawale2024}. That
 work closes the loop around the robot's own controller rather than around a
 human, which is the distinction this thesis turns on.
 
-The sensor used here belongs to this family. 9DTact reconstructs a depth map of
+The sensor used here belongs to this group. 9DTact reconstructs a depth map of
 the contact from image brightness alone, without markers printed on the gel,
 and reports a mean absolute error of \SI{0.046}{\milli\metre} against known
-geometry \cite{lin2023}. It measures
-$32.5 \times 25.5 \times 25.5$~\si{\milli\metre}, weighs \SI{20}{\gram}, and
-runs at up to 90 frames per second \cite{lin2023}. Those figures matter for the
-present application less because of their absolute accuracy than because they
-fit inside a commercial gripper finger while leaving the control loop fast
-enough to drive a haptic display.
+geometry. It measures $32.5 \times 25.5 \times 25.5$~\si{\milli\metre}, weighs
+\SI{20}{\gram}, and runs at up to 90 frames per second \cite{lin2023}. Those
+figures matter for the present application less because of their absolute
+accuracy than because they fit inside a commercial gripper finger while
+leaving the control loop fast enough to drive a haptic display.
 
 \section{Wearable Haptic Feedback in Teleoperation}
 \label{sec:lit-haptics}
@@ -572,11 +586,11 @@ Wearable haptic interfaces are conventionally organised by where the device is
 grounded. Grounded and body-grounded kinaesthetic interfaces can resist finger
 motion directly, and as the grounding point moves toward the skin the device
 becomes more wearable while progressively losing that ability, until only
-cutaneous cues remain \cite{pacchierotti2017}. Pacchierotti et al.\ argue that
-this trade is often worth making, since the density and low activation
-threshold of skin receptors allow cutaneous displays to be compact,
-comfortable, and inexpensive, and cutaneous feedback has repeatedly improved
-performance in teleoperation and immersive systems \cite{pacchierotti2017}.
+cutaneous cues remain. Pacchierotti et al.\ argue that this trade is often
+worth making, since the density and low activation threshold of skin receptors
+allow cutaneous displays to be compact, comfortable, and inexpensive, and
+cutaneous feedback has repeatedly improved performance in teleoperation and
+immersive systems \cite{pacchierotti2017}.
 
 The empirical case for adding such feedback is reasonably strong, although the
 studies differ in setting and none isolates the actuator. Coppola et al.\ built
@@ -604,24 +618,22 @@ fragile objects, not the broader one about teleoperated systems.
 Closer still is the work of Becker et al., who mounted GelSight sensors on a
 robot gripper, estimated contact force from marker motion and from a neural
 network, and returned the result as vibration through commercial haptic gloves
-inside a virtual-reality teleoperation pipeline \cite{becker2024}. In a
-preliminary study with seven participants asked to pick up a plasticine ball as
-gently as possible, deformation of the ball fell by roughly
-\SI{48}{\percent} when haptic feedback was enabled \cite{becker2024}. This is
-the closest published precedent for the system built here. It compares feedback
-against no feedback using a single actuator, and its authors describe it as
-preliminary.
+inside a virtual-reality teleoperation pipeline. In a preliminary study with
+seven participants asked to pick up a plasticine ball as gently as possible,
+deformation of the ball fell by roughly \SI{48}{\percent} when haptic feedback
+was enabled \cite{becker2024}. This is the closest published precedent for the
+system built here. It compares feedback against no feedback using a single
+actuator, and its authors describe it as preliminary.
 
-On the hardware side, the practical objection to placing several actuators on a
-hand has weakened. Luo et al.\ used digital embroidery to fabricate tactile
+On the hardware side, the practical objection to placing several actuators on
+a hand has weakened. Luo et al.\ used digital embroidery to fabricate tactile
 sensors and arrays of vibrotactile actuators directly into textiles, and
 demonstrated the resulting gloves recording, reproducing, and transferring
-tactile interactions, including in robot teleoperation \cite{luo2024}. Their
-machine-learning pipeline also adapts feedback parameters to individual users,
-which is a reminder that perceived intensity is not uniform across people
-\cite{luo2024}.
+tactile interactions, including in robot teleoperation. Their machine-learning
+pipeline also adapts feedback parameters to individual users, which is a
+reminder that perceived intensity is not uniform across people \cite{luo2024}.
 
-\section{Two Families of Wearable Actuator}
+\section{Two Types of Wearable Actuator}
 \label{sec:lit-actuators}
 
 The choice of actuator is not perceptually neutral, and the wearable haptics
@@ -629,7 +641,7 @@ literature states the relevant trade explicitly. Resonant-mass actuators are
 simple and efficient but cannot change their vibration frequency at all, while
 solenoid and voice-coil designs can follow an arbitrary drive signal within
 their limits and can additionally hold a steady force, which a resonant mass
-cannot \cite{pacchierotti2017}. The two families compared in this thesis sit on
+cannot \cite{pacchierotti2017}. The two types compared in this thesis sit on
 either side of that statement.
 
 \subsection{Linear Resonant Actuators}
@@ -652,12 +664,13 @@ results is coarse. Weber fractions for vibration intensity cluster around
 difference of at least \SIrange{20}{30}{\percent} in amplitude is needed for
 reliable discrimination \cite{choi2013}. A vibrotactile display therefore
 supports a monotonic sense of magnitude rather than a metric one, which is the
-constraint the excess-deformation metric of this thesis is built around.
+constraint the over-squeezing measures of this thesis are built around, since
+neither assumes the operator can read a force level off the display.
 
-\subsection{Electromagnetic Bistable Pin Actuators}
+\subsection{Electromagnetic Pin Actuators in Prior Work}
 \label{subsec:lit-em}
 
-The second family drives a pin into the fingerpad and holds it there by
+The second type drives a pin into the fingerpad and holds it there by
 magnetic latching, so power is drawn only while switching between states. Pece
 et al.\ demonstrated the principle in a flexible wearable array, placing rigid
 bistable actuation cells in a soft printed case and using magnetic shielding to
@@ -669,30 +682,28 @@ pitch \cite{pece2017}.
 Vechev et al.\ refined the same mechanism into the TacTiles design this thesis
 adopts, halving the physical volume and cutting power consumption by a factor
 of four while retaining \SI{200}{\milli\newton} of holding force, in a unit of
-\SI{1}{\centi\metre\cubed} and \SI{1.8}{\gram} drawing \SI{130}{\milli\watt} on
-average \cite{vechev2019}. The design supports two modes. In contact mode the
-pin travels to the skin and rests against it, held by the bistable latch until
-release is commanded, so the skin is stimulated directly. In pulse mode the pin
-moves for only a few milliseconds and retracts, so the user feels the
-actuator's recoil rather than the pin itself \cite{vechev2019}. Their argument
-for the design is that vibration reaches only the high-frequency receptors and
-so cannot convincingly render either a discrete touch event or the steady
-sensation of contact \cite{vechev2019}. Ten participants distinguished the two
-modes in \SI{87}{\percent} of trials and localised individual actuators in
-\SI{88}{\percent}, so the distinction is one users can perceive
-\cite{vechev2019}.
+\SI{1}{\centi\metre\cubed} and \SI{1.8}{\gram} drawing \SI{130}{\milli\watt}
+on average. The design supports two modes. In contact mode the pin travels to
+the skin and rests against it, held by the bistable latch until release is
+commanded, so the skin is stimulated directly. In pulse mode the pin moves for
+only a few milliseconds and retracts, so the user feels the actuator's recoil
+rather than the pin itself. Their argument for the design is that vibration
+reaches only the high-frequency receptors and so cannot convincingly render
+either a discrete touch event or the steady sensation of contact. Ten
+participants distinguished the two modes in \SI{87}{\percent} of trials and
+localised individual actuators in \SI{88}{\percent}, so the distinction is one
+users can perceive \cite{vechev2019}.
 
 The relevance to grip-force rendering is that a latched pin delivers pressure
 that does not change, and neither fast receptor type registers unchanging
 force, leaving the slowly adapting SA-I and SA-II receptors to report it
-\cite{johansson2009}. In principle this gives the two families access to
+\cite{johansson2009}. In principle this gives the two types access to
 different parts of the sensory apparatus. The unit built for this thesis does
-not realise contact mode at all: bench verification (a randomised, blinded
-direction check, described in Section~\ref{subsec:em-drive}) found that only
-one polarity of the drive pulse moves the actuator, so it cannot be commanded
-to extend and hold; it can only be pulsed, and the actuator returns passively
-once the pulse ends. The graded-intensity scheme therefore renders every EM
-percept in what Vechev et al.\ call pulse mode, and
+not realise contact mode at all. A randomised, blinded direction check
+(Section~\ref{subsec:em-drive}) found that only one polarity of the drive pulse
+moves the actuator, so it cannot be commanded to extend and hold, and it
+returns passively once the pulse ends. The graded-intensity scheme therefore
+renders every EM percept in what Vechev et al.\ call pulse mode, and
 Section~\ref{sec:limitations} returns to what that costs against the
 contact-mode comparison this section describes.
 
@@ -701,21 +712,23 @@ contact-mode comparison this section describes.
 
 Three observations follow from the work reviewed above.
 
-The first is that tactile feedback helps. Across prosthetics, telerobotic
+The first is that tactile feedback helps, since across prosthetics, telerobotic
 assembly, and visuotactile teleoperation, adding a cutaneous channel reduced
 contact force, improved handling of fragile objects, or lowered reported effort
 \cite{chai2022,gong2024,coppola2022,becker2024}.
 
-The second is that no study isolates the actuator. Each of these pairs one
-actuator with one sensing pipeline and one rendering scheme, so a measured
-benefit belongs to the whole chain. Where two conditions are compared, the
-sensing or control path usually differs alongside the actuator.
+The second is that no study isolates the actuator, because each of these pairs
+one actuator with one sensing pipeline and one rendering scheme, so that a
+measured benefit belongs to the whole chain rather than to any part of it; and
+where two conditions are compared, the sensing or control path usually differs
+alongside the actuator.
 
 The third is that there is a mechanistic reason to expect actuator type to
-matter. A resonant vibrator and a latching pin do not merely render the same
-signal with different fidelity. They stimulate different receptor populations
-and offer different rendering primitives, one a fixed-frequency carrier and the
-other a discrete contact event \cite{choi2013,vechev2019,johansson2009}.
+matter, in that a resonant vibrator and a latching pin do not merely render the
+same signal with different fidelity but stimulate different receptor
+populations and offer different rendering primitives, one a fixed-frequency
+carrier and the other a discrete contact event
+\cite{choi2013,vechev2019,johansson2009}.
 
 Taken together these leave a specific question unanswered, namely whether the
 actuator alone changes grasp outcomes when the sensor, the intensity
@@ -731,12 +744,13 @@ built to supply that comparison.
 \label{sec:framework}
 
 The system forms a single closed loop that begins and ends at the operator's
-hand. The operator pinches, a camera tracks the pinch aperture, the aperture is
+hand: the operator pinches, a camera tracks the pinch aperture, the aperture is
 mapped to a commanded gripper opening, the gripper closes on the object, the
 tactile sensors report the resulting contact deformation, the deformation is
 reduced to a scalar intensity, and that intensity is rendered on the actuators
 worn on the operator's fingertips. Figure~\ref{fig:signalflow} shows the signal
-path and the boundary between the host PC and the wearable hardware.
+path together with the boundary between the host PC and the wearable
+hardware.
 
 \begin{figure}[ht]
     \centering
@@ -754,8 +768,9 @@ send share a \SI{15}{\hertz} loop, and a status poll of the gripper runs at
 \SI{10}{\hertz}. The haptic path is therefore the slowest stage in the chain,
 with a new intensity value reaching the actuator roughly every
 \SI{67}{\milli\second}. That figure is a sampling interval and not an
-end-to-end latency, which remains unmeasured for the reasons given in
-Section~\ref{sec:latency}.
+end-to-end latency; Section~\ref{sec:latency} reports a bench measurement of
+the two software-timeable stages, though the final stage, coil energised to
+physical actuator motion, remains unmeasured for the reasons given there.
 
 \begin{figure}[ht]
     \centering
@@ -826,9 +841,11 @@ up what this costs.
 
 The remote manipulator is a Robotiq 2F-85 adaptive two-finger gripper,
 controlled from the host over Modbus RTU \cite{robotiq_manual}. The gripper
-exposes commanded position, measured position, and motor current. The last of
-these is used as a secondary, coarse indicator of grasp effort but is not the
-primary force proxy in this study.
+exposes commanded position, measured position, and motor current. Motor current
+was intended as a secondary, coarse indicator of grasp effort, but the current
+register on this particular unit returned zero regardless of contact, so the
+reading was abandoned and is not logged. Grip effort is therefore inferred
+entirely from the tactile sensors described below.
 
 \subsection{Sensor Mounting}
 \label{subsec:sensormount}
@@ -893,26 +910,42 @@ contact. Two quantities are derived per frame.
 \label{subsec:mapping}
 
 Maximum indentation depth $d$ is mapped to a normalised haptic intensity
-$u \in [0,1]$ by clipping and linear scaling against a fixed ceiling
-$d_{\max}$,
+$u \in [0,1]$ by clipping and linear scaling against a saturation depth
+$d_{\text{sat}}$,
 \begin{equation}
-    u = \min\!\left(\frac{\max(d - d_0,\, 0)}{d_{\max} - d_0},\; 1\right),
+    u = \min\!\left(\frac{\max(d - d_0,\, 0)}{d_{\text{sat}} - d_0},\; 1\right),
     \label{eq:mapping}
 \end{equation}
-where $d_0$ is the no-contact noise floor established at calibration and
-$d_{\max} = \SI{1.0}{\milli\metre}$ is a safety ceiling. Reaching that ceiling
-on either sensor also blocks further closing at the gripper, though never
-further opening, which protects the sensor fixture from the excess torque a
-rigid object would otherwise transmit. Equation~\eqref{eq:mapping} is identical
-in both haptic conditions, and the conditions differ only in how $u$ is
-realised physically.
+where $d_0$ is the no-contact noise floor established at calibration.
+Equation~\eqref{eq:mapping} is identical in both haptic conditions, which
+differ only in how $u$ is realised physically.
 
-The saturation implied by Equation~\eqref{eq:mapping} has a direct experimental
-consequence. Once $d$ reaches $d_{\max}$ the display stops changing, so any
-further squeezing delivers no new information to the operator. Deformation
-volume accumulated after that point is, by construction, effort the feedback
-channel could not have discouraged. This is the \emph{excess deformation}
-metric defined in Section~\ref{sec:metrics}.
+Two properties of the deployed configuration have to be stated alongside it,
+because both bear on how the results of Chapter~\ref{ch:results} may be read.
+
+The first is that $d_{\text{sat}}$ is not a single constant but is set per
+object class, at \SI{2.0}{\milli\metre} for the fragile object and
+\SI{0.6}{\milli\metre} for the deformable one. The split was introduced during
+development because the foam cube indents the gel so little that, against a
+common \SI{2.0}{\milli\metre} saturation depth, the deformable condition could
+never drive the display above roughly a third of its range and the actuators
+felt uniformly weak. The mapping is therefore identical across conditions,
+which is what the actuator comparison requires, but not across object classes,
+so intensity values are not comparable between the two.
+
+The second is that $d_{\text{sat}}$ is distinct from the safety cutoff
+$d_{\text{safe}} = \SI{1.0}{\milli\metre}$, at which either sensor blocks
+further closing at the gripper, though never further opening, protecting the
+sensor fixture from the excess torque a rigid object would otherwise transmit.
+For the deformable object $d_{\text{sat}} < d_{\text{safe}}$, so the display
+can and does reach full intensity. For the fragile object the ordering is
+reversed: closing stops at \SI{1.0}{\milli\metre} while saturation would
+require \SI{2.0}{\milli\metre}, so the attainable intensity is capped near
+$u = 0.5$. Section~\ref{sec:metrics} reports the delivered intensity measured
+across the study, and Section~\ref{sec:limitations} takes up what this costs
+the actuator comparison, since the fragile-object trials that carry every
+headline result exercised only the lower half of each actuator's rendering
+range.
 
 \section{ESP32-C6 Haptic Driver}
 \label{sec:driver}
@@ -925,7 +958,7 @@ loop. The firmware holds the last commanded intensity and regenerates the drive
 waveform locally, which decouples waveform timing from the
 \SI{15}{\hertz} packet rate. A watchdog zeroes both channels if no packet
 arrives for \SI{200}{\milli\second}, so a host failure silences the display
-rather than leaving an actuator latched against the skin.
+rather than leaving an actuator driven against the skin.
 
 The driver board carries five channels, wired as five PWM and enable pairs for
 the LRA path and five IN1/IN2 pin pairs for the EM path. This study drives two
@@ -973,46 +1006,74 @@ operator's fingerpad and the opposite polarity intended to retract it, using
 \SI{6}{\milli\second} engage and \SI{10}{\milli\second} release pulses measured
 on the bench.
 
-This assumption was checked directly rather than taken on trust. A randomised,
-blinded direction test (six pulses, order hidden until after every trial was
-scored, repeated on both study channels) found that only one polarity moves
-the actuator at all; the opposite polarity produces no sensation in either
-direction, and the actuator returns passively once the effective pulse ends,
-rather than being driven back. As built and run for this study, the actuator
-is therefore not bistable in practice: it behaves as a single-direction
-pulsed electromagnet with a passive mechanical return, and no configuration
-of the deployed firmware can hold a steady extended contact.
+This assumption was checked rather than taken on trust. A randomised, blinded
+direction test, in which six pulses were fired three per direction with the
+order hidden until every trial had been scored, and which was repeated on both
+study channels, found that only one polarity moves the actuator and that it
+returns passively once the pulse ends rather than being driven back. Six pulses
+is the smallest design that can produce a result at all, since a perfect score
+by chance carries a probability of $1/20$, and the judgement is the
+experimenter's own perceptual report, so the test should be read as consistent
+with single-direction drive rather than as decisive on its own. It is
+corroborated by the firmware analysis below and by the failure of the
+sustained-contact variant described in Section~\ref{sec:design}. Taken
+together, these indicate that as built and run for this study the actuator is
+not bistable: it behaves as a single-direction pulsed electromagnet with a
+passive mechanical return, and no configuration of the deployed firmware holds
+a steady extended contact.
 
-The root cause, traced afterwards, is a mismatch between the firmware's model
-of the drive electronics and the part actually populated on the driver board.
-Each channel is driven by its own single-channel H-bridge motor driver IC
-(Texas Instruments DRV8838), addressed through a phase/enable (PH/EN)
-interface rather than the symmetric push-pull pair the firmware assumes: one
-pin sets direction and the other is a hard enable, and pulling the enable pin
-low disables the output entirely rather than reversing it. The firmware pairs
-each channel's two control pins and treats them as if either one alone
-reverses current, which holds for a dual-channel push-pull driver but not for
-this part. In practice this means the "engage" pulse asserts the enable pin
-high with direction set one way, producing a genuine driven pulse, while the
-"disengage" pulse asserts the enable pin low, switching the output off rather
-than reversing it. The driver hardware is therefore capable of true
-bidirectional drive, given the correct control sequence; the limitation
-observed and reported here is in the firmware's control scheme, not in the
-chip. This behaviour was verified with the hand in its normal wearing
-orientation; Section~\ref{sec:limitations} reports a follow-up check
-suggesting the passive return, and possibly the pull itself, may be
-gravity-assisted rather than a property of the actuator alone.
+The most likely cause, traced afterwards, is a mismatch between the firmware's
+model of the drive electronics and the part populated on the driver board. The
+board's bill of materials lists a single-channel H-bridge motor driver IC
+(Texas Instruments DRV8838) per channel, which is addressed through a
+phase/enable interface rather than through the symmetric push-pull pair the
+firmware assumes: one pin sets direction while the other is a hard enable, so
+pulling the enable low disables the output instead of reversing it. On that
+reading the engage pulse asserts the enable high and drives the coil, whereas
+the disengage pulse asserts it low and does nothing, which is exactly the
+behaviour the direction test found.
+
+This explanation should be reported as an inference rather than as a confirmed
+diagnosis, for two reasons. The part was identified from the bill of materials
+and not by inspecting the populated board or probing the coil, and the same
+reading carries an implication for the LRA path that the bench record
+contradicts. Because the two paths share the same pins
+(Section~\ref{subsec:lra-drive}), a phase/enable interface would make the
+deployed LRA carrier unipolar and would make the earlier, abandoned PWM scheme
+the genuinely bipolar one, which is the reverse of the bench observation that
+the abandoned scheme produced no motion while the deployed one produced
+sustained vibration. Settling this needs an oscilloscope across one coil, which
+the study's schedule did not allow. What the study does establish, independent
+of the mechanism, is the observed behaviour: one polarity moves the actuator
+and the other does not. Whatever the cause, the driver is capable of
+bidirectional drive given the correct sequence, so the limitation is expected
+to lie in the firmware rather than in the hardware. This behaviour was verified
+with the hand in its normal wearing orientation;
+Section~\ref{sec:limitations} reports a follow-up check suggesting the passive
+return, and possibly the pull itself, may be gravity-assisted rather than a
+property of the actuator alone.
 
 Because the actuator produces no ongoing sensation from a single pulse, a
 sustained and graded percept is approximated by pulsing repeatedly. The
-firmware emits bursts of ten
-pulses, each \SI{4}{\milli\second} long, separated by
-a gap that carries the intensity. The gap runs from \SI{400}{\milli\second} at
-$u = 0$ down to \SI{35}{\milli\second} at $u = 1$, interpolated linearly, so
+firmware emits bursts of ten pulses spaced \SI{9}{\milli\second} apart, each
+pulse consisting of a \SI{4}{\milli\second} drive in the effective polarity
+followed by a \SI{4}{\milli\second} command in the ineffective one, so a burst
+runs for roughly \SI{90}{\milli\second}. Successive bursts are separated by a
+gap that carries the intensity, running from \SI{400}{\milli\second} at
+$u = 0$ down to \SI{35}{\milli\second} at $u = 1$ by linear interpolation, so
 higher intensity produces more frequent contact events per unit time rather
 than stronger ones. Channels are staggered by \SI{10}{\milli\second} to keep
-two coils from switching on the same instant. Intensities below 0.1 are treated
-as no contact.
+two coils from switching on the same instant, and intensities below 0.1 are
+treated as no contact.
+
+One consequence of this timing matters for the comparison the study is built
+around. Within a burst the pin is struck at roughly \SI{111}{\hertz}, which
+falls inside the same FA-II band as the \SI{200}{\hertz} LRA carrier discussed
+in Section~\ref{subsec:lit-lra}, while the burst repetition rate that carries
+intensity varies only between about \SI{2}{\hertz} and \SI{9}{\hertz}. The two
+actuators therefore address much the same receptor population, differing in the
+rate at which bursts arrive rather than in the class of receptor they reach.
+Section~\ref{sec:why-no-separation} returns to this.
 
 The pin is therefore never held extended during a trial. The sustained-pressure
 capability described in Section~\ref{sec:existing-approaches} is not exercised,
@@ -1051,14 +1112,25 @@ Equation~\eqref{eq:pinchmap}.
 \section{Data Logging}
 \label{sec:logging-arch}
 
-The host writes one CSV row per haptic tick for the duration of each recorded
-trial, containing the timestamp, commanded and measured gripper position, motor
-current, deformation volume, maximum indentation depth, the rendered haptic
-intensity for each channel, and the active condition and object class. Rows are
-therefore written at \SI{15}{\hertz}. At the end of a fragile trial the operator
-records whether the object survived, and every trial is explicitly kept or
-discarded before the file is closed. These logs are the sole source of the
-quantitative metrics in Chapter~\ref{ch:results}.
+The host writes one CSV row per haptic tick, at \SI{15}{\hertz}, for the
+duration of each recorded trial. Each row carries eight fields: the timestamp,
+the gripper position register, and then, for each of the two sensors, the
+deformation-volume force proxy, a calibrated force column, and the maximum
+indentation depth. The condition, object class, participant and trial number
+are encoded in the filename rather than repeated on every row, and the
+fragile-object outcome is appended to it once the experimenter has scored the
+trial; every trial is explicitly kept or discarded before the file is closed.
+
+Two omissions should be recorded plainly, since both limit what can be
+reconstructed from the logs afterwards. The calibrated force columns are empty
+throughout, because the load-cell calibration described in
+Section~\ref{sec:limitations} was never carried out, so all force analysis runs
+on the uncalibrated proxy. The rendered haptic intensity was not logged at all:
+it can be recomputed from the recorded depth through
+Equation~\eqref{eq:mapping}, which is how the intensity figures in
+Section~\ref{sec:metrics} are obtained, but no independent record exists of
+what was actually streamed to the board. These logs are otherwise the sole
+source of the quantitative metrics in Chapter~\ref{ch:results}.
 
 % =====================================================================
 \chapter{Experimental Methodology}
@@ -1078,11 +1150,15 @@ reality and gaming controllers, and the operation of robotic arms. Prior
 experience was not required for eligibility. All participants gave informed
 consent before taking part.
 
-The sample is larger than those of the closest comparable studies, which report
-seven to ten participants \cite{becker2024,coppola2022}. The larger sample was
-recruited to improve power for the actuator-versus-actuator comparison, which
-was expected in advance to show a smaller effect than the comparison between
-feedback and no feedback.
+The sample is larger than those of the closest visuotactile-teleoperation
+studies, which report seven to ten participants \cite{becker2024,coppola2022},
+although larger samples exist in adjacent settings, Gong et al.\ having run
+thirty participants on a telerobotic assembly task \cite{gong2024}. The larger
+sample here was recruited to improve power for the actuator-versus-actuator
+comparison, which was expected in advance to show a smaller effect than the
+comparison between feedback and no feedback. No formal power calculation was
+performed, and Section~\ref{sec:limitations} reports that the sample proved
+insufficient for that comparison in practice.
 
 \section{Design}
 \label{sec:design}
@@ -1107,12 +1183,16 @@ trials per condition per object class across the sample, for 660 analysed
 trials in total.
 
 A small number of participants also ran exploratory conditions that are not
-part of the analysis. Seven ran a variant in which the electromagnetic pin was
-driven as a single latching contact rather than as a pulse train, and two ran
+part of the analysis. Seven ran a variant intended to drive the electromagnetic
+pin as a single sustained contact rather than as a pulse train, and two ran
 variants of the LRA and EM conditions with the video feed removed. These
 recordings are retained in the dataset but excluded from every result reported
 in Chapter~\ref{ch:results}, since neither variant was run on enough
-participants to support a within-subjects test.
+participants to support a within-subjects test. The first would in any case not
+have delivered what it was designed to: it assumed the pin latches unpowered,
+which Section~\ref{subsec:em-drive} shows this actuator does not do, so it
+delivered a pulse and a repeat strike rather than a sustained press. That is a
+second reason to exclude it.
 
 \section{Task and Materials}
 \label{sec:task}
@@ -1123,9 +1203,10 @@ conditions they wore the corresponding actuator modules on the thumb and index
 finger of the dominant hand. The gripper stood vertically with its fingers
 pointing upward, and each object was presented in a fixed cradle at the end of
 a horizontal support arm, positioned so that the object centre sat at a
-constant height of \SI{16.5}{\centi\metre} aligned with the centre of the open
-finger gap. The gripper body did not move during a trial, and only the fingers
-opened and closed under hand-tracking control.
+constant height aligned with the centre of the open finger gap. The cradle was
+not moved between trials or between participants, so that height was identical
+for every trial in the study. The gripper body did not move during a trial, and
+only the fingers opened and closed under hand-tracking control.
 
 Each trial consisted of closing the gripper on the presented object, holding
 briefly, and releasing it without dropping or visibly damaging it. Two object
@@ -1150,10 +1231,10 @@ classes were used, shown in Figure~\ref{fig:objects}.
 \end{figure}
 
 The two object classes are not matched on difficulty and are not intended to
-be. The fragile object carries a failure threshold that the feedback channel
-could plausibly help an operator avoid, while the deformable object carries
-none. The deformable class therefore acts as a control, since a channel whose
-value lies in discouraging over-squeezing has nothing to act on when
+be, since the fragile object carries a failure threshold that the feedback
+channel could plausibly help an operator avoid while the deformable object
+carries none. The deformable class therefore acts as a control, a channel whose
+value lies in discouraging over-squeezing having nothing to act on where
 over-squeezing costs nothing.
 
 \section{Session Protocol}
@@ -1243,12 +1324,26 @@ Four tests are used, each matched to the shape of the outcome.
           with a per-side significance level of 0.05. This test is reported
           because a failure to find a difference is not the same claim as a
           demonstrated equivalence, and only the second is a positive result.
+          Unlike the four tests above it is parametric, and
+          Section~\ref{sec:lra-vs-em} reports the resulting margins in raw
+          units so that the claim can be judged on its own terms.
+    \item \textbf{Survival adjusted for practice}, a logistic regression of
+          trial-level survival on condition and within-block trial index,
+          fitted by generalised estimating equations clustered on participant.
+          This is reported because the fixed condition order of
+          Section~\ref{sec:design} confounds condition with time on task, and
+          carrying the trial index in the model separates the two without
+          discarding trials.
 \end{itemize}
 
 All analyses are implemented in the accompanying \texttt{analysis} package,
 which regenerates the tables and figures of Chapter~\ref{ch:results} from the
 raw logs. CSV outputs referenced by filename in Chapter~\ref{ch:results} are
-written to \texttt{analysis/results/}.
+written to \texttt{analysis/results/}. The package can combine the two
+fingertip sensors either by summing calibrated forces or by taking the larger
+of the two uncalibrated proxies; because the load-cell calibration was never
+completed, every result in this thesis comes from the uncalibrated path, and
+the committed outputs are those of that run.
 
 % =====================================================================
 \chapter{Results}
@@ -1265,18 +1360,45 @@ lower is better.
     \item \textbf{Peak deformation volume} (a.u.), the maximum deformation
           volume reached during the trial, used as the primary grip-force
           proxy.
-    \item \textbf{Excess deformation} (a.u.), the deformation volume
-          accumulated after indentation depth has plateaued. The plateau is
-          taken as the first sample at which depth reaches
-          \SI{95}{\percent} of its trial maximum. Past that point the display
-          has saturated under Equation~\eqref{eq:mapping} and further squeezing
-          conveys nothing new.
+    \item \textbf{Post-plateau force rise} (a.u.), the difference between the
+          largest force proxy reached after contact depth has levelled off and
+          the value at the moment it levelled off. The plateau is taken as the
+          first sample at which depth reaches \SI{95}{\percent} of its own
+          trial maximum, so the measure is defined relative to each trial
+          rather than to a fixed depth, and it records a rise rather than an
+          accumulated quantity.
     \item \textbf{Grip adjustments} (count), the number of squeeze and release
           reversals after the plateau, read as a sign of searching for an
           appropriate grip rather than holding steady.
     \item \textbf{Peak indentation depth} (\si{\milli\metre}), the maximum of
-          the depth map, reported mainly as a check on the safety ceiling.
+          the depth map, reported mainly as a check on the safety cutoff.
+    \item \textbf{Saturation rate} (proportion), the fraction of a
+          participant's trials in which either sensor reached the
+          \SI{1.0}{\milli\metre} safety cutoff and the gripper stopped closing.
 \end{itemize}
+
+Two comments on the third and fifth of these are needed before the results,
+because an earlier version of this work treated the post-plateau rise as a
+measure of squeezing that continued after the haptic display had stopped
+changing, and that reading does not hold.
+
+It does not hold because the plateau is defined against each trial's own peak
+depth rather than against $d_{\text{sat}}$, and, as
+Section~\ref{subsec:mapping} sets out, the fragile-object display never
+saturates at all. Recomputing the delivered intensity from the logged depth
+through Equation~\eqref{eq:mapping} confirms this directly: across all 330
+fragile trials the intensity never exceeded $u = 0.49$, whereas on deformable
+objects it reached $u = 1.0$ in 113 of 330 trials. The post-plateau rise is
+therefore a description of how a grasp develops after contact depth settles,
+which is a reasonable thing to measure, but it is not a measure of squeezing
+the display could no longer discourage.
+
+The saturation rate is reported because it does answer that question. Driving
+the gripper to the \SI{1.0}{\milli\metre} cutoff means squeezing an object well
+past the point at which contact was fully established, the threshold is a fixed
+physical depth rather than a per-trial quantity, and it is defined identically
+in all three conditions. It requires no assumption about where the display
+saturates.
 
 Each metric is first reduced to one value per participant per condition per
 object class by taking the median across the five repeated trials, and the
@@ -1296,71 +1418,147 @@ Table~\ref{tab:quant} summarises the fragile-object results.
     \centering
     \caption{Fragile-object results by condition (V = visual only). The first
         four rows give the median across participants of each participant's median
-        trial, where lower is better. The last row is the percentage of all 110
-        trials per condition in which the object survived. Peak indentation depth
-        differs little across conditions because the \SI{1.0}{\milli\metre} safety
-        ceiling caps it before any difference could emerge.}
+        trial, where lower is better. Saturation rate is the median across
+        participants of the proportion of that participant's trials reaching the
+        depth cutoff; the survival row is the percentage of all 110 trials per
+        condition in which the object survived, and its test statistic is the
+        Friedman on per-participant survival rates discussed below. Peak
+        indentation depth differs little across conditions because the
+        \SI{1.0}{\milli\metre} safety cutoff caps it before any difference could
+        emerge.}
     \label{tab:quant}
     \begin{tabular}{@{}lrrrrr@{}}
         \toprule
                                        & V     & LRA   & EM    & $\chi^2(2)$ & $p$            \\
         \midrule
         Peak deformation volume (a.u.) & 20090 & 12290 & 15980 & 5.73        & 0.057          \\
-        Excess deformation (a.u.)      & 1527  & 170   & 260   & 5.09        & 0.079          \\
+        Post-plateau force rise (a.u.) & 1527  & 170   & 260   & 5.09        & 0.079          \\
         Grip adjustments (\#)          & 7     & 5     & 2     & 10.66       & \textbf{0.005} \\
         Peak indentation depth (mm)    & 0.98  & 0.95  & 0.98  & 4.75        & 0.093          \\
+        Saturation rate                & 0.80  & 0.50  & 0.60  & 9.36        & \textbf{0.009} \\
         \midrule
         Objects surviving (\%)         & 62    & 81    & 78    & 11.24       & \textbf{0.004} \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-The descriptive pattern is consistent across the force metrics. Both haptic
-conditions reduced the force applied after the display had saturated, with
-median excess deformation falling roughly ninefold under the LRA and roughly
-sixfold under the EM relative to visual-only feedback. Peak deformation volume
-fell by a smaller margin, and grip adjustments fell furthest under the EM.
+The descriptive pattern is consistent across the force metrics: both haptic
+conditions reduced every measure of applied force relative to visual-only
+feedback, with the median post-plateau force rise falling roughly ninefold
+under the LRA and roughly sixfold under the EM, peak deformation volume falling
+by a smaller margin, and grip adjustments falling furthest under the EM.
 
-The inferential picture is more restrained, and the distinction matters. Of the
-four force metrics, only grip adjustments clears the omnibus Friedman test at
-the conventional level, $\chi^2(2) = 10.66$, $p = 0.005$, where the EM
-condition differs from visual-only feedback after Holm correction
-($p = 0.021$). Excess deformation gives $\chi^2(2) = 5.09$, $p = 0.079$, and
-peak deformation volume gives $\chi^2(2) = 5.73$, $p = 0.057$, so neither
-reaches significance as an omnibus test despite the large descriptive drops.
-The pairwise comparison of visual-only against LRA on excess deformation is
-nominally significant after correction ($p = 0.019$), but under the protocol
-set out in Section~\ref{sec:analysis-procedures} that comparison is not
-protected by a significant omnibus result and is therefore reported as
-suggestive rather than established. Peak indentation depth shows no effect,
-which is the expected consequence of the safety ceiling.
+The inferential picture is more restrained. Of the five force metrics, only
+grip adjustments and saturation rate clear the omnibus Friedman test at the
+conventional level. Grip adjustments gives $\chi^2(2) = 10.66$, $p = 0.005$,
+with the EM condition differing from visual-only feedback after Holm correction
+($p = 0.021$), while saturation rate gives $\chi^2(2) = 9.36$, $p = 0.009$,
+where both haptic conditions sit close to the threshold before correction
+($p = 0.019$ for the LRA and $p = 0.021$ for the EM) but neither survives it
+($p = 0.057$ for both). The post-plateau force rise gives $\chi^2(2) = 5.09$,
+$p = 0.079$, and peak deformation volume gives $\chi^2(2) = 5.73$,
+$p = 0.057$, so neither reaches significance as an omnibus test despite the
+large descriptive drops. The pairwise comparison of visual-only against LRA on
+the post-plateau rise is nominally significant after correction
+($p = 0.019$), but under the protocol set out in
+Section~\ref{sec:analysis-procedures} that comparison is not protected by a
+significant omnibus result and is therefore reported as suggestive rather than
+established. Peak indentation depth shows no effect, which is the expected
+consequence of the safety cutoff.
+
+The saturation-rate row deserves separate comment, because it is the one force
+measure whose threshold is a fixed physical depth rather than a per-trial
+quantity, and because it reports a large and consistent change: pooled across
+the sample, \SI{72}{\percent} of visual-only trials were squeezed hard enough
+to stop the gripper closing, against \SI{47}{\percent} under the LRA and
+\SI{53}{\percent} under the EM. That both pairwise comparisons fall just short
+of the corrected threshold, while the omnibus test clears it comfortably, is
+the pattern expected of a real effect measured at marginal power, and it should
+be read as such rather than as a demonstration.
+
+One further caution applies to grip adjustments, the metric with the strongest
+force-side result. It was added to the analysis after the study had run, as a
+descriptor of how a grasp develops rather than of its outcome, and it is one of
+three such measures. A metric specified before the study, the time from the
+start of a trial to first contact, was also computed and shows no effect at all
+($\chi^2(2) = 0.82$, $p = 0.66$). The grip-adjustment result should therefore
+be treated as exploratory and as awaiting confirmation in a study that names it
+in advance.
 
 Object survival is the clearest result in the study. Treating each
 participant's survival proportion as the unit of analysis, the three conditions
 differ, $\chi^2(2) = 11.24$, $p = 0.004$, and both haptic conditions beat
 visual-only feedback after Holm correction, with $p = 0.018$ for the LRA and
-$p = 0.037$ for the EM. The two haptic conditions do not differ from each other
-($p = 0.69$). Pooled across the sample, 68 of 110 trials survived under
+$p = 0.037$ for the EM, while the two haptic conditions do not differ from each
+other ($p = 0.69$). Pooled across the sample, 68 of 110 trials survived under
 visual-only feedback, against 89 under the LRA and 86 under the EM, which is
 the \SIrange{16}{19}{} percentage point improvement visible in
 Figure~\ref{fig:results}.
+
+Because the survival result and the grip-adjustment result are drawn from a
+family of eight omnibus tests, four metrics across two object classes, it is
+worth recording that both survive a correction applied across that whole
+family. A Bonferroni threshold of $\alpha = 0.00625$ leaves survival
+($p = 0.004$) and grip adjustments ($p = 0.005$) significant, and no other test
+in Chapter~\ref{ch:results} approaches it.
 
 \begin{figure}[ht]
     \centering
     \includegraphics[width=0.85\textwidth]{preprint_fig5.png}
     \caption{Objective results for fragile objects. (a) Survival rate, 110
-        trials per condition. (b) Excess deformation per participant (a.u.,
+        trials per condition. (b) Post-plateau force rise per participant (a.u.,
         $\log(x+1)$ scale).}
     \label{fig:results}
 \end{figure}
 
-One qualification belongs with that result. Collapsing each participant to a
-single surviving or breaking outcome, rather than to a proportion, weakens the
-test considerably. Cochran's Q on the binary form gives $Q(2) = 4.67$,
+Two qualifications belong with that result.
+
+The first concerns how a participant is summarised. Collapsing each of them to
+a single surviving or breaking outcome, rather than to a proportion, weakens
+the test considerably: Cochran's Q on the binary form gives $Q(2) = 4.67$,
 $p = 0.097$, and no pairwise comparison survives correction. The survival
 finding therefore rests on the graded per-participant rate and should be
 reported that way rather than as a difference in whether a typical participant
 succeeded.
+
+The second concerns the fixed condition order. Because visual-only feedback
+always came first, condition is confounded with time on task, and the raw
+survival rates are consistent with a learning effect: within the visual-only
+block alone, survival climbs from \SI{41}{\percent} on the first trial to
+\SI{73}{\percent} on the fifth, whereas the two haptic blocks are comparatively
+flat. Discarding the early trials answers the objection at the cost of a third
+of the data and of most of the study's power, so the effect is instead
+estimated with practice carried explicitly in the model. Table~\ref{tab:gee}
+reports a logistic regression of trial-level survival on condition and
+within-block trial index, fitted by generalised estimating equations with
+participant as the clustering variable and an exchangeable working correlation.
+
+\begin{table}[ht]
+    \centering
+    \caption{Fragile-object survival modelled on condition and within-block
+        trial index together (330 trials, $N=22$). Coefficients are log-odds
+        against visual-only feedback; the unadjusted column repeats the fit
+        with the trial-index term removed, and a dash marks a coefficient that
+        model does not have.}
+    \label{tab:gee}
+    \begin{tabular}{@{}lrrrr@{}}
+        \toprule
+        Term               & Adjusted & $p$            & Unadjusted & $p$            \\
+        \midrule
+        LRA vs visual-only & 0.974    & \textbf{0.000} & 0.962      & \textbf{0.000} \\
+        EM vs visual-only  & 0.805    & \textbf{0.019} & 0.795      & \textbf{0.018} \\
+        Trial index        & 0.164    & 0.056          & --         & --             \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Practice is present but marginal, and it is separable from condition: admitting
+it to the model moves the LRA coefficient from 0.962 to 0.974 and the EM
+coefficient from 0.795 to 0.805, leaving both significant. In odds-ratio terms,
+and adjusted for practice, the LRA multiplies the odds of an object surviving
+by 2.65 and the EM by 2.24. The order confound remains a genuine limitation of
+the design, and Section~\ref{sec:limitations} treats it as one, but on this
+evidence it does not account for the survival result.
 
 \section{Deformable Objects}
 \label{sec:results-deformable}
@@ -1375,28 +1573,39 @@ across metrics.
     \caption{Deformable-object results by condition. Columns and units are as in
         Table~\ref{tab:quant}. Two metrics rest on 21 rather than 22 participants
         because one participant produced no post-plateau samples in at least one
-        condition.}
+        condition; for those two rows every column is computed over the same 21
+        participants, so the medians and the test describe one set of people.}
     \label{tab:deformable}
     \begin{tabular}{@{}lrrrrrr@{}}
         \toprule
                                        & V    & LRA  & EM   & $n$ & $\chi^2(2)$ & $p$   \\
         \midrule
         Peak deformation volume (a.u.) & 1336 & 1366 & 1149 & 22  & 4.73        & 0.094 \\
-        Excess deformation (a.u.)      & 60   & 40   & 42   & 21  & 0.70        & 0.705 \\
-        Grip adjustments (\#)          & 4    & 5    & 5.5  & 21  & 2.03        & 0.363 \\
+        Post-plateau force rise (a.u.) & 60   & 28   & 52   & 21  & 0.70        & 0.705 \\
+        Grip adjustments (\#)          & 4    & 5    & 6    & 21  & 2.03        & 0.363 \\
         Peak indentation depth (mm)    & 0.34 & 0.43 & 0.38 & 22  & 3.06        & 0.217 \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-This is the expected outcome rather than a failure of the system. A foam cube
+This is the expected outcome rather than a failure of the system: a foam cube
 has no failure threshold to avoid, so squeezing harder carries no penalty and
 the feedback channel has nothing to correct. The deformable class was included
 as a control for exactly this reason, and the absence of an effect where none
 should appear supports the interpretation of the fragile-object results rather
-than undermining it. Peak indentation depth stays well below the
-\SI{1.0}{\milli\metre} ceiling in every condition, confirming that the safety
-cutoff was not reached on this object class.
+than undermining it.
+
+The depth figures need one correction against the fragile-object case. Median
+peak depth stays well below the \SI{1.0}{\milli\metre} cutoff in every
+condition, but the median conceals a minority of participants who compressed
+the foam much harder than the rest: the cutoff was in fact reached in 37 of 330
+deformable trials, \SI{11}{\percent}, and all 37 come from just five
+participants, whose peak depths sit near the cutoff in all three conditions. The between-participant
+spread in how hard the same nominal task is performed is large, and
+Section~\ref{sec:limitations} returns to it. Because $d_{\text{sat}}$ for this
+object class is \SI{0.6}{\milli\metre}, well below the cutoff, the display
+did reach full intensity on deformable trials, which is the reverse of the
+fragile case.
 
 \section{LRA Versus EM}
 \label{sec:lra-vs-em}
@@ -1405,31 +1614,77 @@ Because the two haptic conditions share an identical sensor, intensity
 calculation and control mapping, a direct paired comparison between them
 isolates the actuator as the only variable. No such comparison reaches
 significance. On fragile objects the paired Wilcoxon tests give $p = 0.66$ for
-peak deformation volume, $p = 0.49$ for excess deformation, $p = 0.23$ for grip
-adjustments and $p = 0.55$ for peak indentation depth. Survival does not
-separate them either, whether tested as a rate ($p = 0.69$) or with an exact
-McNemar test on the binary outcome, where five participants survived more often
-under the LRA and one under the EM ($p = 0.22$).
+peak deformation volume, $p = 0.49$ for the post-plateau force rise,
+$p = 0.23$ for grip adjustments, $p = 0.55$ for peak indentation depth and
+$p = 0.50$ for saturation rate. Survival does not separate them either, whether
+tested as a rate ($p = 0.69$) or with an exact McNemar test on the binary
+outcome, where five participants survived more often under the LRA and one
+under the EM ($p = 0.22$).
 
 A failure to find a difference is not the same claim as a demonstrated
-equivalence, and the two are worth separating explicitly. Paired two one-sided
-tests were run against a margin of half the pooled standard deviation of each
-metric. Only excess deformation on fragile objects passes, and only narrowly,
-with $p = 0.046$. Peak deformation volume ($p = 0.066$), peak indentation depth
-($p = 0.13$) and grip adjustments ($p = 0.31$) all fail. For those three
-metrics the study is therefore inconclusive in both directions, since it can
-neither detect a difference nor rule one out at the chosen margin. The honest
-summary is that this study does not distinguish the two actuators, and for most
-metrics it is not powered to declare them equivalent either.
+equivalence, so paired two one-sided tests were run against a margin of half
+the pooled standard deviation of each metric. Only the post-plateau force rise
+on fragile objects passes, and only narrowly, at $p = 0.046$, while peak
+deformation volume ($p = 0.066$), peak indentation depth ($p = 0.13$) and grip
+adjustments ($p = 0.31$) all fail, leaving the study inconclusive in both
+directions for those three metrics.
+
+That single pass should carry very little weight, because expressing the margin
+as a fraction of the pooled standard deviation makes it wide in the units the
+metric is actually reported in. Table~\ref{tab:tost} gives both. For the
+post-plateau force rise the margin is 1483~a.u.\ against medians of 170 and
+260, and for grip adjustments it is 4.3 adjustments against medians of 5 and 2,
+so the tests ask whether the two actuators differ by less than several times the
+typical value of the quantity itself. A metric with a long right tail inflates
+the pooled standard deviation and thereby widens its own equivalence margin,
+which is precisely the shape of these distributions. The honest reading is that
+the study rules out a difference between the two actuators on none of the four
+metrics, and that a defensible equivalence claim would need a margin fixed in
+advance from a smallest difference of practical interest rather than derived
+from the data being tested. A second caveat points the same way: the two
+one-sided tests are $t$-tests, and so rest on a normality assumption that
+Section~\ref{sec:analysis-procedures} deliberately avoids everywhere else.
+
+\begin{table}[ht]
+    \centering
+    \caption{Equivalence margins for the Section~\ref{sec:lra-vs-em} tests,
+        fragile objects, in each metric's own units alongside the two condition
+        medians they should be compared against.}
+    \label{tab:tost}
+    \begin{tabular}{@{}lrrrr@{}}
+        \toprule
+        Metric                         & Margin & LRA   & EM    & $p$   \\
+        \midrule
+        Peak deformation volume (a.u.) & 3918   & 12290 & 15980 & 0.066 \\
+        Post-plateau force rise (a.u.) & 1483   & 170   & 260   & 0.046 \\
+        Grip adjustments (\#)          & 4.3    & 5     & 2     & 0.31  \\
+        Peak indentation depth (mm)    & 0.054  & 0.95  & 0.98  & 0.13  \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
 \section{Time-Series Behaviour}
 \label{sec:timeseries}
 
-Representative single-trial traces for each condition illustrate the behaviour
-the excess-deformation metric is designed to capture. Under visual-only
-feedback, deformation volume continues to rise after indentation depth has
-plateaued, whereas under both haptic conditions it tends to level off shortly
-after the plateau.
+Figure~\ref{fig:timeseries} shows one fragile-object trial per condition,
+selected as the trial whose peak force proxy lies closest to that condition's
+median, so that the traces are typical rather than chosen to illustrate a
+point. Each panel plots contact depth and the force proxy against time, with a
+dashed line marking the plateau, the first sample at which depth reaches
+\SI{95}{\percent} of its trial maximum.
+
+What the traces show is the shape of a grasp rather than a difference between
+conditions. In all three the two series rise together, and depth then holds
+near the safety cutoff while force fluctuates around its own maximum until the
+object is released; the marked divergence between depth and force after the
+plateau that would make the post-plateau rise a vivid quantity is not visible
+in the typical trial of any condition. This is consistent with
+Section~\ref{sec:metrics}: the difference between conditions on that metric is
+carried by how often a trial is driven to the cutoff at all, which is a
+property of the distribution across trials rather than something a single
+trace can display. The figure is included to document what a trial looks like,
+and the argument about over-squeezing rests on the saturation rate in
+Table~\ref{tab:quant} rather than on these traces.
 
 \begin{figure}[ht]
     \centering
@@ -1448,8 +1703,12 @@ after the plateau.
         \includegraphics[width=\textwidth]{section_5_5_timeseries_em.png}
         \caption{EM}
     \end{subfigure}
-    \caption{Representative single-trial traces of indentation depth and
-        deformation volume against time, one per feedback condition.}
+    \caption{Representative single fragile-object trials, one per feedback
+        condition, each being the trial whose peak force proxy is nearest that
+        condition's median. Blue is contact depth on the left axis and red the
+        force proxy on the right; the dashed line marks the plateau. Each panel
+        is cropped to the grasp itself, with a short margin of open-gripper time
+        either side.}
     \label{fig:timeseries}
 \end{figure}
 
@@ -1487,30 +1746,93 @@ median rises from 1 out of 5 under visual-only feedback to 3.5 under the LRA
 and 3 under the EM, $\chi^2(2) = 30.66$, $p < 0.001$, with both haptic
 conditions differing from visual-only at $p < 0.001$ after correction. Contact
 detection and grasp confidence follow the same pattern. The two effort items do
-not reach significance. No item separates the LRA from the EM, with the
+not reach significance. No individual item separates the LRA from the EM, with the
 smallest such comparison reaching only $p = 0.13$.
 
 The forced-choice questions are more decisive than any rating. Asked which
 condition gave the best sense of contact and grasp state, 16 of 22 participants
-chose the LRA and 6 chose the EM, with none choosing visual-only feedback
-($\chi^2 = 17.82$, $p < 0.001$). Asked which condition they preferred overall,
-17 chose the LRA, 4 the EM, and 1 visual-only feedback ($\chi^2 = 19.73$,
-$p < 0.001$). Twenty-one of 22 participants therefore preferred some form of
-haptic feedback to none, and a clear majority named the LRA, even though no
-individual rating item and no objective metric distinguishes it from the EM.
+chose the LRA and 6 chose the EM, with none choosing visual-only feedback.
+Asked which condition they preferred overall, 17 chose the LRA, 4 the EM, and 1
+visual-only feedback. A chi-square test of uniformity across the three options
+rejects strongly in both cases ($\chi^2 = 17.82$ and $\chi^2 = 19.73$, both
+$p < 0.001$), but that test answers only whether the three options were chosen
+equally often, and it is driven almost entirely by the near-absence of votes for
+visual-only feedback. The comparison of interest is between the two actuators,
+which is a binomial question over the haptic votes alone: 17 against 4 for
+overall preference is significant ($p = 0.007$), whereas 16 against 6 for the
+sense of contact is not quite ($p = 0.053$).
+
+Two things therefore hold at once. Twenty-one of 22 participants preferred some
+form of haptic feedback to none, and participants preferred the LRA to the EM
+by a margin that is statistically reliable for overall preference, even though
+no individual rating item and no objective metric distinguishes the two.
+Section~\ref{sec:subjective-objective} takes up that divergence.
 
 \section{Sensor-to-Actuator Latency}
 \label{sec:latency}
 
-\todo{Outstanding. Trial logs are timestamped at the \SI{15}{\hertz} haptic
-    loop rate, which bounds how often a new intensity can reach the actuator but
-    does not establish end-to-end latency from tactile frame capture to physical
-    actuator motion. A bench measurement is required, combining a frame-capture
-    timestamp, a serial packet timestamp, and either an oscilloscope or a
-    photodiode trigger on the actuator itself, reported once per actuator type as
-    a latency distribution. Participant comments in
-    Appendix~\ref{app:questionnaire} repeatedly mention perceived delay, so this
-    measurement is worth making.}
+Trial logs are timestamped at the \SI{15}{\hertz} haptic loop rate, which
+bounds how often a new intensity can reach the actuator but does not by itself
+establish end-to-end latency from tactile frame capture to physical actuator
+motion. The two software-measurable stages of that path were benchmarked
+separately on the bench (\texttt{bench/measure\_latency.py}, $n=200$ per
+stage), following the same median/IQR/p95 convention used throughout this
+chapter.
+
+\begin{table}[ht]
+    \centering
+    \caption{Bench-measured latency, in milliseconds. \emph{Sense} times one
+        call of the real tactile pipeline (frame capture through to the
+        streamed intensity value). \emph{Link} times a full host-to-board
+        serial round trip via an echo baseline and against the two EM drive
+        commands; the \emph{dispatch} rows subtract the baseline median from
+        each, isolating the marginal cost of the write itself.}
+    \label{tab:latency}
+    \begin{tabular}{@{}lrrrr@{}}
+        \toprule
+        Stage                         & Median   & IQR             & p95    \\
+        \midrule
+        Sense (frame $\to$ intensity) & 28.234   & 27.585--29.196  & 32.739 \\
+        \midrule
+        Link, echo baseline           & 0.385    & 0.283--0.497    & 0.727  \\
+        Link, engage round trip       & 0.305    & 0.248--0.440    & 0.628  \\
+        Link, disengage round trip    & 0.402    & 0.289--0.477    & 0.795  \\
+        Link, engage dispatch         & $-$0.080 & $-$0.137--0.055 & 0.243  \\
+        Link, disengage dispatch      & 0.017    & $-$0.096--0.092 & 0.410  \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Two results follow. First, the link stage is negligible next to the sense
+stage: a full serial round trip takes under half a millisecond, roughly two
+orders of magnitude below both the \SI{28}{\milli\second} sense time and the
+\SI{67}{\milli\second} tick period computed in Section~\ref{sec:driver}.
+Second, the dispatch rows, which give the marginal cost of writing to the
+drive pins over and above a bare echo, sit at zero within measurement error.
+The engage dispatch median is slightly negative, and both interquartile ranges
+span zero. At this timescale the true dispatch cost, if it differs from zero at
+all, is smaller than the jitter already present in USB serial round trips on
+this host, so the measurement rules out a link-stage cost of any consequence
+without resolving one precisely.
+
+The disengage figures time a serial round trip only, not an actuation.
+Section~\ref{subsec:em-drive} establishes that the firmware's disengage pulse
+deasserts the driver's enable line rather than reversing current, so no coil
+motion follows it. That row therefore measures protocol overhead and says
+nothing about retraction speed, since there is no retraction to time.
+
+Summing the two measured stages gives roughly \SI{28.5}{\milli\second} from
+frame capture to coil-energised, well inside the \SI{67}{\milli\second} tick
+budget. This is a lower bound rather than the end-to-end figure: the final
+stage, from current reaching the coil to the pin moving the skin, was not
+captured. Closing that gap needs an oscilloscope or microphone at the coil,
+which \texttt{bench/board\_latency\_probe.py} supports but the study's
+schedule did not allow. Since the measured stages consume under half the tick
+period, the unmeasured stage would have to be unusually slow for per-stage
+latency, rather than the sampling interval itself, to dominate the delay
+several participants reported (Appendix~\ref{app:questionnaire}). That is an
+inference from the stages that could be measured, not a fact about the one
+that could not.
 
 % =====================================================================
 \chapter{Discussion}
@@ -1522,33 +1844,40 @@ individual rating item and no objective metric distinguishes it from the EM.
 
 The results separate into a strong effect and a weak one.
 
-The strong effect is the presence of tactile feedback. For fragile objects,
-both haptic conditions raised survival by 16 to 19 percentage points over
-visual-only feedback, and that improvement is statistically reliable at the
-per-participant rate level for both actuators. Grip adjustments after the
-plateau also fell reliably, though for the EM condition only. The mechanism is
-visible in the time-series traces. Under visual-only feedback the operator has
-no signal indicating when the useful part of the grasp is complete and
-continues to squeeze after contact is fully established, whereas the haptic
-conditions supply exactly that signal.
+The strong effect is the presence of tactile feedback. For fragile objects both
+haptic conditions raised survival by 16 to 19 percentage points over
+visual-only feedback, an improvement that is statistically reliable at the
+per-participant rate level for both actuators and that survives adjustment for
+the practice effect the fixed condition order introduces
+(Table~\ref{tab:gee}). Grip adjustments after the plateau also fell reliably,
+though for the EM condition only, and the proportion of trials squeezed hard
+enough to stop the gripper closing fell under both.
 
-The metric that measures this most directly, excess deformation, shows the
-largest descriptive change of any metric in the study, falling roughly ninefold
-under the LRA. It is worth being careful about what that supports. The omnibus
-test on excess deformation does not reach significance at this sample size, so
-the reduction is a strong descriptive pattern rather than a confirmed effect.
-What carries the argument is that the benefit appears in survival, which is the
-outcome that actually matters and which is significant, rather than in the
-force proxy alone.
+The proposed mechanism is that an operator working from vision alone has no
+signal telling them when the useful part of a grasp is complete, and therefore
+keeps squeezing after contact is fully established, whereas the haptic
+conditions supply exactly that signal. The saturation rate is the measure that
+speaks to this most directly, since reaching the depth cutoff means loading an
+object well past the point at which contact was established, and it falls from
+\SI{72}{\percent} of visual-only trials to \SI{47}{\percent} and
+\SI{53}{\percent} under the LRA and EM respectively. The post-plateau force
+rise moves in the same direction and by a larger descriptive margin, falling
+roughly ninefold under the LRA, but neither metric clears a corrected pairwise
+threshold, so both should be read as consistent with the proposed mechanism
+rather than as establishing it. What carries the argument is that the benefit
+appears in survival, the outcome that actually matters, and not in the force
+proxy alone.
 
-The weak effect is actuator type. The LRA produced the lower excess deformation
-and was the more frequently preferred condition, while the EM produced fewer
-grip adjustments. No comparison between them reaches significance on any
-metric, and no questionnaire item distinguishes them. Equivalence testing does
-not rescue the null either, since only one metric passes at the chosen margin
-and the rest are inconclusive in both directions. This study establishes that
-feedback helps, does not establish which actuator helps more, and is not
-powered to declare the two interchangeable.
+The weak effect is actuator type. The LRA produced the lower post-plateau force
+rise and was the more frequently preferred condition, by a margin that is
+reliable on overall preference, while the EM produced fewer grip adjustments.
+No objective comparison between them reaches significance on any metric, and no
+individual questionnaire item distinguishes them. Equivalence testing does not
+rescue the null either: only one metric passes at the chosen margin, that
+margin is several times the size of the quantity being compared
+(Table~\ref{tab:tost}), and the rest are inconclusive in both directions. This
+study therefore establishes that feedback helps, does not establish which
+actuator helps more, and is not powered to declare the two interchangeable.
 
 The absence of any effect on deformable objects is not a failure of the system
 but a property of the task. A foam cube imposes no penalty for over-squeezing,
@@ -1561,20 +1890,39 @@ threshold rather than distributed across manipulation generally.
 \label{sec:why-no-separation}
 
 Section~\ref{sec:existing-approaches} set out a mechanistic reason to expect
-the two actuators to differ. An LRA vibrates near \SI{200}{\hertz} and so works
+the two actuators to differ: an LRA vibrates near \SI{200}{\hertz} and so works
 through the fast FA-II channel, whereas a pin that presses into the fingerpad
 and stays there delivers sustained pressure, which only the slowly adapting
-receptors register. That prediction was not borne out, and three features of
-the implementation explain why.
+receptors register. That prediction was not borne out, and four features of the
+implementation explain why. Taken together they amount to a single conclusion,
+namely that the comparison the study set out to make was substantially narrowed
+before any participant sat down, so the null result reported in
+Section~\ref{sec:lra-vs-em} is better read as a fact about this implementation
+than as a fact about the two actuator types.
 
 The first is that the sustained channel was never used. To render a graded
 intensity rather than a single on-off contact, the driver pulses the pin
-instead of holding it extended (Section~\ref{subsec:em-drive}). Both conditions
-therefore delivered a gated waveform, differing in temporal granularity rather
-than in kind, and the one property that would have separated them mechanically
-was left on the table.
+instead of holding it extended (Section~\ref{subsec:em-drive}). That was the
+design intent, but the same section shows the deployed system could not have
+held the pin in any case, since the firmware never commands the driver's
+reverse direction and the pin returns passively once a pulse ends. Both
+conditions therefore delivered a gated waveform, so the one property that would
+have separated them mechanically was lost twice over, once by design and once
+to a defect that went unnoticed until after the study had run.
 
-The second is that the intended rendering contrast was narrowed from the other
+The second, and the most direct, is that the two waveforms ended up in the same
+perceptual channel. The LRA carrier runs at \SI{200}{\hertz}, and within a
+burst the EM pin is struck at roughly \SI{111}{\hertz}
+(Section~\ref{subsec:em-drive}); both frequencies fall inside the FA-II band
+that Section~\ref{subsec:lit-lra} identifies as the one a vibrotactile display
+addresses. The contrast the study was built to test was between a display
+working through the fast receptors and one working through the slow, but what
+was actually compared were two vibratory stimuli roughly an octave apart,
+differing in the rate at which bursts of them arrived. On that reading the null
+result is close to what should have been expected, and it says little about the
+transduction methods themselves.
+
+The third is that the intended rendering contrast was narrowed from the other
 side as well. The LRA is driven by envelope modulation of a fixed-amplitude
 carrier rather than by true amplitude modulation, because the microcontroller
 cannot generate the phase-locked antiphase pair that amplitude modulation would
@@ -1582,22 +1930,27 @@ need (Section~\ref{subsec:lra-drive}). Both actuators are therefore switched
 rather than modulated, which is closer to a comparison of two pulse trains than
 of a continuous signal against a discrete one.
 
-The third is that the display saturates well before the operator stops
-squeezing. The mapping of Equation~\eqref{eq:mapping} reaches full intensity at
-\SI{1.0}{\milli\metre} of indentation, and both actuators carry intensity
-coarsely, since roughly a fifth of the range is needed before two levels can be
-told apart \cite{choi2013}. Whatever differences the two actuators have in
-rendering fidelity are compressed into a signal with few distinguishable
-levels, which limits how much the choice of actuator could matter even in
-principle.
+The fourth is that the intensity signal carried very little information. Both
+actuators render intensity coarsely, since roughly a fifth of the range is
+needed before two levels can be told apart \cite{choi2013}, and on fragile
+objects that already short scale was cut in half again: as
+Section~\ref{subsec:mapping} explains, the depth cutoff stops the gripper
+closing at \SI{1.0}{\milli\metre} while saturation would need
+\SI{2.0}{\milli\metre}, so the measured intensity never exceeded $u = 0.49$ in
+any of the 330 fragile trials. Participants thus experienced perhaps two or
+three distinguishable levels on the object class that produced every headline
+result. Whatever differences the two actuators have in rendering fidelity were
+compressed into a signal with almost no room to express them, which limits how
+much the choice of actuator could have mattered even in principle.
 
 A participant comment states the untested hypothesis more directly than the
-data can. One wrote that the vibration motor felt more reactive for detecting
-contact, while the pin might be better if the goal were to hold and apply
-sustained pressure. That is close to the division of labour between fast and
-slow receptors described in Section~\ref{sec:role-of-touch}, and it suggests
-the comparison this thesis set out to make is still worth making with a driver
-that holds the pin rather than pulsing it.
+data can, one participant writing that the vibration motor felt more reactive
+for detecting contact while the pin might be better if the goal were to hold
+and apply sustained pressure. That is close to the division of labour between
+fast and slow receptors described in Section~\ref{sec:role-of-touch}, and it
+suggests the comparison this thesis set out to make is still worth making, with
+a driver that holds the pin rather than pulsing it and an intensity mapping that
+uses its full range.
 
 \section{The Gap Between What Participants Felt and What They Did}
 \label{sec:subjective-objective}
@@ -1609,11 +1962,11 @@ of 5 to 3.5 under the LRA. In the forced-choice questions, 21 of 22
 participants preferred some form of haptic feedback and 17 named the LRA. Yet
 no objective metric distinguishes the LRA from the EM at all.
 
-Two readings are available and the data do not decide between them. The first
-is that the preference tracks something real that the four metrics do not
-capture, such as how promptly the display responds or how confident the
-operator feels while working. The second is that the preference tracks
-something incidental to the haptic channel.
+Two readings are available and the data do not decide between them: either the
+preference tracks something real that the objective metrics do not capture,
+such as how promptly the display responds or how confident the operator feels
+while working, or it tracks something incidental to the haptic channel
+altogether.
 
 The free-text comments favour the second reading more than the first. Three
 participants independently reported that finger tracking degraded while the EM
@@ -1674,10 +2027,18 @@ Several features of the study bound how strongly these conclusions can be
 stated.
 
 \paragraph{Condition order.} Conditions were presented in a fixed order rather
-than counterbalanced across participants. Practice effects across the session
-and fatigue toward its end are therefore confounded with condition, and a
-difference attributed to an actuator may in part reflect its position in the
-session.
+than counterbalanced across participants, so practice across the session and
+fatigue toward its end are confounded with condition. This bears on both
+research questions rather than only on the actuator comparison. Visual-only
+feedback always came first and shows a clear learning curve within its own
+block, which is a direct threat to the feedback-versus-no-feedback result;
+Section~\ref{sec:results-fragile} addresses it by carrying the within-block
+trial index in the survival model and finds the condition effects essentially
+unchanged, but that is a statistical adjustment rather than a design control,
+and it cannot rule out effects that grow across blocks rather than within them.
+A difference attributed to an actuator may likewise in part reflect its
+position in the session, and here no adjustment is possible, since the LRA and
+EM blocks never occupied the same position.
 
 \paragraph{The two actuators differ in more than one way.} They differ in
 transduction mechanism, but also in where they sit. The EM pin must press on
@@ -1690,24 +2051,47 @@ more sensitive site, rather than a better sensation.
 
 \paragraph{Rendering narrows the intended contrast.} Both conditions set
 intensity by gating a waveform on and off, for the reasons given in
-Section~\ref{sec:why-no-separation}, so they differ chiefly in temporal
-granularity. A dedicated resonant-driver IC capable of amplitude modulation on
-the LRA side, and a latch-and-hold drive on the EM side, would sharpen the
-contrast the study was built to test.
+Section~\ref{sec:why-no-separation}, and both waveforms fall in the same
+FA-II band, so they differ chiefly in the rate at which bursts arrive. A
+dedicated resonant-driver IC capable of amplitude modulation on the LRA side,
+and a latch-and-hold drive on the EM side, would sharpen the contrast the study
+was built to test. The EM half of that is expected to be a firmware change
+rather than a hardware one, since the driver appears to support bidirectional
+drive that the deployed control scheme never commands, though
+Section~\ref{subsec:em-drive} notes that this diagnosis is not yet confirmed
+at the coil.
+
+\paragraph{The intensity mapping did not use its range.} The saturation depth
+of Equation~\eqref{eq:mapping} is set per object class, and for the fragile
+object it sits above the depth at which the gripper stops closing, so the
+display never rose above $u = 0.49$ in any fragile trial
+(Section~\ref{sec:metrics}). Every fragile-object result in this thesis was
+therefore obtained with an actuator driven over half its intended range,
+against a perceptual scale that carries only a handful of distinguishable
+levels to begin with. This weakens the actuator comparison in particular, since
+two displays have least opportunity to differ where both are confined to their
+lower range, and it is the single change most likely to alter the answer to the
+second research question. It does not threaten the feedback-versus-no-feedback
+comparison, where the relevant contrast is between some signal and none.
+
+\paragraph{Object classes are not on a common intensity scale.} Because the
+saturation depth differs between the two object classes, a given intensity does
+not correspond to the same contact depth in the fragile and deformable
+conditions. The comparison between conditions within an object class, which is
+what every test in Chapter~\ref{ch:results} performs, is unaffected. No
+comparison of intensity or of force across object classes is made, and none
+would be valid without rescaling.
 
 \paragraph{The EM actuator's motion may be orientation-dependent.} The
 single-direction behaviour reported in Section~\ref{subsec:em-drive} was
-verified with the hand in its normal wearing orientation, palm and fingertips
-facing down. A follow-up check with the hand inverted (palm up) found no
-perceptible movement in either direction, which falls below the same script's
-own threshold for a conclusive result and was not repeated, so it should be
-read as suggestive rather than confirmed. It is nonetheless consistent with
-gravity, not magnetic force alone, contributing to the motion felt in the
-normal orientation, which would make the actuator's already limited behaviour
-further dependent on how the hand is held. The study itself is unaffected,
-since participants wore the device in a single, consistent, palm-down
-orientation throughout, but the mechanism should not be assumed to generalise
-to other mountings without checking.
+verified with the hand palm-down, its normal wearing orientation. A follow-up
+check with the hand inverted found no perceptible movement in either
+direction. That result falls below the test's own threshold for a conclusive
+trial and was not repeated, so it is suggestive rather than confirmed, but it
+is consistent with gravity contributing to the motion felt palm-down. The
+study is unaffected, since every participant wore the device palm-down, but
+the mechanism should not be assumed to generalise to other mountings without
+checking.
 
 \paragraph{Off-resonance carrier.} The LRA carrier was set empirically to
 \SI{200}{\hertz} rather than tuned to the measured resonance of the specific
@@ -1737,15 +2121,37 @@ $N=22$ the study can detect the survival effect but is underpowered for the
 smaller actuator-versus-actuator comparison it was designed around.
 
 \paragraph{Uncalibrated force.} Grip force is inferred from deformation volume
-in arbitrary units, not measured in newtons, and indentation depth rests on a
-single-ball calibration never checked against an independent gauge, so its
-millimetre scale carries unquantified error.
+in arbitrary units rather than measured in newtons, and indentation depth rests
+on a single-ball calibration never checked against an independent gauge, so its
+millimetre scale carries unquantified error. The gripper's own motor-current
+register, which would have provided an independent if coarse check, returned
+zero on this unit regardless of contact (Section~\ref{sec:gripper}), leaving
+the tactile sensors as the sole source of force information.
+
+\paragraph{The haptic signal was not recorded.} Trial logs carry contact depth
+and the force proxy but not the intensity actually streamed to the driver
+board, so the delivered signal can only be reconstructed through
+Equation~\eqref{eq:mapping} rather than verified against a record of what the
+firmware received. A dropped packet, a watchdog timeout or a malformed line
+would leave no trace in the data.
+
+\paragraph{Between-participant variation in how the task was performed.} The
+same nominal task produced very different behaviour across participants: on
+deformable objects, peak indentation depth ranges from near zero to the safety
+cutoff, and five of the 22 participants reached the cutoff routinely on an
+object the other seventeen barely compressed (Section~\ref{sec:results-deformable}).
+The within-subjects design means this does not bias the comparison between
+conditions, but it inflates the variance every test must work against and is
+one reason several descriptively large differences fail to reach significance.
 
 \paragraph{Tracking and latency.} Hand tracking is 2D and uncalibrated, and the
-end-to-end sensor-to-actuator latency still requires the bench measurement
-described in Section~\ref{sec:latency}. Several participants reported
-perceiving a delay, which makes that measurement worth having rather than
-merely tidy.
+end-to-end sensor-to-actuator latency is only partly closed by the bench
+measurement in Section~\ref{sec:latency}: the sense and link stages account for
+roughly \SI{28.5}{\milli\second}, well under the tick period, but the
+coil-to-skin stage was never measured, so the true figure could be larger.
+Several participants reported perceiving a delay, which the sampling interval
+alone would explain, though the unmeasured stage cannot be ruled out without
+instrumenting it.
 
 \section{Energy-Based Modelling of the Loop}
 \label{sec:phs}
@@ -1787,32 +2193,37 @@ outcomes for fragile and deformable objects. For fragile objects it does.
 Object survival rose from \SI{62}{\percent} under visual-only feedback to
 \SI{81}{\percent} with the LRA and \SI{78}{\percent} with the EM, and that
 improvement is statistically reliable for both actuators. Grip adjustments made
-after the grasp was complete fell reliably under the EM. Excess deformation,
-the force applied after the display had saturated, fell by close to an order of
-magnitude, although that reduction does not reach significance at this sample
-size. For deformable objects the answer is no, and that null result is
-informative rather than disappointing, since an object with no failure
-threshold gives a channel whose value lies in discouraging over-squeezing
-nothing to act on. Participants agreed with the objective picture, with 21 of
-22 preferring some form of haptic feedback to none.
+after the grasp was complete fell reliably under the EM, and the proportion of
+trials squeezed hard enough to stop the gripper closing fell from
+\SI{72}{\percent} to \SI{47}{\percent} and \SI{53}{\percent} under the LRA
+and EM respectively. The survival improvement survives adjustment for the
+practice effect the fixed condition order introduces. For deformable objects
+the answer is no, and that null result is informative rather than
+disappointing, since an object with no failure threshold gives a channel whose
+value lies in discouraging over-squeezing nothing to act on. Participants
+agreed with the objective picture, 21 of 22 preferring some form of haptic
+feedback to none.
 
 The second asked whether the type of actuator matters when the sensing and
 intensity mapping are held identical. On this evidence it does not, but the
-finding is weaker than it looks. No objective metric and no questionnaire item
-separates the two actuators, yet 17 of 22 participants named the LRA as their
-overall preference. Equivalence testing fails to establish that the two are
-interchangeable for three of four metrics, so the result is a genuine absence
-of evidence rather than evidence of absence. Section~\ref{sec:why-no-separation}
-argues that the implementation narrowed the intended contrast, because the pin
-was pulsed rather than held and the LRA envelope was gated rather than
-amplitude-modulated, leaving both actuators delivering switched waveforms that
-differ mainly in temporal granularity.
+finding is considerably weaker than it looks. No objective metric and no
+individual questionnaire item separates the two actuators, yet 17 of 22
+participants named the LRA as their overall preference, a margin that is itself
+statistically reliable. Equivalence testing fails to establish that the two are
+interchangeable on any metric once the margins are read in the units the
+metrics are reported in, so the result is an absence of evidence rather than
+evidence of absence. Section~\ref{sec:why-no-separation} argues that the
+implementation narrowed the intended contrast to the point where little was
+left to detect: the pin was pulsed rather than held, the LRA envelope was gated
+rather than amplitude-modulated, both waveforms landed in the same FA-II
+receptor band, and on fragile objects the intensity mapping never rose above
+half its range. The honest conclusion is that this study did not so much answer
+the second question as fail to put it properly to the test.
 
 The overall conclusion is therefore that the presence of tactile feedback
-matters and, on this evidence and at this sample size, the choice between these
-two actuators does not demonstrably matter. The second half of that sentence
-should be read as a statement about this experiment rather than about the
-actuators.
+matters, while the choice between these two actuators does not demonstrably
+matter on this evidence, at this sample size, and under an implementation that
+gave the two actuators far less room to differ than the design intended.
 
 Four pieces of work follow directly, in rough order of how much they would
 change the answer.
@@ -1821,16 +2232,34 @@ change the answer.
     \item \textbf{Sharpen the actuator contrast.} Drive the pin in a
           latch-and-hold mode so that the sustained-pressure channel is
           actually exercised, and drive the LRA with a resonance-tuned
-          amplitude-modulated stage. Without this the comparison remains
-          between two pulse trains.
+          amplitude-modulated stage; without both, the comparison remains
+          between two pulse trains in the same receptor band. The pin half is
+          expected to need only a firmware correction, since the driver
+          appears to support bidirectional drive that the deployed control
+          scheme never commands, but this should be confirmed with an
+          oscilloscope across the coil first (Section~\ref{subsec:em-drive}),
+          and whether the actuator then latches mechanically remains to be
+          tested.
+    \item \textbf{Let the display use its range.} Set the saturation depth of
+          Equation~\eqref{eq:mapping} below the depth at which the gripper
+          stops closing, for every object class, so that the full intensity
+          scale is reachable. On fragile objects the deployed configuration
+          capped intensity near $u = 0.5$
+          (Section~\ref{subsec:mapping}), which halves an already coarse
+          perceptual scale and is the cheapest of these four changes to make.
     \item \textbf{Remove the confounds.} Counterbalance condition order, match
-          actuator placement on the hand, and calibrate the force proxy in
-          newtons so that grip force is reported in physical units rather than
-          arbitrary ones.
-    \item \textbf{Measure the loop.} The end-to-end sensor-to-actuator latency
-          is still unmeasured, and several participants reported perceiving a
-          delay. A bench measurement would establish whether the perceived lag
-          is real and, if so, where in the chain it accumulates.
+          actuator placement on the hand, calibrate the force proxy in newtons
+          so that grip force is reported in physical units rather than
+          arbitrary ones, and log the streamed haptic intensity alongside the
+          sensor readings so that the delivered signal is recorded rather than
+          reconstructed.
+    \item \textbf{Close the latency measurement.} Section~\ref{sec:latency}
+          times the sense and link stages but not the final one, from coil
+          current to pin motion, which needs an oscilloscope or microphone at
+          the actuator. Until that stage is timed, the reported figure is a
+          lower bound and the delay several participants described cannot be
+          attributed with confidence to the sampling interval rather than to
+          the actuator itself.
     \item \textbf{Use the rest of the signal.} The tactile sensor produces a
           full depth map, of which this study renders a single scalar per
           finger, and the driver already carries five channels of which two
@@ -1868,7 +2297,7 @@ time. Section~C was completed once at the end of the session.
 
 \section*{A. Background and screening}
 
-\begin{enumerate}[label=A\arabic*., leftmargin=*]
+\begin{enumerate}[label=A\arabic*., widest=A10., leftmargin=*]
     \item Participant ID
     \item Name
     \item Age
@@ -1887,7 +2316,7 @@ time. Section~C was completed once at the end of the session.
 Rated on a five-point scale, where 1 is strongly disagree and 5 is strongly
 agree.
 
-\begin{enumerate}[label=B\arabic*., leftmargin=*]
+\begin{enumerate}[label=B\arabic*., widest=B10., leftmargin=*]
     \item It was easy to manipulate objects using the teleoperation system.
     \item I could clearly tell when the robot hand made contact with an object.
     \item I felt confident that the object was securely grasped in the robot
@@ -1903,7 +2332,7 @@ The three response options were labelled in plain language, as No Feedback,
 Vibration Motor, and Pin Actuator, corresponding to the visual-only, LRA, and
 EM conditions respectively.
 
-\begin{enumerate}[label=C\arabic*., leftmargin=*]
+\begin{enumerate}[label=C\arabic*., widest=C10., leftmargin=*]
     \item Which condition gave you the best sense of contact/grasp state?
     \item Which condition did you prefer overall?
     \item Any additional comments or suggestions? (optional)
@@ -1952,7 +2381,7 @@ samples.
 \begin{table}[ht]
     \centering
     \small
-    \caption{Excess deformation (a.u.), fragile objects.}
+    \caption{Post-plateau force rise (a.u.), fragile objects.}
     \label{tab:appB-frag-excess}
     \begin{tabular}{@{}lrrr@{\hspace{2em}}lrrr@{}}
         \toprule
@@ -2074,7 +2503,7 @@ samples.
 \begin{table}[ht]
     \centering
     \small
-    \caption{Excess deformation (a.u.), deformable objects.}
+    \caption{Post-plateau force rise (a.u.), deformable objects.}
     \label{tab:appB-def-excess}
     \begin{tabular}{@{}lrrr@{\hspace{2em}}lrrr@{}}
         \toprule
@@ -2177,7 +2606,9 @@ both channels if no line arrives for \SI{200}{\milli\second}.
         EM     & Engage pulse             & \SI{6}{\milli\second}    \\
         EM     & Release pulse            & \SI{10}{\milli\second}   \\
         EM     & Vibration pulse width    & \SI{4}{\milli\second}    \\
+        EM     & Intra-burst pulse period & \SI{9}{\milli\second}    \\
         EM     & Pulses per burst         & 10                       \\
+        EM     & Burst duration           & \SI{90}{\milli\second}   \\
         EM     & Inter-burst gap at $u=0$ & \SI{400}{\milli\second}  \\
         EM     & Inter-burst gap at $u=1$ & \SI{35}{\milli\second}   \\
         EM     & Channel stagger          & \SI{10}{\milli\second}   \\
@@ -2186,26 +2617,32 @@ both channels if no line arrives for \SI{200}{\milli\second}.
     \end{tabular}
 \end{table}
 
+\section*{Drive timing, worked through}
+
+One pulse of the vibration scheme consists of a \SI{4}{\milli\second} drive
+in each direction, only the first of which moves the actuator
+(Section~\ref{subsec:em-drive}), issued on a \SI{9}{\milli\second} period. A
+burst of ten such pulses therefore occupies about \SI{90}{\milli\second} and
+strikes the pin at roughly \SI{111}{\hertz}, after which the inter-burst gap
+runs. Burst repetition therefore varies from about \SI{2}{\hertz} at the
+no-contact threshold to about \SI{9}{\hertz} at full intensity. The intra-burst
+period is the parameter that fixes the perceived pitch of the EM percept, and
+Section~\ref{sec:why-no-separation} discusses why it matters to the comparison.
+
 \section*{Driver IC}
 
 Each of the driver board's five channels is switched by its own single-channel
-H-bridge motor driver IC (Texas Instruments DRV8838), addressed through a
-phase/enable interface rather than a symmetric push-pull pair. This was
-identified from the board's bill of materials rather than by inspecting the
-physical part, and is the basis for the root-cause discussion in
-Section~\ref{subsec:em-drive}. Per-channel current draw was not independently
-measured on the bench; the manufacturer's datasheet for this part should be
-consulted for its rated output current rather than a figure asserted here.
-The board's schematic and full bill of materials are not reproduced in this
-thesis, since the board was supplied by an external collaborator and its
-design is not the author's to publish.
-
-\section*{Outstanding}
-
-\todo{A bill of materials for the printed fingertip modules of
-    Figure~\ref{fig:actuators} (magnet dimensions and grade, coil wire gauge
-    and turn count or part number, housing material) is still needed and is
-    unrelated to the driver board above.}
+H-bridge motor driver IC, listed on the board's bill of materials as a Texas
+Instruments DRV8838, which is addressed through a phase/enable interface rather
+than a symmetric push-pull pair. The part was identified from that bill of
+materials rather than by inspecting the populated board or probing the coil,
+and Section~\ref{subsec:em-drive} explains both why it is the most likely
+explanation for the observed single-direction behaviour and why it should not
+be treated as a confirmed diagnosis. Per-channel current draw was not measured, so
+the manufacturer's datasheet should be consulted for rated output current
+rather than a figure asserted here. The board's schematic and full bill of
+materials are not reproduced, since the board was supplied by an external
+collaborator and its design is not the author's to publish.
 
 \cleardoublepage
 \chapter*{Acknowledgements}
@@ -2217,7 +2654,6 @@ laboratory's facilities.
 My largest debt is to Yanhou Lai, who guided this thesis from beginning to
 end. He answered a great many questions, thought through problems with me when
 I was stuck, and helped me keep sight of the shape of the project as a whole.
-Little of what follows would have taken its present form without him.
 
 I am also grateful to Fucai Zhu, who helped me get started and supplied much of
 the hardware this system is built from, including components from his own
@@ -2232,5 +2668,118 @@ time, let me strap unfamiliar hardware to their fingers, and broke a fair
 number of plastic eggs on my behalf.
 
 This work was supported by the MEXT Scholarship (university recommendation).
+
+% =====================================================================
+%  SPINE SHEET
+%
+%  The strip below is the spine insert for the bound volume, printed as
+%  the last page of this document. Two things make it cuttable.
+%
+%  \cleardoublepage puts it on a recto, inserting a blank verso before it
+%  if the acknowledgements ended on one, and because nothing follows it
+%  the reverse of its sheet is blank. Cutting the strip out therefore
+%  destroys nothing. Print two-sided as usual; the sheet before it may
+%  come out blank, which is intended.
+%
+%  \spinethickness must match the measured thickness of the finished
+%  bound block. It is set to 12 mm, which suits a volume of this page
+%  count; measure the bound block and set it exactly before printing, or
+%  set it a little over and trim, since a strip printed too narrow
+%  cannot be widened.
+%
+%  The label is set as a single line. It is built with \savebox, which
+%  makes an \hbox and therefore cannot break, so one line is guaranteed
+%  rather than merely likely, and the two guards below stop the build if
+%  it no longer fits the rectangle in either direction. Neither overflow
+%  is reported by LaTeX on its own: an overfull \vbox of this kind is
+%  silent, and an \hbox that is too wide simply prints across the cut
+%  line.
+%
+%  Fitting the whole label on one line is what fixes the font size. At
+%  \spinelength = 240 mm there is 235.7 mm of room inside the rule and
+%  the clearance, and the label measures 230.3 mm at 8.5 pt, so the size
+%  cannot be raised much without either shortening the text or losing
+%  the single line. The separator is a thin space rather than a \quad
+%  for the same reason: the three separators cost about 13 mm at \quad
+%  and about 2 mm here.
+%
+%  The strip is 240 mm rather than the full 297 mm spine height because
+%  this page keeps the departmental margins (top 20 mm, the other three
+%  25 mm), which leaves 252 mm of text height for the strip and the note
+%  above it. Centred on the spine it leaves about 29 mm clear at each
+%  end, which is the usual look for a spine label.
+% =====================================================================
+\newlength{\spinethickness}\setlength{\spinethickness}{12mm}
+\newlength{\spinelength}\setlength{\spinelength}{240mm}
+\newcommand{\spinefontsize}{\fontsize{8.5}{10}\selectfont}
+% Both spaces live inside the separator, and every element below is butted
+% straight against it, because TeX eats the space after a control word: a
+% source space after \thesistitle would vanish while the one after the
+% separator survived, giving a bullet tight on one side and loose on the other.
+\newcommand{\spineseparator}{\;\textbullet\;}
+% -90 makes the text read top-to-bottom, which is what the old spine.tex
+% said it wanted; that file used +90 and so actually read bottom-to-top.
+% Change to 90 if you prefer the other convention.
+\newcommand{\spinerotation}{-90}
+
+\cleardoublepage
+\thispagestyle{empty}
+
+\begin{center}
+    {\footnotesize\itshape
+        Spine insert. Cut along the rectangle; this sheet has a blank
+        reverse.\par}
+
+    \vspace*{\fill}
+
+    % \framebox counts the frame inside the width it is given but adds it
+    % outside the height, so \spinelength is passed whole and only the
+    % label is measured against the reduced width. That makes the printed
+    % rectangle exactly \spinelength by \spinethickness, with \fboxsep of
+    % clearance between the text and the line you cut along.
+    \setlength{\fboxrule}{0.4pt}%
+    \setlength{\fboxsep}{2mm}%
+    \newlength{\spinetextwidth}%
+    \setlength{\spinetextwidth}{\dimexpr\spinelength-2\fboxsep-2\fboxrule\relax}%
+    \newlength{\spinetextheight}%
+    \setlength{\spinetextheight}{\dimexpr\spinethickness-2\fboxsep-2\fboxrule\relax}%
+    % An \hbox, so the label cannot break across lines. The struts give it
+    % the font's full nominal height and depth, so the box the centring
+    % works on matches the ink inside it. setspace's \singlespacing must
+    % not be used here: it leaves roughly a line of phantom depth below
+    % the text, which pushes it off centre.
+    \newsavebox{\spinelabel}%
+    \savebox{\spinelabel}{%
+        \spinefontsize\strut
+        IMAC\spineseparator
+        \thesistitle\spineseparator
+        \graduationdate\spineseparator
+        \authorname\strut
+    }%
+    \ifdim\wd\spinelabel>\spinetextwidth
+        \GenericError{}{Spine label is too long for one line: it measures
+            \the\wd\spinelabel\space but \string\spinelength\space leaves
+            only \the\spinetextwidth. Increase \string\spinelength,
+            reduce \string\spinefontsize, or shorten the label.}{}{}%
+    \fi
+    \ifdim\dimexpr\ht\spinelabel+\dp\spinelabel\relax>\spinetextheight
+        \GenericError{}{Spine label is too tall: the text needs
+            \the\dimexpr\ht\spinelabel+\dp\spinelabel\relax\space but
+            \string\spinethickness\space leaves only
+            \the\spinetextheight. Increase \string\spinethickness\space
+            or reduce \string\spinefontsize.}{}{}%
+    \fi
+    \rotatebox{\spinerotation}{%
+        \framebox[\spinelength][c]{%
+            % Equal glue above and below inside a fixed-height \vbox is what
+            % centres the label across the width of the spine. The \hbox
+            % around \usebox keeps it a vertical item rather than starting a
+            % paragraph at the surrounding \hsize, which would overrun.
+            \vbox to \spinetextheight{\vss\hbox{\usebox{\spinelabel}}\vss}%
+        }%
+    }
+
+    \vspace*{\fill}
+\end{center}
 
 \end{document}

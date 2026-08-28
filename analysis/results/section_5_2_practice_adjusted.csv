@@ -1,0 +1,6 @@
+model,term,coefficient,odds_ratio,p
+adjusted,lra,0.9742,2.6490,0.0003
+adjusted,em,0.8045,2.2355,0.0189
+unadjusted,lra,0.9623,2.6176,0.0003
+unadjusted,em,0.7945,2.2132,0.0175
+adjusted,trial_index,0.1637,1.1779,0.0556

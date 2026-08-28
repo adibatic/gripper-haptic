@@ -173,7 +173,7 @@ def write_likert_friedman(long_df, out_dir):
     """Section 5.6: Friedman across all three conditions for each item, then
     pairwise Wilcoxon signed-rank with Holm correction — same
     complete-cases/zero-variance handling as friedman_and_pairwise()
-    (Section 5.3), applied to the six survey items instead of the four
+    (Sections 5.2 and 5.3), applied to the six survey items instead of the four
     trial metrics. Returns the Holm-corrected p-value per
     (item, "<a>_vs_<b>") pair, for the preprint figure's brackets."""
     holm_by_pair = {}

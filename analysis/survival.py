@@ -18,16 +18,16 @@ from .tests import holm_bonferroni, cochran_q, mcnemar_binary
 
 
 def write_fragile_breakage_summary(trial_df, out_dir):
-    """Section 5.7 (descriptive): raw success/break counts per condition,
+    """Section 5.2 (descriptive): raw success/break counts per condition,
     over all fragile trials with a recorded outcome (untagged trials, which
     predate the y/n prompt or skipped it, are excluded and reported)."""
-    path = os.path.join(out_dir, "section_5_7_fragile_breakage.csv")
+    path = os.path.join(out_dir, "section_5_2_fragile_breakage.csv")
     fragile = trial_df[trial_df["object"] == "fragile"]
     tagged = fragile[fragile["fragile_survived"].notna()]
     n_untagged = len(fragile) - len(tagged)
     if n_untagged > 0:
         print(f"NOTE: {n_untagged} fragile trial(s) have no recorded success/break "
-              f"outcome — excluded from section_5_7_fragile_breakage.csv.")
+              f"outcome — excluded from section_5_2_fragile_breakage.csv.")
     breakage = {}
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
@@ -47,7 +47,7 @@ def write_fragile_breakage_summary(trial_df, out_dir):
 
 
 def mcnemar_fragile_survival(reduced_df):
-    """Section 5.4 (fragile only): exact McNemar test on fragile_survived —
+    """Section 5.2 (fragile only): exact McNemar test on fragile_survived —
     the statistically correct test for paired binary outcomes across two
     conditions (Wilcoxon, used for the continuous metrics, is not
     appropriate for a 0/1 outcome).
@@ -103,9 +103,9 @@ def mcnemar_fragile_survival(reduced_df):
 
 def write_fragile_mcnemar_report(result, out_dir):
     """Writes the McNemar result for fragile_survived (lra vs em) to
-    section_5_4_fragile_mcnemar.csv — a separate file from
+    section_5_2_fragile_mcnemar.csv — a separate file from
     section_5_4_lra_vs_em.csv since the test/statistic differ."""
-    path = os.path.join(out_dir, "section_5_4_fragile_mcnemar.csv")
+    path = os.path.join(out_dir, "section_5_2_fragile_mcnemar.csv")
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["n", "b_lra_survived_only", "c_em_survived_only", "mcnemar_p"])
@@ -117,10 +117,10 @@ def write_fragile_mcnemar_report(result, out_dir):
 
 
 # ---------------------------------------------------------------------------
-# Section 5.7 (inferential) — Fragile survival across ALL THREE conditions
+# Section 5.2 (inferential) — Fragile survival across ALL THREE conditions
 #
-# section_5_7_fragile_breakage.csv (above) reports raw counts only, and the
-# Section 5.4 McNemar tests lra vs em alone. The headline contrast of
+# section_5_2_fragile_breakage.csv (above) reports raw counts only, and the
+# Section 5.2's McNemar test covers lra vs em alone. The headline contrast of
 # the study — vision-only vs haptic breakage — had no significance test, so
 # this block adds one, at two levels:
 #
@@ -257,7 +257,7 @@ def _binary_level_survival(reduced_df):
 
 
 def fragile_survival_across_conditions(trial_df, reduced_df):
-    """Section 5.7 (inferential): test fragile survival across all three
+    """Section 5.2 (inferential): test fragile survival across all three
     conditions — the study's headline contrast, which the count-only
     breakage table and the lra-vs-em McNemar never tested. Runs the
     rate-level test (primary) and the binary majority-vote test
@@ -267,11 +267,11 @@ def fragile_survival_across_conditions(trial_df, reduced_df):
 
 
 def write_fragile_survival_tests_report(result, out_dir):
-    """Writes the Section 5.7 inferential breakage tests to
-    section_5_7_fragile_survival_tests.csv, one row per comparison, with a
+    """Writes the Section 5.2 inferential breakage tests to
+    section_5_2_fragile_survival_tests.csv, one row per comparison, with a
     `level` column separating the rate-level (primary) and binary-level
     (conservative) analyses so both can be read from one table."""
-    path = os.path.join(out_dir, "section_5_7_fragile_survival_tests.csv")
+    path = os.path.join(out_dir, "section_5_2_fragile_survival_tests.csv")
     rate, binary = result["rate"], result["binary"]
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
