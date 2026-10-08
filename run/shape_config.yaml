@@ -1,3 +1,7 @@
+# Adapted from shape_reconstruction/shape_config.yaml in 9DTact
+# (https://github.com/linchangyi1/9DTact), MIT License,
+# Copyright (c) 2026 Changyi Lin.
+#
 # Shared 9DTact sensor config — ONE file for both sensors.
 #
 # sensor_id is NOT set here: it is injected per-side by load_config() in
