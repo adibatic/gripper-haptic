@@ -41,11 +41,8 @@ gripper-haptic/
 ├── thesis/
 │   ├── thesis.tex              # The manuscript
 │   ├── presentation_preprint.tex   # Two-page preprint
-│   ├── presentation_slides.pptx # Generated deck (see Writing & Manuscript)
 │   ├── build_preprint_figs.py  # Draws all six preprint figures (see Writing & Manuscript)
-│   ├── build_slides.py         # Builds the deck from the template
 │   ├── figures/                # Preprint/thesis figures (photos/ holds the fig2 crops)
-│   ├── template/               # deck_template.pptx, the deck's style source
 │   └── references.bib
 ├── src/                    # Vendored, not in the repo — see Setup
 │   ├── 9DTact-main/            # 9DTact tactile sensor source
@@ -530,25 +527,9 @@ data-driven ones from there for `--preprint-figures`.
 
 ### Presentation deck
 
-The presentation is generated, not hand-edited:
-
-```bash
-python thesis/build_slides.py
-```
-
-It reads `thesis/template/deck_template.pptx` — the pristine three-slide
-template that supplies all geometry, palette and type — and writes
-`thesis/presentation_slides.pptx`. Every content slide is two or three short
-sentences and then pictures; the detail behind them lives in the script table in
-`build_slides.py`, which becomes the speaker notes. Body text is one size
-throughout (18 pt), set by `BODY`; only the template's own title slide and the
-picture captions sit outside that rule. Slides that have no photograph yet
-carry a labelled placeholder box saying what belongs there. There are no
-section-divider slides: the slide that opens a section names it in its own
-title, and the contents page points at that slide. Edit the template to restyle the deck and the script table to change what
-it says; do not edit the generated `.pptx` directly, as the next build
-overwrites it. Its figures come from `thesis/figures/`, so regenerate those
-first if the analysis has been rerun.
+The presentation deck is not part of this repository: it uses photographs,
+logos and illustrations owned by others, which may be shown in a talk but not
+redistributed.
 
 ---
 

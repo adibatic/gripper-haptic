@@ -243,3 +243,6 @@ run/hand_landmarker.task
 
 # Cited papers: kept locally, not redistributed (publisher/author copyright)
 thesis/references/
+
+# Presentation deck: contains third-party images, kept locally
+thesis/*.pptx
