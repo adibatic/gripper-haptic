@@ -240,3 +240,6 @@ ESP32_GENERIC_C6-*.bin
 
 # MediaPipe hand tracking model (downloaded separately, see README)
 run/hand_landmarker.task
+
+# Cited papers: kept locally, not redistributed (publisher/author copyright)
+thesis/references/
