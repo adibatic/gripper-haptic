@@ -1,12 +1,90 @@
-# Tactile-Feedback Teleoperation: Grip Force and Grasping Performance Across Haptic Actuator Types for Fragile and Deformable Objects
+# Tactile-Feedback Teleoperation
 
-## Overview
+**Grip Force and Grasping Performance Across Haptic Actuator Types for Fragile and Deformable Objects**
 
-This repository is the source code for a bachelor's thesis investigating grip force and grasping performance across haptic feedback actuator types in robotic gripper teleoperation. A Robotiq 2F-85 Adaptive Gripper is fitted with stress-deformation-based tactile sensors; tactile data is translated and sent to a custom multi-channel actuator platform (ESP32-C6) for real-time stimuli. The study collects quantitative latency metrics and qualitative survey data comparing user experience during delicate object manipulation.
+Bachelor's thesis by Adriel Imaran Santoso, Hashimoto Laboratory, Department of
+Mechanical and Aerospace Engineering, Tohoku University (2026).
 
-The stack supports two haptic feedback methods — LRA vibration motors (PWM) and EM pin actuators (single-direction pulse drive) — selectable from a single script, plus direct Modbus RTU communication with the Robotiq gripper from a host PC.
+<p align="center">
+  <img src="docs/media/teleoperation.gif" width="480"
+       alt="The operator's video feed: hand tracking measures the thumb-index distance that drives the gripper">
+</p>
 
-## Repository Structure
+Teleoperation cuts off the touch signals that tell you how hard you are
+squeezing. This project puts them back: a Robotiq 2F-85 gripper with 9DTact
+vision-based tactile sensors measures how far the object is dented, and a
+wearable actuator on the operator's thumb and index finger turns that into
+vibration in real time. A study with 22 participants then compares vision only
+with two actuator types, linear resonant actuators (LRA) and electromagnetic
+pin actuators (EM), on fragile and deformable objects.
+
+<p align="center"><a href="https://youtu.be/AbCdEfGhIjK"><img src="https://img.youtube.com/vi/AbCdEfGhIjK/hqdefault.jpg" width="480" alt="Full video on YouTube"></a><br><em>Full video (YouTube)</em></p>
+
+## Contents
+
+- [How it works](#how-it-works)
+- [Results](#results)
+- [Repository structure](#repository-structure)
+- [Hardware requirements](#hardware-requirements)
+- [Setup & installation](#setup--installation-one-time)
+- [Experiment](#experiment)
+- [Hardware reference](#hardware-reference)
+- [Writing & manuscript](#writing--manuscript)
+- [Credits](#credits)
+
+## How it works
+
+<p align="center">
+  <img src="thesis/figures/preprint_fig1.png" height="420" alt="System data flow">
+  &nbsp;&nbsp;
+  <img src="thesis/figures/preprint_fig2.png" height="420" alt="Hardware">
+</p>
+<p align="center"><em>Left: the loop. Hand tracking sets the gripper; the sensors' dent depth sets the haptic intensity.<br>
+Right: (a) wearable device, hand-tracking camera and gripper with touch sensors; (b) the LRA and EM actuators.</em></p>
+
+| Part | What it does | Code |
+|---|---|---|
+| Hand tracking | MediaPipe measures the thumb-index distance in the camera image and maps it to a gripper position | `kernel/tracking.py` |
+| Gripper | Robotiq 2F-85, driven over Modbus RTU from the host PC | `kernel/gripper.py` |
+| Touch sensors | Two 9DTact sensors; contact deformation becomes a force proxy (deformation volume) and a haptic intensity from 0 to 1 | `kernel/tactile.py` |
+| Haptic link | Streams the left and right intensity to the ESP32-C6 over USB serial | `kernel/haptic_link.py`, `firmware/stream.py` |
+| Actuators | LRA: PWM carrier whose envelope follows the intensity. EM: short pulses whose gap shrinks as the intensity rises | `firmware/haptic.py` |
+| Experiment | Threads, trial recording and keyboard controls in one script | `run/experiment.py` |
+| Analysis | The statistics, tables and figures of Chapter 5 | `analysis/` |
+
+Both feedback methods are selectable from a single script.
+
+## Results
+
+<p align="center">
+  <img src="thesis/figures/preprint_fig3.png" height="190" alt="Study design">
+  &nbsp;&nbsp;
+  <img src="thesis/figures/preprint_fig4.png" height="190" alt="Objects">
+</p>
+<p align="center"><em>22 participants, 3 conditions, 2 object classes, 660 trials. The fragile object either survives the grasp or breaks; the deformable object has no breaking point.</em></p>
+
+<p align="center">
+  <img src="thesis/figures/preprint_fig5.png" width="640" alt="Fragile-object survival and post-plateau force rise"><br>
+  <img src="thesis/figures/preprint_fig6.png" width="640" alt="Subjective ratings and favourite condition">
+</p>
+
+| Measure | Vision only | LRA | EM |
+|---|---|---|---|
+| Fragile objects that survived the grasp | 62 % | 81 % | 78 % |
+| Fragile trials that reached the depth safety cutoff | 72 % | 47 % | 53 % |
+| Chosen as favourite (of 22) | 1 | 17 | 4 |
+
+- Both kinds of tactile feedback raised fragile-object survival significantly,
+  also after adjusting for the practice effect of the fixed condition order.
+- Deformable objects, which have no clear breaking point, showed no difference
+  between conditions.
+- No survey item and no objective metric told the LRA and the EM apart, so the
+  study shows that tactile feedback helps, but not which actuator helps more.
+
+The full analysis is in Chapter 5 of `thesis/thesis.tex`; every table behind
+these numbers is in `analysis/results/`.
+
+## Repository structure
 
 The project splits into three code roots: `run/` (host scripts you execute),
 `kernel/` (host-side modules those scripts import), and `firmware/` (code that
@@ -33,16 +111,18 @@ gripper-haptic/
 │   └── test_lra.py             # LRA vibration motor (ACDriver) buzz
 ├── analysis/               # Chapter 5 pipeline — `python -m analysis`
 │   └── results/                # Generated tables and figures
+├── bench/                  # Latency and EM-direction bench tools (see bench/README.md)
 ├── data/
 │   ├── calibration/            # Per-sensor calibration (sensor_L / sensor_R)
 │   ├── experiment_logs/        # Trial CSVs, one subfolder per participant (P01/, ...)
 │   └── likert/                 # Likert survey responses
 ├── designs/                # CAD models and 3D print assets
+├── docs/media/             # README animation
 ├── thesis/
 │   ├── thesis.tex              # The manuscript
 │   ├── presentation_preprint.tex   # Two-page preprint
 │   ├── build_preprint_figs.py  # Draws all six preprint figures (see Writing & Manuscript)
-│   ├── figures/                # Preprint/thesis figures (photos/ holds the fig2 crops)
+│   ├── figures/                # Preprint/thesis figures (photos/ holds the fig2 and fig4 crops)
 │   └── references.bib
 ├── src/                    # Vendored, not in the repo — see Setup
 │   ├── 9DTact-main/            # 9DTact tactile sensor source
@@ -53,7 +133,7 @@ gripper-haptic/
 └── README.md
 ```
 
-## Hardware Requirements
+## Hardware requirements
 
 * NVIDIA GPU with driver supporting **CUDA ≥13.0** (check with `nvidia-smi`)
 * Robotiq 2F-85 with USB-RS485 adapter (for communication to the host PC)
@@ -199,7 +279,6 @@ The Robotiq exposes no F/T reading and its `gCU` current register reads 0 mA reg
 ```bash
 python run/setup.py calibrate-force --side left
 python run/setup.py calibrate-force --side right
-cd ..
 ```
 
 It prompts you through the procedure, fits `force_N = a*volume + b` by least squares, prints `a`/`b`/R², and writes a scatter+fit figure and CSV to `data/results/`. Paste the printed constants into `FORCE_CAL_A_LEFT`/`FORCE_CAL_B_LEFT` (and `..._RIGHT`) in `experiment.py`.
@@ -223,11 +302,11 @@ It prompts you through the procedure, fits `force_N = a*volume + b` by least squ
 ```bash
 conda activate hapticf
 ```
-* ESP32-C6 flashed and Robotiq gripper connected (Setup & Installation, Step 4).
+* ESP32-C6 flashed and Robotiq gripper connected (Setup & Installation, Step 5).
 ```bash
 ls /dev/tty{USB,ACM}*   # ttyACM0 = ESP32-C6, ttyUSB0 = Robotiq (via USB-RS485)
 ```
-* Camera indices correctly assigned in `kernel/camera.py` (Setup & Installation, Step 5). 
+* Camera indices correctly assigned in `kernel/camera.py` (Setup & Installation, Step 6).
 
 ```bash
 ls -l /dev/v4l/by-path/
@@ -235,7 +314,7 @@ ffplay /dev/videox   # replace x with index to check (-video-index0)
 ```
 Then set `HAND_CAM_INDEX`, `TACTILE_CAM_L`, and `TACTILE_CAM_R` in `kernel/camera.py` to the corresponding `index0` paths.
 
-* Left and right sensors fully calibrated (Setup & Installation, Step 6).
+* Left and right sensors fully calibrated (Setup & Installation, Step 7).
 
 **1. Start the ESP32 receiver**
 
@@ -354,7 +433,7 @@ The pipeline lives in `analysis/`, one module per concern — see `analysis/__in
 
 ---
 
-## Hardware Reference
+## Hardware reference
 
 ### Gripper Range & Fixture Safety
 
@@ -476,8 +555,8 @@ latexmk -pdfdvi presentation_preprint.tex
 
 `-pdfdvi` builds via latex → dvips → ps2pdf rather than pdflatex, because all
 six preprint figures are named as `.eps` in `\includegraphics` (below) —
-pdflatex cannot rasterise EPS on its own. `thesis.tex`, whose one figure is a
-PNG, still takes plain `latexmk -pdf`.
+pdflatex cannot rasterise EPS on its own. `thesis.tex`, whose figures are all
+PNGs, still takes plain `latexmk -pdf`.
 
 The preprint's `\graphicspath` is `{figures/}{../analysis/results/}`, and LaTeX
 resolves those against your working directory rather than the `.tex` file's
@@ -533,6 +612,17 @@ redistributed.
 
 ---
 
-## Author
+## Credits
 
-**Adriel I. Santoso** Department of Mechanical and Aerospace Engineering, Tohoku University
+This project builds on, but does not include, the following. Each is
+downloaded separately during setup and keeps its own licence.
+
+| Project | Used for | Licence |
+|---|---|---|
+| [9DTact](https://github.com/linchangyi1/9DTact) by Changyi Lin et al. | Tactile sensor design, calibration and shape reconstruction; `run/shape_config.yaml` is adapted from its config | MIT |
+| [pyRobotiqGripper](https://github.com/castetsb/pyRobotiqGripper) by Benoit Castets | Modbus RTU control of the Robotiq 2F-85 | MIT |
+| [MediaPipe](https://github.com/google-ai-edge/mediapipe) hand landmarker by Google | Hand tracking (`run/hand_landmarker.task`) | Apache 2.0 |
+| [MicroPython](https://micropython.org/) | Firmware on the ESP32-C6 | MIT |
+
+The papers cited in the thesis are listed in `thesis/references.bib`; their
+PDFs are not redistributed here.
