@@ -29,6 +29,7 @@ pin actuators (EM), on fragile and deformable objects.
 - [Hardware reference](#hardware-reference)
 - [Writing & manuscript](#writing--manuscript)
 - [Credits](#credits)
+- [Licence](#licence)
 
 ## How it works
 
@@ -126,6 +127,7 @@ gripper-haptic/
 │   ├── 9DTact-main/            # 9DTact tactile sensor source
 │   └── pyRobotiqGripper-master/
 ├── ESP32_GENERIC_C6-<...>.bin  # MicroPython firmware, downloaded during setup
+├── LICENSE
 ├── pyrightconfig.json
 ├── requirements.txt
 └── README.md
@@ -630,3 +632,9 @@ downloaded separately during setup and keeps its own licence.
 
 The papers cited in the thesis are listed in `thesis/references.bib`; their
 PDFs are not redistributed here.
+
+## Licence
+
+The code, data, CAD models, figures and thesis text written for this project
+are under the MIT licence (see `LICENSE`). The projects listed under Credits
+keep their own licences.
