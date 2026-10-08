@@ -6,8 +6,8 @@ Bachelor's thesis by Adriel Imaran Santoso, Hashimoto Laboratory, Department of
 Mechanical and Aerospace Engineering, Tohoku University (2026).
 
 <p align="center">
-  <img src="docs/media/teleoperation.gif" width="480"
-       alt="The operator's video feed: hand tracking measures the thumb-index distance that drives the gripper">
+  <a href="https://youtu.be/_4j8VXk2HE8"><img src="https://img.youtube.com/vi/_4j8VXk2HE8/hqdefault.jpg" width="480" alt="Video of the system on YouTube"></a><br>
+  <em>Watch the video on YouTube</em>
 </p>
 
 Teleoperation cuts off the touch signals that tell you how hard you are
@@ -17,8 +17,6 @@ wearable actuator on the operator's thumb and index finger turns that into
 vibration in real time. A study with 22 participants then compares vision only
 with two actuator types, linear resonant actuators (LRA) and electromagnetic
 pin actuators (EM), on fragile and deformable objects.
-
-<p align="center"><a href="https://youtu.be/AbCdEfGhIjK"><img src="https://img.youtube.com/vi/AbCdEfGhIjK/hqdefault.jpg" width="480" alt="Full video on YouTube"></a><br><em>Full video (YouTube)</em></p>
 
 ## Contents
 
@@ -446,6 +444,12 @@ The pipeline lives in `analysis/`, one module per concern — see `analysis/__in
 ### Hand Tracking (`kernel/tracking.py`)
 
 MediaPipe HandLandmarker maps the thumb-tip/index-tip landmark distance (per frame) to the gripper's target position; `PINCH_DIST_PX` is the pixel distance treated as "fully closed" and `SPREAD_DIST_PX` as "fully open".
+
+<p align="center">
+  <img src="docs/media/teleoperation.gif" width="480"
+       alt="Operator's video feed with the EM actuators on the fingertips: the tracked thumb and index points slip off the fingertips">
+</p>
+<p align="center"><em>With the EM actuators on the fingertips, the tracked thumb and index points slip off the tips (see the note below).</em></p>
 
 > **Actuator occlusion — MediaPipe dropping out during `em`.** The EM actuator body is mounted directly on the thumb and index fingertips, i.e. right over the landmarks (`4`, `8`) this module tracks — unlike the LRA motors, which sit nearer the proximal joints and don't sit on top of those landmarks. With MediaPipe's default confidence thresholds (`0.6`/`0.75`/`0.75`), that partial occlusion was enough to lose hand presence entirely ("No Hand" on the overlay) once the EM hardware was in frame — this is the "mediapipe is off" symptom specific to the em condition (and now em2, which uses the same fingertip-mounted hardware). `create_hand_detector()` now uses lower thresholds (`min_hand_detection_confidence=0.4`, `min_hand_presence_confidence=0.5`, `min_tracking_confidence=0.5`) so tracking survives the occlusion. If detection still drops out on your rig, lower these further — but each notch down trades some jitter/false-positive resistance for detection robustness.
 
