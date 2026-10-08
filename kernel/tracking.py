@@ -108,7 +108,7 @@ def _draw_overlay(frame, target_pos: float, finger_dist: float, state: SharedSta
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
     rec_text = (f"REC ({condition}/{current_object})" if active
-                else f"Not recording — {condition}/{current_object} (press 'r')")
+                else f"Not recording ({condition}/{current_object})")
     rec_color = (0, 0, 255) if active else (180, 180, 180)
     cv2.putText(frame, rec_text, (25, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, rec_color, 1)
 
